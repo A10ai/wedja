@@ -19,6 +19,7 @@ import {
   BarChart3,
   Map,
   Camera,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -40,6 +41,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { label: "Leases", href: "/dashboard/leases", icon: FileText },
   { label: "Contracts", href: "/dashboard/contracts", icon: ScrollText },
   { label: "Revenue", href: "/dashboard/revenue", icon: DollarSign },
+  { label: "% Rent Analysis", href: "/dashboard/percentage-rent", icon: TrendingUp },
   { label: "Footfall", href: "/dashboard/footfall", icon: Users },
   {
     label: "Discrepancies",

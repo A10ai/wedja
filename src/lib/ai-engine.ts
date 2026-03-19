@@ -9,6 +9,7 @@ import { getMarketingOverview } from "./marketing-engine";
 import { getSocialOverview } from "./social-engine";
 import { getLearningStats, getLearnedPatterns } from "./learning-engine";
 import { getCCTVDashboardData, getStoreConversion, getDeadZones, getDemographics, getParkingStatus, getSecurityAlerts, getQueueStatus } from "./cctv-engine";
+import { calculatePercentageRent, getInflationHedgeAnalysis } from "./percentage-rent-engine";
 
 // ============================================================
 // Wedja AI Engine — The All-Seeing Eye of Senzo Mall
@@ -174,6 +175,8 @@ export async function generateCrossDataInsights(
     unitsResult,
     rentTransactionsResult,
     kiosksResult,
+    percentageRentData,
+    inflationHedgeData,
   ] = await Promise.all([
     getDiscrepancySummary(supabase, propertyId, month, year).catch(() => null),
     getFootfallOverview(supabase, propertyId).catch(() => null),
@@ -219,6 +222,8 @@ export async function generateCrossDataInsights(
       .eq("property_id", propertyId)
       .eq("status", "active")
       .eq("tenants.brand_type", "kiosk"),
+    calculatePercentageRent(supabase, propertyId, month, year).catch(() => null),
+    getInflationHedgeAnalysis(supabase, propertyId).catch(() => null),
   ]);
 
   // ══════════════════════════════════════════════════════════
@@ -881,6 +886,59 @@ export async function generateCrossDataInsights(
       source_modules: ["finance", "contracts"],
       recommended_action: "Send payment reminders. Escalate if overdue > 30 days. Review lease guarantees.",
       link: "/dashboard/finance",
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ── Percentage Rent + Inflation Hedge ──
+  // ══════════════════════════════════════════════════════════
+
+  if (percentageRentData && percentageRentData.total_gap_egp > 0) {
+    insights.push({
+      id: makeId(),
+      type: "revenue_footfall",
+      severity: percentageRentData.total_gap_egp > 200000 ? "critical" : percentageRentData.total_gap_egp > 50000 ? "warning" : "opportunity",
+      title: `EGP ${Math.round(percentageRentData.total_gap_egp).toLocaleString()}/month potential percentage rent not being collected`,
+      message: `Based on footfall-estimated sales, ${percentageRentData.tenants_with_gap.length} tenants should be paying higher percentage rent than they currently do. Total gap between collected and potential rent is EGP ${Math.round(percentageRentData.total_gap_egp).toLocaleString()}/month (EGP ${Math.round(percentageRentData.total_gap_egp * 12).toLocaleString()}/year).`,
+      impact_egp: Math.round(percentageRentData.total_gap_egp * 12),
+      confidence: 0.78,
+      source_modules: ["revenue", "contracts", "percentage-rent"],
+      recommended_action: "Review percentage rent gap analysis and verify tenant sales reporting for top underperformers",
+      link: "/dashboard/percentage-rent",
+    });
+  }
+
+  if (inflationHedgeData && inflationHedgeData.hedge_ratio < 50) {
+    insights.push({
+      id: makeId(),
+      type: "general",
+      severity: inflationHedgeData.hedge_ratio < 20 ? "warning" : "opportunity",
+      title: `Inflation hedge ratio at ${inflationHedgeData.hedge_ratio.toFixed(1)}% — below 50% target`,
+      message: `Only ${inflationHedgeData.hedge_ratio.toFixed(1)}% of revenue automatically adjusts with inflation through percentage rent. If EGP devalues 10%, revenue only increases by ${inflationHedgeData.devaluation_10pct_increase_pct.toFixed(1)}%. ${inflationHedgeData.tenants_with_zero_rate.length > 0 ? `${inflationHedgeData.tenants_with_zero_rate.length} tenants have 0% rate — no inflation protection at all.` : ""}`,
+      impact_egp: Math.round(inflationHedgeData.total_monthly_revenue_egp * 0.1 * (50 - inflationHedgeData.hedge_ratio) / 100 * 12),
+      confidence: 0.85,
+      source_modules: ["contracts", "percentage-rent", "finance"],
+      recommended_action: inflationHedgeData.tenants_with_zero_rate.length > 0
+        ? `Renegotiate percentage rent clauses for ${inflationHedgeData.tenants_with_zero_rate.length} tenants with 0% rate at lease renewal to improve inflation protection`
+        : "Increase percentage rates at lease renewals to improve inflation hedge ratio",
+      link: "/dashboard/percentage-rent",
+    });
+  }
+
+  if (inflationHedgeData && inflationHedgeData.tenants_with_zero_rate.length > 3) {
+    const zeroNames = inflationHedgeData.tenants_with_zero_rate.slice(0, 5).map(t => t.brand_name).join(", ");
+    const totalFixedRent = inflationHedgeData.tenants_with_zero_rate.reduce((s, t) => s + t.min_rent, 0);
+    insights.push({
+      id: makeId(),
+      type: "general",
+      severity: "opportunity",
+      title: `${inflationHedgeData.tenants_with_zero_rate.length} tenants with 0% rate — renegotiate for inflation protection`,
+      message: `${zeroNames}${inflationHedgeData.tenants_with_zero_rate.length > 5 ? ` and ${inflationHedgeData.tenants_with_zero_rate.length - 5} more` : ""} pay only fixed rent (EGP ${Math.round(totalFixedRent).toLocaleString()}/month combined) with no percentage component. This revenue erodes with inflation.`,
+      impact_egp: Math.round(totalFixedRent * 0.1 * 12),
+      confidence: 0.9,
+      source_modules: ["contracts", "percentage-rent"],
+      recommended_action: "Add percentage rent clauses at next lease renewal for all tenants currently at 0% rate",
+      link: "/dashboard/percentage-rent",
     });
   }
 

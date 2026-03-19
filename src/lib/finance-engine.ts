@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { calculatePercentageRent, getInflationHedgeAnalysis } from "./percentage-rent-engine";
 
 // ============================================================
 // Wedja Finance Engine
@@ -19,6 +20,8 @@ export interface FinanceOverview {
   income_vs_last_month_pct: number;
   expenses_vs_last_month_pct: number;
   overdue_rent_egp: number;
+  percentage_rent_premium_egp: number;
+  inflation_hedge_ratio: number;
   expense_breakdown: {
     category: string;
     amount_egp: number;
@@ -174,6 +177,20 @@ export async function getFinanceOverview(
       ? ((totalExpenses - prevExpenses) / prevExpenses) * 100
       : 0;
 
+  // Percentage rent data (graceful fallback if engine fails)
+  let percentageRentPremium = 0;
+  let inflationHedgeRatio = 0;
+  try {
+    const [pctRent, hedgeAnalysis] = await Promise.all([
+      calculatePercentageRent(supabase, propertyId, m, y),
+      getInflationHedgeAnalysis(supabase, propertyId),
+    ]);
+    percentageRentPremium = pctRent.total_percentage_rent_reported_egp;
+    inflationHedgeRatio = hedgeAnalysis.hedge_ratio;
+  } catch {
+    // Percentage rent data not available — use defaults
+  }
+
   return {
     total_income_egp: totalIncome,
     total_expenses_egp: totalExpenses,
@@ -182,6 +199,8 @@ export async function getFinanceOverview(
     income_vs_last_month_pct: Math.round(incomeChange * 10) / 10,
     expenses_vs_last_month_pct: Math.round(expenseChange * 10) / 10,
     overdue_rent_egp: overdueRent,
+    percentage_rent_premium_egp: Math.round(percentageRentPremium),
+    inflation_hedge_ratio: Math.round(inflationHedgeRatio * 10) / 10,
     expense_breakdown: expenseBreakdown,
   };
 }
