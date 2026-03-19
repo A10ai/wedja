@@ -35,6 +35,7 @@ import {
   AlertCircle,
   Sparkles,
   Video,
+  AlertOctagon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -123,6 +124,8 @@ interface PropertySnapshot {
   store_avg_conversion_rate: number;
   dead_zones_count: number;
   queue_alerts_active: number;
+  anomalies_active: number;
+  anomalies_critical: number;
 }
 
 interface AIData {
@@ -767,6 +770,14 @@ export default function AICentrePage() {
             alert={snapshot.queue_alerts_active > 0}
           />
           <MetricCard
+            label="Anomalies"
+            value={formatNumber(snapshot.anomalies_active)}
+            subtext={snapshot.anomalies_critical > 0 ? `${snapshot.anomalies_critical} critical` : "Active"}
+            link="/dashboard/anomalies"
+            icon={AlertOctagon}
+            alert={snapshot.anomalies_critical > 0}
+          />
+          <MetricCard
             label="WALE"
             value={`${snapshot.wale_years.toFixed(1)} yrs`}
             subtext="Weighted avg lease expiry"
@@ -779,7 +790,8 @@ export default function AICentrePage() {
       {/* ── F. Quick Actions — 6 now ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {[
-          { label: "Revenue Verification", sub: "Review discrepancies", href: "/dashboard/discrepancies", icon: AlertTriangle, color: "bg-red-500/10 text-red-500" },
+          { label: "Anomaly Detection", sub: "AI watchdog alerts", href: "/dashboard/anomalies", icon: AlertOctagon, color: "bg-red-500/10 text-red-500" },
+          { label: "Revenue Verification", sub: "Review discrepancies", href: "/dashboard/discrepancies", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-500" },
           { label: "Expiring Leases", sub: "Contract renewals", href: "/dashboard/contracts", icon: FileText, color: "bg-purple-500/10 text-purple-500" },
           { label: "Underperformers", sub: "Tenant analytics", href: "/dashboard/tenant-analytics", icon: BarChart3, color: "bg-amber-500/10 text-amber-500" },
           { label: "Social Ideas", sub: "Content calendar", href: "/dashboard/social", icon: Megaphone, color: "bg-pink-500/10 text-pink-500" },

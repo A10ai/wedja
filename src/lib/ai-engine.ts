@@ -10,6 +10,7 @@ import { getSocialOverview } from "./social-engine";
 import { getLearningStats, getLearnedPatterns } from "./learning-engine";
 import { getCCTVDashboardData, getStoreConversion, getDeadZones, getDemographics, getParkingStatus, getSecurityAlerts, getQueueStatus } from "./cctv-engine";
 import { calculatePercentageRent, getInflationHedgeAnalysis } from "./percentage-rent-engine";
+import { getAnomalyStats } from "./anomaly-engine";
 
 // ============================================================
 // Wedja AI Engine — The All-Seeing Eye of Senzo Mall
@@ -117,6 +118,8 @@ export interface PropertySnapshot {
   store_avg_conversion_rate: number;
   dead_zones_count: number;
   queue_alerts_active: number;
+  anomalies_active: number;
+  anomalies_critical: number;
 }
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -942,6 +945,41 @@ export async function generateCrossDataInsights(
     });
   }
 
+  // Anomaly Detection insights
+  const anomalyStatsData = await getAnomalyStats(supabase, propertyId).catch(() => null);
+  if (anomalyStatsData && anomalyStatsData.active_count > 0) {
+    const critCount = anomalyStatsData.by_severity.critical || 0;
+    const totalImpact = anomalyStatsData.total_impact_egp || 0;
+
+    if (critCount > 0) {
+      insights.push({
+        id: makeId(),
+        type: "general",
+        severity: "critical",
+        title: `${critCount} critical anomal${critCount === 1 ? "y" : "ies"} requiring immediate attention`,
+        message: `The anomaly detection engine has flagged ${critCount} critical issue${critCount === 1 ? "" : "s"} across property systems. Total estimated financial impact: EGP ${totalImpact.toLocaleString()}. ${anomalyStatsData.most_common_type ? `Most common type: ${anomalyStatsData.most_common_type.type.replace(/_/g, " ")}.` : ""}`,
+        impact_egp: totalImpact,
+        confidence: anomalyStatsData.avg_detection_confidence || 0.85,
+        source_modules: ["anomaly-detection"],
+        recommended_action: "Review anomaly dashboard immediately and address critical alerts",
+        link: "/dashboard/anomalies",
+      });
+    } else if (anomalyStatsData.active_count >= 5) {
+      insights.push({
+        id: makeId(),
+        type: "general",
+        severity: "warning",
+        title: `${anomalyStatsData.active_count} active anomalies detected across property systems`,
+        message: `The watchdog has detected ${anomalyStatsData.active_count} anomalies. ${anomalyStatsData.most_anomalous_zone ? `Most affected zone: ${anomalyStatsData.most_anomalous_zone.zone_name} (${anomalyStatsData.most_anomalous_zone.count} anomalies).` : ""} Total estimated impact: EGP ${totalImpact.toLocaleString()}.`,
+        impact_egp: totalImpact,
+        confidence: anomalyStatsData.avg_detection_confidence || 0.8,
+        source_modules: ["anomaly-detection"],
+        recommended_action: "Review anomaly dashboard and triage active alerts by severity",
+        link: "/dashboard/anomalies",
+      });
+    }
+  }
+
   // Sort by impact_egp descending (highest money impact first)
   insights.sort((a, b) => b.impact_egp - a.impact_egp);
 
@@ -1397,6 +1435,7 @@ export async function getPropertySnapshot(
     deadZones,
     queueStatus,
     kiosksResult,
+    anomalyStats,
   ] = await Promise.all([
     supabase.from("tenants").select("id, category, status").eq("status", "active"),
     supabase.from("units").select("id, status").eq("property_id", propertyId),
@@ -1431,6 +1470,7 @@ export async function getPropertySnapshot(
       .eq("property_id", propertyId)
       .eq("status", "active")
       .eq("tenants.brand_type", "kiosk"),
+    getAnomalyStats(supabase, propertyId).catch(() => null),
   ]);
 
   // Tenant summary
@@ -1501,5 +1541,7 @@ export async function getPropertySnapshot(
     store_avg_conversion_rate: Math.round(storeAvgConv * 10) / 10,
     dead_zones_count: deadZoneCount,
     queue_alerts_active: queueAlerts,
+    anomalies_active: anomalyStats?.active_count || 0,
+    anomalies_critical: anomalyStats?.by_severity.critical || 0,
   };
 }
