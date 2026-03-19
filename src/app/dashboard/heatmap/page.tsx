@@ -160,9 +160,9 @@ const FEED_ICONS: Record<string, typeof Users> = {
   marketing: Megaphone,
 };
 
-// ── Zone SVG Layout ─────────────────────────────────────────
-// Defines position and size for each zone in the L-shaped mall SVG.
-// Keys match zone_type or are matched by zone_name substring.
+// ── Zone SVG Layout (U-Shape) ───────────────────────────────
+// U-shaped mall wrapping around Spinneys in the centre.
+// Left wing (top-left), Right wing (top-right), Bottom strip connecting.
 
 interface ZoneSVGLayout {
   x: number;
@@ -175,32 +175,23 @@ interface ZoneSVGLayout {
 }
 
 const ZONE_LAYOUTS: ZoneSVGLayout[] = [
-  { x: 40, y: 40, width: 150, height: 140, label: "Fashion\nWing", matchType: "retail" },
-  { x: 210, y: 40, width: 120, height: 110, label: "Food\nCourt", matchType: "food" },
-  { x: 350, y: 30, width: 200, height: 190, label: "SPINNEYS\nHYPERMARKET", matchName: "spinneys", matchType: "grocery" },
-  { x: 40, y: 200, width: 270, height: 120, label: "CENTRAL\nCOURTYARD", matchType: "common" },
-  { x: 350, y: 240, width: 200, height: 120, label: "Services &\nElectronics", matchType: "service" },
-  { x: 40, y: 340, width: 140, height: 120, label: "Main\nRetail", matchName: "main" },
-  { x: 200, y: 340, width: 140, height: 120, label: "Entertainment", matchType: "entertainment" },
-  { x: 120, y: 490, width: 340, height: 70, label: "PARKING AREA", matchType: "parking" },
+  // Food Court & Left Wing — top-left block
+  { x: 30,  y: 30,  width: 200, height: 180, label: "Food Court\n& Left Wing",  matchName: "food court", matchType: "food" },
+  // Fashion Core — bottom-left
+  { x: 30,  y: 225, width: 200, height: 160, label: "Fashion\nCore",            matchName: "fashion core" },
+  // Spinneys Anchor — large centre block
+  { x: 250, y: 60,  width: 220, height: 290, label: "SPINNEYS\nHYPERMARKET",    matchName: "spinneys" },
+  // Kids Park — top-right
+  { x: 490, y: 30,  width: 160, height: 120, label: "Kids\nPark",              matchName: "kids", matchType: "entertainment" },
+  // Right Wing — right side
+  { x: 490, y: 165, width: 160, height: 120, label: "Right\nWing",             matchName: "right wing" },
+  // Services & Electronics — right lower
+  { x: 490, y: 300, width: 160, height: 100, label: "Services &\nElectronics", matchName: "services", matchType: "service" },
+  // Bottom Strip — connecting corridor
+  { x: 100, y: 415, width: 480, height: 70,  label: "Bottom Strip (Adidas, Puma, MINISO, Levi's...)", matchName: "common", matchType: "common" },
+  // Parking Area
+  { x: 100, y: 510, width: 480, height: 55,  label: "PARKING AREA",            matchType: "parking" },
 ];
-
-// Match a zone from the API to an SVG layout slot
-function matchZoneToLayout(zone: ZoneHeatmapData, layouts: ZoneSVGLayout[]): ZoneSVGLayout | null {
-  // Try name match first
-  for (const layout of layouts) {
-    if (layout.matchName && zone.zone_name.toLowerCase().includes(layout.matchName)) {
-      return layout;
-    }
-  }
-  // Then type match
-  for (const layout of layouts) {
-    if (layout.matchType === zone.zone_type) {
-      return layout;
-    }
-  }
-  return null;
-}
 
 // ── Data Sources ────────────────────────────────────────────
 
@@ -315,7 +306,6 @@ export default function HeatmapPage() {
 
   const zones = heatmapData?.zones || [];
   // Create a stable mapping: assign each zone to a layout position.
-  // Use a greedy approach: track which layouts are taken.
   const usedLayouts = new Set<number>();
   const zoneLayoutMap: Map<string, ZoneSVGLayout> = new Map();
 
@@ -439,30 +429,83 @@ export default function HeatmapPage() {
             </div>
           </CardHeader>
           <CardContent className="p-2 sm:p-4">
-            <div className="relative w-full overflow-auto" style={{ minHeight: 400 }}>
+            <div className="relative w-full overflow-auto" style={{ minHeight: 420 }}>
               <svg
-                viewBox="0 0 600 590"
+                viewBox="0 0 680 600"
                 className="w-full h-auto"
-                style={{ maxHeight: "65vh" }}
+                style={{ maxHeight: "68vh" }}
                 role="img"
-                aria-label="Senzo Mall interactive floor plan heatmap"
+                aria-label="Senzo Mall interactive U-shaped floor plan heatmap"
               >
-                {/* Background */}
-                <rect x="0" y="0" width="600" height="590" rx="12" fill="rgba(17,24,39,0.6)" />
+                {/* Dark background */}
+                <rect x="0" y="0" width="680" height="600" rx="14" fill="#0A0A0F" />
 
-                {/* Mall outline (L-shape) */}
+                {/* U-Shape mall outline */}
                 <path
-                  d="M30 20 L570 20 L570 380 L360 380 L360 475 L30 475 Z"
+                  d="M20 20 L240 20 L240 400 L460 400 L460 20 L660 20 L660 415 L580 415 L580 490 L100 490 L100 415 L20 415 Z"
                   fill="none"
-                  stroke="rgba(255,255,255,0.08)"
-                  strokeWidth="2"
-                  strokeDasharray="6 3"
+                  stroke="rgba(255,255,255,0.06)"
+                  strokeWidth="1.5"
+                  strokeDasharray="8 4"
                 />
+
+                {/* Spinneys centre fill — dark block */}
+                <rect
+                  x="250"
+                  y="60"
+                  width="220"
+                  height="290"
+                  rx="10"
+                  fill="rgba(15, 18, 28, 0.95)"
+                  stroke="rgba(255,255,255,0.08)"
+                  strokeWidth="1"
+                />
+                <text x="360" y="190" textAnchor="middle" fill="rgba(255,255,255,0.25)" fontSize="14" fontWeight="700" letterSpacing="2">SPINNEYS</text>
+                <text x="360" y="210" textAnchor="middle" fill="rgba(255,255,255,0.15)" fontSize="10" fontWeight="500" letterSpacing="1">HYPERMARKET</text>
+                <text x="360" y="235" textAnchor="middle" fill="rgba(255,255,255,0.10)" fontSize="9">(Anchor Tenant)</text>
 
                 {/* Zone rectangles */}
                 {zones.map((zone) => {
                   const layout = zoneLayoutMap.get(zone.zone_id);
                   if (!layout) return null;
+                  // Skip rendering Spinneys as a zone rect — it's drawn as the centre block
+                  if (layout.matchName === "spinneys") {
+                    // Render clickable overlay on the centre block
+                    return (
+                      <g
+                        key={zone.zone_id}
+                        className="cursor-pointer"
+                        onClick={() => handleZoneClick(zone.zone_id)}
+                        onMouseEnter={() => setHoveredZone(zone.zone_id)}
+                        onMouseLeave={() => setHoveredZone(null)}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${zone.zone_name}: ${zone.current_visitors} visitors, heat intensity ${zone.heat_intensity}%`}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleZoneClick(zone.zone_id); }}
+                      >
+                        <rect
+                          x={250} y={60} width={220} height={290}
+                          rx="10"
+                          fill={hoveredZone === zone.zone_id ? "rgba(245, 158, 11, 0.08)" : "transparent"}
+                          stroke={hoveredZone === zone.zone_id ? "rgba(245, 158, 11, 0.3)" : "transparent"}
+                          strokeWidth="2"
+                          style={{ transition: "all 0.3s ease" }}
+                        />
+                        <text x="360" y="270" textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize="10" fontFamily="monospace" style={{ pointerEvents: "none" }}>
+                          {formatNumber(zone.current_visitors)} visitors
+                        </text>
+                        {/* Hover tooltip */}
+                        {hoveredZone === zone.zone_id && (
+                          <g style={{ pointerEvents: "none" }}>
+                            <rect x="255" y="300" width="210" height="42" rx="6" fill="rgba(17,24,39,0.95)" stroke="rgba(255,255,255,0.15)" strokeWidth="1" />
+                            <text x="265" y="316" fill="#9CA3AF" fontSize="9">Revenue: {formatCurrency(zone.total_revenue_this_month_egp)}</text>
+                            <text x="265" y="332" fill="#9CA3AF" fontSize="9">Tenants: {zone.active_tenants_count} | Energy: {formatNumber(zone.energy_consumption_kwh)} kWh</text>
+                          </g>
+                        )}
+                      </g>
+                    );
+                  }
+
                   const isHovered = hoveredZone === zone.zone_id;
                   const isHighTraffic = zone.heat_intensity >= 70;
 
@@ -485,7 +528,7 @@ export default function HeatmapPage() {
                           y={layout.y - 3}
                           width={layout.width + 6}
                           height={layout.height + 6}
-                          rx="10"
+                          rx="12"
                           fill="none"
                           stroke={getHeatColor(zone.heat_intensity)}
                           strokeWidth="2"
@@ -500,10 +543,10 @@ export default function HeatmapPage() {
                         y={layout.y}
                         width={layout.width}
                         height={layout.height}
-                        rx="8"
-                        fill={getHeatColorFill(zone.heat_intensity, isHovered ? 0.55 : 0.35)}
+                        rx="10"
+                        fill={getHeatColorFill(zone.heat_intensity, isHovered ? 0.55 : 0.30)}
                         stroke={getHeatColor(zone.heat_intensity)}
-                        strokeWidth={isHovered ? 2.5 : 1.5}
+                        strokeWidth={isHovered ? 2.5 : 1.2}
                         style={{
                           filter: isHovered ? getHeatGlow(zone.heat_intensity) : "none",
                           transition: "all 0.3s ease",
@@ -513,80 +556,84 @@ export default function HeatmapPage() {
                       {/* Zone name */}
                       <text
                         x={layout.x + layout.width / 2}
-                        y={layout.y + layout.height / 2 - 12}
+                        y={layout.y + layout.height / 2 - (layout.height > 100 ? 16 : 10)}
                         textAnchor="middle"
                         fill="rgba(255,255,255,0.9)"
-                        fontSize={layout.width > 160 ? 13 : 11}
+                        fontSize={layout.width > 300 ? 12 : layout.width > 160 ? 12 : 10}
                         fontWeight="600"
                         style={{ pointerEvents: "none" }}
                       >
-                        {zone.zone_name.length > 18
-                          ? zone.zone_name.substring(0, 16) + "..."
+                        {zone.zone_name.length > 22
+                          ? zone.zone_name.substring(0, 20) + "..."
                           : zone.zone_name}
                       </text>
 
                       {/* Visitor count */}
                       <text
                         x={layout.x + layout.width / 2}
-                        y={layout.y + layout.height / 2 + 8}
+                        y={layout.y + layout.height / 2 + (layout.height > 100 ? 4 : 4)}
                         textAnchor="middle"
-                        fill="rgba(255,255,255,0.7)"
-                        fontSize="11"
+                        fill="rgba(255,255,255,0.65)"
+                        fontSize="10"
                         fontFamily="monospace"
                         style={{ pointerEvents: "none" }}
                       >
                         {formatNumber(zone.current_visitors)} visitors
                       </text>
 
-                      {/* Heat badge */}
-                      <rect
-                        x={layout.x + layout.width / 2 - 22}
-                        y={layout.y + layout.height / 2 + 16}
-                        width="44"
-                        height="18"
-                        rx="9"
-                        fill={getHeatColor(zone.heat_intensity)}
-                        opacity="0.25"
-                        style={{ pointerEvents: "none" }}
-                      />
-                      <text
-                        x={layout.x + layout.width / 2}
-                        y={layout.y + layout.height / 2 + 29}
-                        textAnchor="middle"
-                        fill={getHeatColor(zone.heat_intensity)}
-                        fontSize="9"
-                        fontWeight="700"
-                        style={{ pointerEvents: "none" }}
-                      >
-                        {getHeatLabel(zone.heat_intensity)}
-                      </text>
+                      {/* Heat badge — only for zones tall enough */}
+                      {layout.height >= 80 && (
+                        <>
+                          <rect
+                            x={layout.x + layout.width / 2 - 22}
+                            y={layout.y + layout.height / 2 + (layout.height > 100 ? 14 : 12)}
+                            width="44"
+                            height="18"
+                            rx="9"
+                            fill={getHeatColor(zone.heat_intensity)}
+                            opacity="0.20"
+                            style={{ pointerEvents: "none" }}
+                          />
+                          <text
+                            x={layout.x + layout.width / 2}
+                            y={layout.y + layout.height / 2 + (layout.height > 100 ? 27 : 25)}
+                            textAnchor="middle"
+                            fill={getHeatColor(zone.heat_intensity)}
+                            fontSize="9"
+                            fontWeight="700"
+                            style={{ pointerEvents: "none" }}
+                          >
+                            {getHeatLabel(zone.heat_intensity)}
+                          </text>
+                        </>
+                      )}
 
                       {/* Hover tooltip */}
                       {isHovered && (
                         <g style={{ pointerEvents: "none" }}>
                           <rect
-                            x={layout.x + layout.width + 8}
-                            y={layout.y}
-                            width="170"
-                            height="90"
+                            x={Math.min(layout.x + layout.width + 8, 490)}
+                            y={Math.max(layout.y, 20)}
+                            width="175"
+                            height="92"
                             rx="8"
-                            fill="rgba(17,24,39,0.95)"
-                            stroke="rgba(255,255,255,0.15)"
+                            fill="rgba(10,10,15,0.96)"
+                            stroke="rgba(255,255,255,0.12)"
                             strokeWidth="1"
                           />
-                          <text x={layout.x + layout.width + 18} y={layout.y + 18} fill="#F9FAFB" fontSize="11" fontWeight="600">
+                          <text x={Math.min(layout.x + layout.width + 18, 500)} y={Math.max(layout.y, 20) + 18} fill="#F9FAFB" fontSize="11" fontWeight="600">
                             {zone.zone_name}
                           </text>
-                          <text x={layout.x + layout.width + 18} y={layout.y + 35} fill="#9CA3AF" fontSize="10">
+                          <text x={Math.min(layout.x + layout.width + 18, 500)} y={Math.max(layout.y, 20) + 35} fill="#9CA3AF" fontSize="10">
                             Visitors: {formatNumber(zone.current_visitors)}
                           </text>
-                          <text x={layout.x + layout.width + 18} y={layout.y + 50} fill="#9CA3AF" fontSize="10">
+                          <text x={Math.min(layout.x + layout.width + 18, 500)} y={Math.max(layout.y, 20) + 50} fill="#9CA3AF" fontSize="10">
                             Revenue: {formatCurrency(zone.total_revenue_this_month_egp)}
                           </text>
-                          <text x={layout.x + layout.width + 18} y={layout.y + 65} fill="#9CA3AF" fontSize="10">
+                          <text x={Math.min(layout.x + layout.width + 18, 500)} y={Math.max(layout.y, 20) + 65} fill="#9CA3AF" fontSize="10">
                             Energy: {formatNumber(zone.energy_consumption_kwh)} kWh
                           </text>
-                          <text x={layout.x + layout.width + 18} y={layout.y + 80} fill="#9CA3AF" fontSize="10">
+                          <text x={Math.min(layout.x + layout.width + 18, 500)} y={Math.max(layout.y, 20) + 80} fill="#9CA3AF" fontSize="10">
                             Tenants: {zone.active_tenants_count} | Alerts: {zone.open_maintenance_count + zone.discrepancies_count}
                           </text>
                         </g>
@@ -595,62 +642,61 @@ export default function HeatmapPage() {
                   );
                 })}
 
-                {/* Entrance arrows */}
+                {/* ── Gate Indicators ──────────────────────── */}
                 {flowData && (
                   <>
-                    {/* Main Entrance (bottom center) */}
+                    {/* Gate 1 — Top-left */}
                     <g>
-                      <polygon points="200,480 210,500 190,500" fill="#10B981" opacity="0.8" />
-                      <text x="200" y="516" textAnchor="middle" fill="#10B981" fontSize="9" fontWeight="600">
-                        Main Entrance
-                      </text>
-                      <text x="200" y="528" textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize="8" fontFamily="monospace">
-                        {formatNumber(flowData.entrances[0]?.count || 0)}
-                      </text>
+                      <polygon points="130,12 138,0 122,0" fill="#10B981" opacity="0.85" />
+                      <text x="130" y="-6" textAnchor="middle" fill="#10B981" fontSize="8" fontWeight="600" opacity="0">Gate 1</text>
+                      <rect x="108" y="2" width="44" height="14" rx="3" fill="rgba(16,185,129,0.12)" />
+                      <text x="130" y="12" textAnchor="middle" fill="#10B981" fontSize="8" fontWeight="600">Gate 1</text>
                     </g>
 
-                    {/* Parking Entrance (bottom right) */}
+                    {/* Gate 2 — Bottom-left */}
                     <g>
-                      <polygon points="400,480 410,500 390,500" fill="#10B981" opacity="0.8" />
-                      <text x="400" y="516" textAnchor="middle" fill="#10B981" fontSize="9" fontWeight="600">
-                        Parking Entrance
-                      </text>
-                      <text x="400" y="528" textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize="8" fontFamily="monospace">
-                        {formatNumber(flowData.entrances[1]?.count || 0)}
-                      </text>
+                      <polygon points="70,415 78,430 62,430" fill="#10B981" opacity="0.85" />
+                      <rect x="48" y="432" width="44" height="14" rx="3" fill="rgba(16,185,129,0.12)" />
+                      <text x="70" y="442" textAnchor="middle" fill="#10B981" fontSize="8" fontWeight="600">Gate 2</text>
                     </g>
 
-                    {/* Side Entrance East */}
+                    {/* Gate 3 — Bottom-right */}
                     <g>
-                      <polygon points="575,200 558,190 558,210" fill="#10B981" opacity="0.6" />
-                      <text x="558" y="225" textAnchor="end" fill="#10B981" fontSize="8" fontWeight="600">
-                        Side (E)
-                      </text>
-                      <text x="558" y="235" textAnchor="end" fill="rgba(255,255,255,0.5)" fontSize="8" fontFamily="monospace">
-                        {formatNumber(flowData.entrances[2]?.count || 0)}
-                      </text>
+                      <polygon points="610,415 618,430 602,430" fill="#10B981" opacity="0.85" />
+                      <rect x="588" y="432" width="44" height="14" rx="3" fill="rgba(16,185,129,0.12)" />
+                      <text x="610" y="442" textAnchor="middle" fill="#10B981" fontSize="8" fontWeight="600">Gate 3</text>
                     </g>
 
-                    {/* Side Entrance West */}
+                    {/* Gate 4 — Top-right */}
                     <g>
-                      <polygon points="22,260 38,250 38,270" fill="#10B981" opacity="0.6" />
-                      <text x="40" y="285" textAnchor="start" fill="#10B981" fontSize="8" fontWeight="600">
-                        Side (W)
-                      </text>
-                      <text x="40" y="295" textAnchor="start" fill="rgba(255,255,255,0.5)" fontSize="8" fontFamily="monospace">
-                        {formatNumber(flowData.entrances[3]?.count || 0)}
-                      </text>
+                      <polygon points="570,12 578,0 562,0" fill="#10B981" opacity="0.85" />
+                      <rect x="548" y="2" width="44" height="14" rx="3" fill="rgba(16,185,129,0.12)" />
+                      <text x="570" y="12" textAnchor="middle" fill="#10B981" fontSize="8" fontWeight="600">Gate 4</text>
                     </g>
+
+                    {/* Visitor flow counts near gates */}
+                    <text x="130" y="22" textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="8" fontFamily="monospace">
+                      {formatNumber(flowData.entrances[0]?.count || 0)}
+                    </text>
+                    <text x="70" y="456" textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="8" fontFamily="monospace">
+                      {formatNumber(flowData.entrances[1]?.count || 0)}
+                    </text>
+                    <text x="610" y="456" textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="8" fontFamily="monospace">
+                      {formatNumber(flowData.entrances[2]?.count || 0)}
+                    </text>
+                    <text x="570" y="22" textAnchor="middle" fill="rgba(255,255,255,0.4)" fontSize="8" fontFamily="monospace">
+                      {formatNumber(flowData.entrances[3]?.count || 0)}
+                    </text>
 
                     {/* Flow info */}
-                    <text x="300" y="555" textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="9">
+                    <text x="340" y="575" textAnchor="middle" fill="rgba(255,255,255,0.28)" fontSize="9">
                       Busiest: {flowData.busiest_corridor} | Avg visit: {flowData.avg_time_spent_minutes} min
                     </text>
                   </>
                 )}
 
                 {/* Click hint */}
-                <text x="300" y="575" textAnchor="middle" fill="rgba(255,255,255,0.2)" fontSize="9">
+                <text x="340" y="592" textAnchor="middle" fill="rgba(255,255,255,0.18)" fontSize="9">
                   Click any zone to deep dive
                 </text>
               </svg>
