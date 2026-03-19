@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getVerificationReport } from "@/lib/revenue-engine";
-import { getTenantPerformanceCards } from "@/lib/ai-engine";
+import { getTenantRankings } from "@/lib/tenant-analytics";
 import { getFootfallOverview, getFootfallByZone, getPeakPatterns } from "@/lib/footfall-engine";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       }
 
       case "tenant_performance": {
-        const cards = await getTenantPerformanceCards(supabase, PROPERTY_ID);
+        const cards = await getTenantRankings(supabase, PROPERTY_ID);
         return NextResponse.json({ type: reportType, month, year, data: { tenants: cards } });
       }
 

@@ -1,10 +1,10 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
-  generatePropertyInsights,
+  generateCrossDataInsights,
   generateDailyBriefing,
   calculatePropertyHealthScore,
-  getTenantPerformanceCards,
 } from "./ai-engine";
+import { getTenantRankings } from "./tenant-analytics";
 import { getFootfallOverview, getFootfallByZone } from "./footfall-engine";
 import { getDiscrepancySummary } from "./revenue-engine";
 
@@ -292,13 +292,17 @@ async function handleBriefing(
 
   const sections = Object.values(briefing.sections)
     .map(
-      (s) =>
-        `**${s.title}:**\n${s.items.map((item) => `  - ${item}`).join("\n")}`
+      (s: any) =>
+        `**${s.title}:**\n${s.items.map((item: any) => `  - ${typeof item === "string" ? item : item.text}`).join("\n")}`
     )
     .join("\n\n");
 
+  const actionsText = briefing.top_actions && briefing.top_actions.length > 0
+    ? `\n\n**Top Actions:** ${briefing.top_actions.map((a: any) => a.text).join("; ")}`
+    : "";
+
   return {
-    message: `${briefing.greeting}! Here's your property briefing for today.\n\n${sections}\n\n**Summary:** ${briefing.summary}`,
+    message: `${briefing.greeting}! Here's your property briefing for today.\n\n${sections}${actionsText}`,
     data: briefing,
     type: "briefing",
   };
@@ -447,7 +451,7 @@ async function handleRevenueSummary(
 async function handleTenantPerformance(
   supabase: SupabaseClient
 ): Promise<ChatResponse> {
-  const cards = await getTenantPerformanceCards(supabase, PROPERTY_ID);
+  const cards = await getTenantRankings(supabase, PROPERTY_ID);
 
   if (cards.length === 0) {
     return {
@@ -461,15 +465,15 @@ async function handleTenantPerformance(
 
   const topList = topFive
     .map(
-      (c, i) =>
-        `${i + 1}. **${c.brand_name}** — Score: ${c.overall_score.toFixed(0)}, Revenue/sqm: EGP ${c.revenue_per_sqm.toFixed(0)}, Payment: ${c.payment_reliability.toFixed(0)}%`
+      (c: any, i: any) =>
+        `${i + 1}. **${c.brand_name}** — Score: ${c.overall_score.toFixed(0)}, Revenue/sqm: EGP ${c.reported_sales_per_sqm}, Rent/sqm: EGP ${c.rent_per_sqm}`
     )
     .join("\n");
 
   const bottomList = bottomFive
     .map(
-      (c, i) =>
-        `${i + 1}. **${c.brand_name}** — Score: ${c.overall_score.toFixed(0)}, Revenue/sqm: EGP ${c.revenue_per_sqm.toFixed(0)}, Payment: ${c.payment_reliability.toFixed(0)}%`
+      (c: any, i: any) =>
+        `${i + 1}. **${c.brand_name}** — Score: ${c.overall_score.toFixed(0)}, Revenue/sqm: EGP ${c.reported_sales_per_sqm}, Rent/sqm: EGP ${c.rent_per_sqm}`
     )
     .join("\n");
 
@@ -486,7 +490,7 @@ async function handleHealthScore(
   const health = await calculatePropertyHealthScore(supabase, PROPERTY_ID);
 
   return {
-    message: `**Property Health Score: ${health.total}/100**\n\n- Occupancy: ${health.occupancy.score}/${health.occupancy.max} — ${health.occupancy.detail}\n- Revenue: ${health.revenue.score}/${health.revenue.max} — ${health.revenue.detail}\n- Maintenance: ${health.maintenance.score}/${health.maintenance.max} — ${health.maintenance.detail}\n- Tenant: ${health.tenant.score}/${health.tenant.max} — ${health.tenant.detail}`,
+    message: `**Property Health Score: ${health.total}/100**\n\n- Revenue: ${health.revenue.score}/${health.revenue.max} — ${health.revenue.detail}\n- Occupancy: ${health.occupancy.score}/${health.occupancy.max} — ${health.occupancy.detail}\n- Tenant Quality: ${health.tenant_quality.score}/${health.tenant_quality.max} — ${health.tenant_quality.detail}\n- Contracts: ${health.contracts.score}/${health.contracts.max} — ${health.contracts.detail}\n- Energy: ${health.energy.score}/${health.energy.max} — ${health.energy.detail}\n- Maintenance: ${health.maintenance.score}/${health.maintenance.max} — ${health.maintenance.detail}\n- Marketing: ${health.marketing.score}/${health.marketing.max} — ${health.marketing.detail}\n- Financial: ${health.financial.score}/${health.financial.max} — ${health.financial.detail}`,
     data: health,
     type: "metric",
   };
@@ -495,7 +499,7 @@ async function handleHealthScore(
 async function handleInsights(
   supabase: SupabaseClient
 ): Promise<ChatResponse> {
-  const insights = await generatePropertyInsights(supabase, PROPERTY_ID);
+  const insights = await generateCrossDataInsights(supabase, PROPERTY_ID);
 
   if (insights.length === 0) {
     return {
@@ -505,7 +509,7 @@ async function handleInsights(
   }
 
   const list = insights
-    .map((ins) => {
+    .map((ins: any) => {
       const icon =
         ins.severity === "critical"
           ? "[CRITICAL]"
@@ -514,12 +518,13 @@ async function handleInsights(
           : ins.severity === "opportunity"
           ? "[OPPORTUNITY]"
           : "[INFO]";
-      return `${icon} **${ins.title}**\n  ${ins.message}\n  Impact: ${ins.impact_estimate}`;
+      const impact = ins.impact_egp > 0 ? `\n  Impact: EGP ${ins.impact_egp.toLocaleString()}` : "";
+      return `${icon} **${ins.title}**\n  ${ins.message}${impact}\n  Sources: ${ins.source_modules.join(", ")}`;
     })
     .join("\n\n");
 
   return {
-    message: `**${insights.length} Active Insights:**\n\n${list}`,
+    message: `**${insights.length} Cross-Data Insights:**\n\n${list}`,
     data: insights,
     type: "list",
   };

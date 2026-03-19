@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  generatePropertyInsights,
+  generateCrossDataInsights,
   generateDailyBriefing,
   calculatePropertyHealthScore,
-  getTenantPerformanceCards,
+  getPropertySnapshot,
 } from "@/lib/ai-engine";
 
 export const dynamic = "force-dynamic";
@@ -15,18 +15,18 @@ export async function GET() {
   try {
     const supabase = createAdminClient();
 
-    const [insights, healthScore, briefing, tenantCards] = await Promise.all([
-      generatePropertyInsights(supabase, PROPERTY_ID),
+    const [insights, healthScore, briefing, snapshot] = await Promise.all([
+      generateCrossDataInsights(supabase, PROPERTY_ID),
       calculatePropertyHealthScore(supabase, PROPERTY_ID),
       generateDailyBriefing(supabase, PROPERTY_ID),
-      getTenantPerformanceCards(supabase, PROPERTY_ID),
+      getPropertySnapshot(supabase, PROPERTY_ID),
     ]);
 
     return NextResponse.json({
       insights,
       health_score: healthScore,
       briefing,
-      tenant_performance: tenantCards,
+      snapshot,
     });
   } catch (error) {
     console.error("AI Insights API error:", error);
