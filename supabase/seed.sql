@@ -185,3 +185,206 @@ VALUES (
   'Management',
   'active'
 );
+
+-- ============================================================
+-- Footfall Seed Data — Realistic 30-day footfall for Senzo Mall
+-- Generates hourly footfall_readings + daily footfall_daily summaries
+-- ============================================================
+
+DO $$
+DECLARE
+  v_property_id UUID := 'a0000000-0000-0000-0000-000000000001';
+  v_day DATE;
+  v_unit RECORD;
+  v_hour INTEGER;
+  v_count_in INTEGER;
+  v_count_out INTEGER;
+  v_dwell INTEGER;
+  v_base_min INTEGER;
+  v_base_max INTEGER;
+  v_category TEXT;
+  v_is_weekend BOOLEAN;
+  v_weekend_mult NUMERIC;
+  v_hour_mult NUMERIC;
+  v_random_factor NUMERIC;
+  v_day_total_in INTEGER;
+  v_day_total_out INTEGER;
+  v_day_peak_hour INTEGER;
+  v_day_peak_count INTEGER;
+  v_day_dwell_sum INTEGER;
+  v_day_dwell_count INTEGER;
+  v_ts TIMESTAMPTZ;
+BEGIN
+  -- Loop through the last 30 days
+  FOR v_day IN SELECT generate_series(CURRENT_DATE - INTERVAL '30 days', CURRENT_DATE - INTERVAL '1 day', '1 day')::DATE
+  LOOP
+    -- Determine if weekend (Friday=5, Saturday=6 for Egypt)
+    v_is_weekend := EXTRACT(DOW FROM v_day) IN (5, 6);
+    v_weekend_mult := CASE WHEN v_is_weekend THEN 1.4 ELSE 1.0 END;
+
+    -- Loop through each occupied unit with an active tenant
+    FOR v_unit IN
+      SELECT u.id AS unit_id, u.zone_id, t.category
+      FROM units u
+      JOIN leases l ON l.unit_id = u.id AND l.status = 'active'
+      JOIN tenants t ON t.id = l.tenant_id
+      WHERE u.property_id = v_property_id
+        AND u.status = 'occupied'
+    LOOP
+      v_category := v_unit.category;
+      v_day_total_in := 0;
+      v_day_total_out := 0;
+      v_day_peak_hour := 10;
+      v_day_peak_count := 0;
+      v_day_dwell_sum := 0;
+      v_day_dwell_count := 0;
+
+      -- Set base footfall range by category
+      CASE v_category
+        WHEN 'grocery' THEN v_base_min := 50; v_base_max := 200;
+        WHEN 'food' THEN v_base_min := 30; v_base_max := 120;
+        WHEN 'fashion' THEN v_base_min := 20; v_base_max := 80;
+        WHEN 'entertainment' THEN v_base_min := 15; v_base_max := 60;
+        WHEN 'electronics' THEN v_base_min := 15; v_base_max := 50;
+        WHEN 'services' THEN v_base_min := 10; v_base_max := 40;
+        ELSE v_base_min := 10; v_base_max := 40;
+      END CASE;
+
+      -- Generate hourly readings (mall hours 10-23, near zero outside)
+      FOR v_hour IN 0..23
+      LOOP
+        -- Hour multiplier based on category and time of day
+        IF v_hour < 10 THEN
+          v_hour_mult := 0.02;
+        ELSIF v_hour = 10 THEN
+          v_hour_mult := 0.4;
+        ELSIF v_hour = 11 THEN
+          v_hour_mult := 0.6;
+        ELSE
+          CASE v_category
+            WHEN 'food' THEN
+              v_hour_mult := CASE
+                WHEN v_hour BETWEEN 12 AND 13 THEN 1.0
+                WHEN v_hour = 14 THEN 0.7
+                WHEN v_hour BETWEEN 15 AND 17 THEN 0.4
+                WHEN v_hour = 18 THEN 0.6
+                WHEN v_hour BETWEEN 19 AND 20 THEN 0.95
+                WHEN v_hour = 21 THEN 0.7
+                WHEN v_hour = 22 THEN 0.4
+                WHEN v_hour = 23 THEN 0.15
+                ELSE 0.5
+              END;
+            WHEN 'grocery' THEN
+              v_hour_mult := CASE
+                WHEN v_hour BETWEEN 12 AND 14 THEN 0.8
+                WHEN v_hour BETWEEN 15 AND 17 THEN 0.7
+                WHEN v_hour BETWEEN 18 AND 20 THEN 1.0
+                WHEN v_hour = 21 THEN 0.8
+                WHEN v_hour = 22 THEN 0.5
+                WHEN v_hour = 23 THEN 0.2
+                ELSE 0.6
+              END;
+            WHEN 'entertainment' THEN
+              v_hour_mult := CASE
+                WHEN v_hour BETWEEN 12 AND 13 THEN 0.5
+                WHEN v_hour BETWEEN 14 AND 17 THEN 0.8
+                WHEN v_hour BETWEEN 18 AND 20 THEN 1.0
+                WHEN v_hour = 21 THEN 0.7
+                WHEN v_hour = 22 THEN 0.4
+                WHEN v_hour = 23 THEN 0.15
+                ELSE 0.4
+              END;
+            WHEN 'fashion' THEN
+              v_hour_mult := CASE
+                WHEN v_hour BETWEEN 12 AND 13 THEN 0.6
+                WHEN v_hour BETWEEN 14 AND 16 THEN 0.7
+                WHEN v_hour BETWEEN 17 AND 19 THEN 1.0
+                WHEN v_hour = 20 THEN 0.85
+                WHEN v_hour = 21 THEN 0.6
+                WHEN v_hour = 22 THEN 0.35
+                WHEN v_hour = 23 THEN 0.1
+                ELSE 0.5
+              END;
+            ELSE
+              v_hour_mult := CASE
+                WHEN v_hour BETWEEN 12 AND 14 THEN 0.7
+                WHEN v_hour BETWEEN 15 AND 18 THEN 0.8
+                WHEN v_hour BETWEEN 19 AND 20 THEN 0.9
+                WHEN v_hour = 21 THEN 0.6
+                WHEN v_hour = 22 THEN 0.3
+                WHEN v_hour = 23 THEN 0.1
+                ELSE 0.5
+              END;
+          END CASE;
+        END IF;
+
+        v_random_factor := 0.7 + random() * 0.6;
+
+        v_count_in := GREATEST(0, ROUND(
+          (v_base_min + random() * (v_base_max - v_base_min))
+          * v_hour_mult
+          * v_weekend_mult
+          * v_random_factor
+        )::INTEGER);
+
+        v_count_out := GREATEST(0, ROUND(v_count_in * (0.85 + random() * 0.1))::INTEGER);
+
+        v_dwell := CASE v_category
+          WHEN 'grocery' THEN 900 + ROUND(random() * 1200)::INTEGER
+          WHEN 'food' THEN 1200 + ROUND(random() * 1800)::INTEGER
+          WHEN 'fashion' THEN 600 + ROUND(random() * 1200)::INTEGER
+          WHEN 'entertainment' THEN 2400 + ROUND(random() * 3600)::INTEGER
+          WHEN 'electronics' THEN 600 + ROUND(random() * 900)::INTEGER
+          WHEN 'services' THEN 300 + ROUND(random() * 900)::INTEGER
+          ELSE 300 + ROUND(random() * 600)::INTEGER
+        END;
+
+        v_ts := (v_day || ' ' || LPAD(v_hour::TEXT, 2, '0') || ':00:00')::TIMESTAMPTZ;
+
+        INSERT INTO footfall_readings (zone_id, unit_id, timestamp, count_in, count_out, dwell_seconds, confidence)
+        VALUES (v_unit.zone_id, v_unit.unit_id, v_ts, v_count_in, v_count_out, v_dwell, 0.85 + random() * 0.14);
+
+        v_day_total_in := v_day_total_in + v_count_in;
+        v_day_total_out := v_day_total_out + v_count_out;
+        v_day_dwell_sum := v_day_dwell_sum + v_dwell;
+        v_day_dwell_count := v_day_dwell_count + 1;
+
+        IF v_count_in > v_day_peak_count THEN
+          v_day_peak_hour := v_hour;
+          v_day_peak_count := v_count_in;
+        END IF;
+
+      END LOOP;
+
+      INSERT INTO footfall_daily (property_id, zone_id, unit_id, date, total_in, total_out, peak_hour, peak_count, avg_dwell_seconds)
+      VALUES (
+        v_property_id,
+        v_unit.zone_id,
+        v_unit.unit_id,
+        v_day,
+        v_day_total_in,
+        v_day_total_out,
+        v_day_peak_hour,
+        v_day_peak_count,
+        CASE WHEN v_day_dwell_count > 0 THEN v_day_dwell_sum / v_day_dwell_count ELSE 0 END
+      );
+
+    END LOOP;
+  END LOOP;
+END $$;
+
+-- ── Camera Feeds ────────────────────────────────────────────
+
+INSERT INTO camera_feeds (id, property_id, name, location_description, zone_id, rtsp_url, status, resolution, angle_type) VALUES
+  ('ca000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Main Entrance North',   'North entrance doors, ground floor',           'b0000000-0000-0000-0000-000000000001', 'rtsp://192.168.1.101:554/stream1', 'active',  '1920x1080', 'entrance'),
+  ('ca000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Main Entrance South',   'South entrance doors, ground floor',           'b0000000-0000-0000-0000-000000000001', 'rtsp://192.168.1.102:554/stream1', 'active',  '1920x1080', 'entrance'),
+  ('ca000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Ground Floor Corridor',  'Main corridor between G-101 and G-108',       'b0000000-0000-0000-0000-000000000001', 'rtsp://192.168.1.103:554/stream1', 'active',  '1920x1080', 'corridor'),
+  ('ca000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Food Court Overhead',    'Overhead view of food court seating area',     'b0000000-0000-0000-0000-000000000003', 'rtsp://192.168.1.104:554/stream1', 'active',  '2560x1440', 'overhead'),
+  ('ca000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Food Court Entrance',    'Food court main entrance from escalator',      'b0000000-0000-0000-0000-000000000003', 'rtsp://192.168.1.105:554/stream1', 'active',  '1920x1080', 'entrance'),
+  ('ca000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'First Floor East',       'First floor east wing corridor',               'b0000000-0000-0000-0000-000000000002', 'rtsp://192.168.1.106:554/stream1', 'offline', '1920x1080', 'corridor'),
+  ('ca000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-000000000001', 'First Floor West',       'First floor west wing corridor',               'b0000000-0000-0000-0000-000000000002', 'rtsp://192.168.1.107:554/stream1', 'active',  '1920x1080', 'corridor'),
+  ('ca000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000001', 'Entertainment Zone',     'Overhead view of entertainment floor',          'b0000000-0000-0000-0000-000000000004', 'rtsp://192.168.1.108:554/stream1', 'active',  '2560x1440', 'overhead'),
+  ('ca000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000001', 'Spinneys Entrance',      'Hypermarket entrance overhead counter',        'b0000000-0000-0000-0000-000000000005', 'rtsp://192.168.1.109:554/stream1', 'active',  '1920x1080', 'entrance'),
+  ('ca000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000001', 'Parking Entrance A',     'Parking garage entrance A vehicle counter',    'b0000000-0000-0000-0000-000000000007', 'rtsp://192.168.1.110:554/stream1', 'maintenance', '1920x1080', 'entrance'),
+  ('ca000000-0000-0000-0000-000000000011', 'a0000000-0000-0000-0000-000000000001', 'Services Area Corridor', 'Services wing corridor view',                  'b0000000-0000-0000-0000-000000000006', 'rtsp://192.168.1.111:554/stream1', 'active',  '1920x1080', 'corridor'),
+  ('ca000000-0000-0000-0000-000000000012', 'a0000000-0000-0000-0000-000000000001', 'Escalator Ground-1st',   'Escalator between ground and first floor',     'b0000000-0000-0000-0000-000000000008', 'rtsp://192.168.1.112:554/stream1', 'active',  '1920x1080', 'corridor');
