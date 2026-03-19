@@ -2,26 +2,94 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ── Light theme (default) ── */
+:root,
+.light {
+  --custis-bg: #F9FAFB;
+  --custis-card: #FFFFFF;
+  --custis-border: #E5E7EB;
+  --custis-gold: #D97706;
+  --custis-gold-hover: #B45309;
+  --custis-gold-muted: rgba(217, 119, 6, 0.12);
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-muted: #9CA3AF;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ── Dark theme ── */
+.dark {
+  --custis-bg: #0B0E18;
+  --custis-card: #111827;
+  --custis-border: #1F2937;
+  --custis-gold: #F59E0B;
+  --custis-gold-hover: #FBBF24;
+  --custis-gold-muted: rgba(245, 158, 11, 0.12);
+  --text-primary: #F9FAFB;
+  --text-secondary: #9CA3AF;
+  --text-muted: #6B7280;
+}
+
+/* ── Base styles ── */
+body {
+  @apply bg-custis-bg text-text-primary antialiased;
+  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+}
+
+/* ── Scrollbar styling ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-custis-border rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-text-muted;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--custis-border) transparent;
+}
+
+/* ── Selection styling ── */
+::selection {
+  background: var(--custis-gold-muted);
+  color: var(--custis-gold);
+}
+
+/* ── Utility classes ── */
+@layer utilities {
+  .gold-gradient {
+    background: linear-gradient(135deg, #F59E0B 0%, #D97706 50%, #B45309 100%);
+  }
+
+  .gold-gradient-text {
+    background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .theme-transition {
+    @apply transition-colors duration-200 ease-in-out;
+  }
+
+  .text-balance {
+    text-wrap: balance;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+/* ── Focus ring ── */
+@layer base {
+  *:focus-visible {
+    @apply outline-none ring-2 ring-custis-gold ring-offset-2 ring-offset-custis-bg rounded-sm;
   }
 }
