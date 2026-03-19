@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Store, Search, Loader2, Plus } from "lucide-react";
+import { Store, Search, Loader2, Plus, BarChart3 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,10 +99,18 @@ export default function TenantsPage() {
             Tenant directory, brands, and contact information
           </p>
         </div>
-        <Button size="sm">
-          <Plus size={16} />
-          Add Tenant
-        </Button>
+        <div className="flex gap-2">
+          <Link href="/dashboard/tenant-analytics">
+            <Button size="sm" variant="secondary">
+              <BarChart3 size={16} />
+              Tenant Analytics
+            </Button>
+          </Link>
+          <Button size="sm">
+            <Plus size={16} />
+            Add Tenant
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Megaphone,
   Share2,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Property", href: "/dashboard/property", icon: Building2 },
   { label: "Tenants", href: "/dashboard/tenants", icon: Store },
+  { label: "Tenant Analytics", href: "/dashboard/tenant-analytics", icon: BarChart3 },
   { label: "Leases", href: "/dashboard/leases", icon: FileText },
   { label: "Contracts", href: "/dashboard/contracts", icon: ScrollText },
   { label: "Revenue", href: "/dashboard/revenue", icon: DollarSign },
