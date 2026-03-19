@@ -152,7 +152,7 @@ export default function MaintenancePage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Wrench size={28} className="text-custis-gold" />
+            <Wrench size={28} className="text-wedja-accent" />
             Maintenance
           </h1>
           <p className="text-sm text-text-muted mt-1">
@@ -201,7 +201,7 @@ export default function MaintenancePage() {
             <select
               value={filter.value}
               onChange={(e) => filter.setter(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold cursor-pointer"
+              className="appearance-none pl-3 pr-8 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent cursor-pointer"
             >
               {filter.options.map((opt) => (
                 <option key={opt} value={opt}>
@@ -251,7 +251,7 @@ export default function MaintenancePage() {
                 }
                 placeholder="Detailed description..."
                 rows={3}
-                className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-wedja-accent"
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -264,7 +264,7 @@ export default function MaintenancePage() {
                   onChange={(e) =>
                     setNewTicket({ ...newTicket, category: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                  className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
                 >
                   {CATEGORIES.filter((c) => c !== "all").map((c) => (
                     <option key={c} value={c}>
@@ -282,7 +282,7 @@ export default function MaintenancePage() {
                   onChange={(e) =>
                     setNewTicket({ ...newTicket, priority: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                  className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
                 >
                   {PRIORITIES.filter((p) => p !== "all").map((p) => (
                     <option key={p} value={p}>
@@ -316,7 +316,7 @@ export default function MaintenancePage() {
       {/* Loading / Error */}
       {loading && (
         <div className="flex items-center justify-center h-32">
-          <Loader2 size={24} className="animate-spin text-custis-gold" />
+          <Loader2 size={24} className="animate-spin text-wedja-accent" />
         </div>
       )}
 
@@ -333,11 +333,11 @@ export default function MaintenancePage() {
                 No tickets match the current filters
               </div>
             ) : (
-              <div className="divide-y divide-custis-border/50">
+              <div className="divide-y divide-wedja-border/50">
                 {tickets.map((ticket) => (
                   <div
                     key={ticket.id}
-                    className="px-5 py-4 hover:bg-custis-border/10 transition-colors cursor-pointer"
+                    className="px-5 py-4 hover:bg-wedja-border/10 transition-colors cursor-pointer"
                     onClick={() =>
                       setSelectedTicket(
                         selectedTicket?.id === ticket.id ? null : ticket
@@ -384,7 +384,7 @@ export default function MaintenancePage() {
 
                     {/* Expanded details */}
                     {selectedTicket?.id === ticket.id && (
-                      <div className="mt-4 pt-3 border-t border-custis-border/50">
+                      <div className="mt-4 pt-3 border-t border-wedja-border/50">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                           <div>
                             <span className="text-text-muted">Description:</span>

@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 // ============================================================
-// Custis Revenue Verification Engine
+// Wedja Revenue Verification Engine
 //
 // The core intelligence that catches tenant underreporting.
 //

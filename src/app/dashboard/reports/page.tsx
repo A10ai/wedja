@@ -105,7 +105,7 @@ export default function ReportsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `custis-${type}-${year}-${String(month).padStart(2, "0")}.csv`;
+      a.download = `wedja-${type}-${year}-${String(month).padStart(2, "0")}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     }
@@ -120,7 +120,7 @@ export default function ReportsPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <FileBarChart size={28} className="text-custis-gold" />
+          <FileBarChart size={28} className="text-wedja-accent" />
           Reports
         </h1>
         <p className="text-sm text-text-muted mt-1">
@@ -146,7 +146,7 @@ export default function ReportsPage() {
                 <select
                   value={reportType}
                   onChange={(e) => setReportType(e.target.value)}
-                  className="appearance-none pl-3 pr-8 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold cursor-pointer"
+                  className="appearance-none pl-3 pr-8 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent cursor-pointer"
                 >
                   {REPORT_TYPES.map((rt) => (
                     <option key={rt.value} value={rt.value}>
@@ -170,7 +170,7 @@ export default function ReportsPage() {
                 <select
                   value={month}
                   onChange={(e) => setMonth(parseInt(e.target.value))}
-                  className="appearance-none pl-3 pr-8 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold cursor-pointer"
+                  className="appearance-none pl-3 pr-8 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent cursor-pointer"
                 >
                   {MONTHS.map((m) => (
                     <option key={m.value} value={m.value}>
@@ -194,7 +194,7 @@ export default function ReportsPage() {
                 <select
                   value={year}
                   onChange={(e) => setYear(parseInt(e.target.value))}
-                  className="appearance-none pl-3 pr-8 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold cursor-pointer"
+                  className="appearance-none pl-3 pr-8 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent cursor-pointer"
                 >
                   {[2024, 2025, 2026].map((y) => (
                     <option key={y} value={y}>
@@ -242,7 +242,7 @@ export default function ReportsPage() {
       {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center h-32">
-          <Loader2 size={24} className="animate-spin text-custis-gold" />
+          <Loader2 size={24} className="animate-spin text-wedja-accent" />
         </div>
       )}
 
@@ -313,7 +313,7 @@ function RevenueVerificationReport({
               <p className="text-xs text-text-muted">Discrepancies</p>
             </div>
             <div className="text-center">
-              <p className="text-lg font-bold font-mono text-custis-gold">{formatCurrency(s.total_variance_egp)}</p>
+              <p className="text-lg font-bold font-mono text-wedja-accent">{formatCurrency(s.total_variance_egp)}</p>
               <p className="text-xs text-text-muted">Total Variance</p>
             </div>
             <div className="text-center">
@@ -325,7 +325,7 @@ function RevenueVerificationReport({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-custis-border">
+                <tr className="border-b border-wedja-border">
                   <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Tenant</th>
                   <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Unit</th>
                   <th className="text-right px-3 py-2 text-xs font-medium text-text-muted">Reported</th>
@@ -336,7 +336,7 @@ function RevenueVerificationReport({
               </thead>
               <tbody>
                 {(data.tenants || []).map((t: any) => (
-                  <tr key={t.tenant_id} className="border-b border-custis-border/50 hover:bg-custis-border/10">
+                  <tr key={t.tenant_id} className="border-b border-wedja-border/50 hover:bg-wedja-border/10">
                     <td className="px-3 py-2 text-text-primary font-medium">{t.brand_name}</td>
                     <td className="px-3 py-2 text-text-secondary">{t.unit_number}</td>
                     <td className="px-3 py-2 text-right font-mono text-text-primary">
@@ -381,7 +381,7 @@ function TenantPerformanceReport({ data }: { data: any }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-custis-border">
+              <tr className="border-b border-wedja-border">
                 <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">#</th>
                 <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Tenant</th>
                 <th className="text-center px-3 py-2 text-xs font-medium text-text-muted">Score</th>
@@ -393,7 +393,7 @@ function TenantPerformanceReport({ data }: { data: any }) {
             </thead>
             <tbody>
               {tenants.map((t: any, i: number) => (
-                <tr key={t.tenant_id} className="border-b border-custis-border/50">
+                <tr key={t.tenant_id} className="border-b border-wedja-border/50">
                   <td className="px-3 py-2 font-mono text-xs text-text-muted">{i + 1}</td>
                   <td className="px-3 py-2">
                     <span className="text-text-primary font-medium">{t.brand_name}</span>
@@ -476,7 +476,7 @@ function FootfallReport({ data }: { data: any }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Zone</th>
                     <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Type</th>
                     <th className="text-right px-3 py-2 text-xs font-medium text-text-muted">Visitors</th>
@@ -486,7 +486,7 @@ function FootfallReport({ data }: { data: any }) {
                 </thead>
                 <tbody>
                   {zones.map((z: any) => (
-                    <tr key={z.zone_id} className="border-b border-custis-border/50">
+                    <tr key={z.zone_id} className="border-b border-wedja-border/50">
                       <td className="px-3 py-2 text-text-primary font-medium">{z.zone_name}</td>
                       <td className="px-3 py-2 text-text-secondary capitalize">{z.zone_type}</td>
                       <td className="px-3 py-2 text-right font-mono">{z.total_in.toLocaleString()}</td>
@@ -580,7 +580,7 @@ function RentCollectionReport({
                 <p className="text-xs text-text-muted">Collected</p>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold font-mono text-custis-gold">{s.collection_rate.toFixed(1)}%</p>
+                <p className="text-lg font-bold font-mono text-wedja-accent">{s.collection_rate.toFixed(1)}%</p>
                 <p className="text-xs text-text-muted">Collection Rate</p>
               </div>
               <div className="text-center">
@@ -597,7 +597,7 @@ function RentCollectionReport({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-custis-border">
+                <tr className="border-b border-wedja-border">
                   <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Tenant</th>
                   <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Unit</th>
                   <th className="text-right px-3 py-2 text-xs font-medium text-text-muted">Due</th>
@@ -607,7 +607,7 @@ function RentCollectionReport({
               </thead>
               <tbody>
                 {transactions.map((t: any) => (
-                  <tr key={t.id} className="border-b border-custis-border/50">
+                  <tr key={t.id} className="border-b border-wedja-border/50">
                     <td className="px-3 py-2 text-text-primary font-medium">{t.lease?.tenant?.brand_name || "Unknown"}</td>
                     <td className="px-3 py-2 text-text-secondary">{t.lease?.unit?.unit_number || "N/A"}</td>
                     <td className="px-3 py-2 text-right font-mono">{formatCurrency(t.amount_due)}</td>
@@ -672,7 +672,7 @@ function MaintenanceReport({ data }: { data: any }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-custis-border">
+                <tr className="border-b border-wedja-border">
                   <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Title</th>
                   <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Category</th>
                   <th className="text-center px-3 py-2 text-xs font-medium text-text-muted">Priority</th>
@@ -682,7 +682,7 @@ function MaintenanceReport({ data }: { data: any }) {
               </thead>
               <tbody>
                 {tickets.map((t: any) => (
-                  <tr key={t.id} className="border-b border-custis-border/50">
+                  <tr key={t.id} className="border-b border-wedja-border/50">
                     <td className="px-3 py-2 text-text-primary font-medium">{t.title}</td>
                     <td className="px-3 py-2 text-text-secondary capitalize">{t.category}</td>
                     <td className="px-3 py-2 text-center">

@@ -147,7 +147,7 @@ export default function TenantDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -157,7 +157,7 @@ export default function TenantDetailPage() {
       <div className="space-y-4">
         <Link
           href="/dashboard/tenants"
-          className="text-sm text-custis-gold hover:text-custis-gold-hover flex items-center gap-1"
+          className="text-sm text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1"
         >
           <ArrowLeft size={14} /> Back to Tenants
         </Link>
@@ -183,7 +183,7 @@ export default function TenantDetailPage() {
       {/* Back */}
       <Link
         href="/dashboard/tenants"
-        className="text-sm text-custis-gold hover:text-custis-gold-hover flex items-center gap-1 w-fit"
+        className="text-sm text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1 w-fit"
       >
         <ArrowLeft size={14} /> Back to Tenants
       </Link>
@@ -192,7 +192,7 @@ export default function TenantDetailPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Store size={28} className="text-custis-gold" />
+            <Store size={28} className="text-wedja-accent" />
             {tenant.brand_name}
           </h1>
           <p className="text-sm text-text-muted mt-1">{tenant.name}</p>
@@ -267,7 +267,7 @@ export default function TenantDetailPage() {
                 </div>
                 <div>
                   <p className="text-xs text-text-muted uppercase tracking-wider">Min. Monthly Rent</p>
-                  <p className="text-sm font-mono font-semibold text-custis-gold">
+                  <p className="text-sm font-mono font-semibold text-wedja-accent">
                     {formatCurrency(activeLease.min_rent_monthly_egp)}
                   </p>
                 </div>
@@ -310,7 +310,7 @@ export default function TenantDetailPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Card>
             <CardContent className="py-3 text-center">
-              <p className="text-lg font-bold text-custis-gold font-mono">
+              <p className="text-lg font-bold text-wedja-accent font-mono">
                 {formatCurrency(totalRevenue)}
               </p>
               <p className="text-xs text-text-muted">Total Rent Collected</p>
@@ -354,7 +354,7 @@ export default function TenantDetailPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-custis-border">
+                <tr className="border-b border-wedja-border">
                   <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Period</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Due</th>
                   <th className="text-right px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Paid</th>
@@ -366,8 +366,8 @@ export default function TenantDetailPage() {
                 {rentHistory.map((tx, i) => (
                   <tr
                     key={tx.id}
-                    className={`border-b border-custis-border/50 ${
-                      i % 2 === 1 ? "bg-custis-border/10" : ""
+                    className={`border-b border-wedja-border/50 ${
+                      i % 2 === 1 ? "bg-wedja-border/10" : ""
                     }`}
                   >
                     <td className="px-5 py-3 text-text-primary font-medium">
@@ -414,7 +414,7 @@ export default function TenantDetailPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Period</th>
                     <th className="text-right px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Revenue</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Submitted</th>
@@ -425,8 +425,8 @@ export default function TenantDetailPage() {
                   {sales.map((sale, i) => (
                     <tr
                       key={sale.id}
-                      className={`border-b border-custis-border/50 ${
-                        i % 2 === 1 ? "bg-custis-border/10" : ""
+                      className={`border-b border-wedja-border/50 ${
+                        i % 2 === 1 ? "bg-wedja-border/10" : ""
                       }`}
                     >
                       <td className="px-5 py-3 text-text-primary">

@@ -260,7 +260,7 @@ export default function FootfallPage() {
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Users size={28} className="text-custis-gold" />
+            <Users size={28} className="text-wedja-accent" />
             Footfall Intelligence
           </h1>
           <p className="text-sm text-text-muted mt-1">Loading analytics...</p>
@@ -269,8 +269,8 @@ export default function FootfallPage() {
           {[1, 2, 3, 4].map((i) => (
             <Card key={i}>
               <CardContent className="py-8">
-                <div className="h-4 w-24 bg-custis-border/50 rounded animate-pulse mb-2" />
-                <div className="h-8 w-32 bg-custis-border/50 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-wedja-border/50 rounded animate-pulse mb-2" />
+                <div className="h-8 w-32 bg-wedja-border/50 rounded animate-pulse" />
               </CardContent>
             </Card>
           ))}
@@ -285,7 +285,7 @@ export default function FootfallPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Users size={28} className="text-custis-gold" />
+            <Users size={28} className="text-wedja-accent" />
             Footfall Intelligence
           </h1>
           <p className="text-sm text-text-muted mt-1">
@@ -351,7 +351,7 @@ export default function FootfallPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Activity size={16} className="text-custis-gold" />
+            <Activity size={16} className="text-wedja-accent" />
             <h2 className="text-sm font-semibold text-text-primary">
               Hourly Footfall
             </h2>
@@ -366,7 +366,7 @@ export default function FootfallPage() {
               Mall hours
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-custis-gold" />
+              <span className="w-2 h-2 rounded-full bg-wedja-accent" />
               Peak
             </span>
           </div>
@@ -386,18 +386,18 @@ export default function FootfallPage() {
                   className="flex-1 flex flex-col items-center gap-1 group relative"
                 >
                   {/* Tooltip */}
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-custis-card border border-custis-border rounded px-2 py-1 text-xs text-text-primary whitespace-nowrap z-10 shadow-lg">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-wedja-card border border-wedja-border rounded px-2 py-1 text-xs text-text-primary whitespace-nowrap z-10 shadow-lg">
                     {formatHour(h.hour)}: {formatNumber(h.count)}
                   </div>
                   <div
                     className={cn(
                       "w-full rounded-t transition-all duration-300",
                       isPeak
-                        ? "bg-custis-gold"
+                        ? "bg-wedja-accent"
                         : isMallHour
                         ? "bg-amber-500/70"
                         : "bg-amber-500/20",
-                      isCurrent && "ring-2 ring-custis-gold ring-offset-1 ring-offset-custis-card"
+                      isCurrent && "ring-2 ring-wedja-accent ring-offset-1 ring-offset-wedja-card"
                     )}
                     style={{ height: `${Math.max(pct, 2)}%` }}
                   />
@@ -405,7 +405,7 @@ export default function FootfallPage() {
                     className={cn(
                       "text-[9px] tabular-nums",
                       isCurrent
-                        ? "text-custis-gold font-bold"
+                        ? "text-wedja-accent font-bold"
                         : "text-text-muted"
                     )}
                   >
@@ -424,7 +424,7 @@ export default function FootfallPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <MapPin size={16} className="text-custis-gold" />
+              <MapPin size={16} className="text-wedja-accent" />
               <h2 className="text-sm font-semibold text-text-primary">
                 Zone Heatmap
               </h2>
@@ -474,7 +474,7 @@ export default function FootfallPage() {
         <Card className="lg:col-span-3">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <BarChart3 size={16} className="text-custis-gold" />
+              <BarChart3 size={16} className="text-wedja-accent" />
               <h2 className="text-sm font-semibold text-text-primary">
                 Zone Breakdown
               </h2>
@@ -484,7 +484,7 @@ export default function FootfallPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border text-text-muted text-xs">
+                  <tr className="border-b border-wedja-border text-text-muted text-xs">
                     <th className="text-left px-4 py-2.5 font-medium">Zone</th>
                     <th className="text-left px-2 py-2.5 font-medium">Type</th>
                     <th
@@ -523,7 +523,7 @@ export default function FootfallPage() {
                     return (
                       <tr
                         key={z.zone_id}
-                        className="border-b border-custis-border/50 hover:bg-custis-border/20 transition-colors"
+                        className="border-b border-wedja-border/50 hover:bg-wedja-border/20 transition-colors"
                       >
                         <td className="px-4 py-2.5 font-medium text-text-primary">
                           {z.zone_name}
@@ -545,9 +545,9 @@ export default function FootfallPage() {
                         </td>
                         <td className="px-2 py-2.5 text-right tabular-nums text-text-primary">
                           <div className="flex items-center justify-end gap-2">
-                            <div className="w-16 h-1.5 bg-custis-border/30 rounded-full overflow-hidden">
+                            <div className="w-16 h-1.5 bg-wedja-border/30 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-custis-gold rounded-full"
+                                className="h-full bg-wedja-accent rounded-full"
                                 style={{
                                   width: `${(z.total_in / maxZoneIn) * 100}%`,
                                 }}
@@ -589,7 +589,7 @@ export default function FootfallPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <TrendingUp size={16} className="text-custis-gold" />
+            <TrendingUp size={16} className="text-wedja-accent" />
             <h2 className="text-sm font-semibold text-text-primary">
               Top 10 Stores by Footfall
             </h2>
@@ -599,7 +599,7 @@ export default function FootfallPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-custis-border text-text-muted text-xs">
+                <tr className="border-b border-wedja-border text-text-muted text-xs">
                   <th className="text-left px-4 py-2.5 font-medium w-8">#</th>
                   <th className="text-left px-2 py-2.5 font-medium">Store</th>
                   <th className="text-left px-2 py-2.5 font-medium">Unit</th>
@@ -618,7 +618,7 @@ export default function FootfallPage() {
                 {topStores.map((u, i) => (
                   <tr
                     key={u.unit_id}
-                    className="border-b border-custis-border/50 hover:bg-custis-border/20 transition-colors"
+                    className="border-b border-wedja-border/50 hover:bg-wedja-border/20 transition-colors"
                   >
                     <td className="px-4 py-2.5 text-text-muted font-mono text-xs">
                       {i + 1}
@@ -662,7 +662,7 @@ export default function FootfallPage() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <TrendingUp size={16} className="text-custis-gold" />
+              <TrendingUp size={16} className="text-wedja-accent" />
               <h2 className="text-sm font-semibold text-text-primary">
                 30-Day Trend
               </h2>
@@ -693,14 +693,14 @@ export default function FootfallPage() {
                     key={d.date}
                     className="flex-1 flex flex-col items-center gap-1 group relative"
                   >
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-custis-card border border-custis-border rounded px-2 py-1 text-xs text-text-primary whitespace-nowrap z-20 shadow-lg">
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-wedja-card border border-wedja-border rounded px-2 py-1 text-xs text-text-primary whitespace-nowrap z-20 shadow-lg">
                       {d.date}: {formatNumber(d.total_in)}
                       {isWeekend ? " (Weekend)" : ""}
                     </div>
                     <div
                       className={cn(
                         "w-full rounded-t transition-all duration-300",
-                        isWeekend ? "bg-custis-gold" : "bg-amber-500/60"
+                        isWeekend ? "bg-wedja-accent" : "bg-amber-500/60"
                       )}
                       style={{ height: `${Math.max(pct, 2)}%` }}
                     />
@@ -719,7 +719,7 @@ export default function FootfallPage() {
                 Weekday
               </span>
               <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-custis-gold" />
+                <span className="w-2 h-2 rounded-full bg-wedja-accent" />
                 Weekend
               </span>
               <span className="flex items-center gap-1">
@@ -734,7 +734,7 @@ export default function FootfallPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Activity size={16} className="text-custis-gold" />
+              <Activity size={16} className="text-wedja-accent" />
               <h2 className="text-sm font-semibold text-text-primary">
                 Peak Patterns
               </h2>
@@ -747,7 +747,7 @@ export default function FootfallPage() {
                   label="Busiest Day"
                   value={peaks.busiest_day}
                   sub={`${formatNumber(peaks.busiest_day_avg)} avg visitors`}
-                  icon={<TrendingUp size={14} className="text-custis-gold" />}
+                  icon={<TrendingUp size={14} className="text-wedja-accent" />}
                 />
                 <PatternItem
                   label="Quietest Day"
@@ -757,7 +757,7 @@ export default function FootfallPage() {
                     <TrendingDown size={14} className="text-text-muted" />
                   }
                 />
-                <div className="border-t border-custis-border pt-3">
+                <div className="border-t border-wedja-border pt-3">
                   <p className="text-xs text-text-muted mb-2">
                     Weekend vs Weekday
                   </p>
@@ -769,7 +769,7 @@ export default function FootfallPage() {
                           {formatNumber(peaks.weekday_avg)}
                         </span>
                       </div>
-                      <div className="h-2 bg-custis-border/30 rounded-full overflow-hidden">
+                      <div className="h-2 bg-wedja-border/30 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-amber-500/60 rounded-full"
                           style={{
@@ -796,9 +796,9 @@ export default function FootfallPage() {
                           {formatNumber(peaks.weekend_avg)}
                         </span>
                       </div>
-                      <div className="h-2 bg-custis-border/30 rounded-full overflow-hidden">
+                      <div className="h-2 bg-wedja-border/30 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-custis-gold rounded-full"
+                          className="h-full bg-wedja-accent rounded-full"
                           style={{
                             width: `${
                               Math.max(peaks.weekday_avg, peaks.weekend_avg) > 0
@@ -817,18 +817,18 @@ export default function FootfallPage() {
                   </div>
                   <p className="text-xs text-text-muted mt-2">
                     Ratio:{" "}
-                    <span className="text-custis-gold font-medium">
+                    <span className="text-wedja-accent font-medium">
                       {peaks.weekend_vs_weekday_ratio}x
                     </span>
                   </p>
                 </div>
-                <div className="border-t border-custis-border pt-3">
+                <div className="border-t border-wedja-border pt-3">
                   <PatternItem
                     label="Most Common Peak Hour"
                     value={formatHour(peaks.peak_hour)}
                     sub={`${formatNumber(peaks.peak_hour_avg)} avg peak count`}
                     icon={
-                      <Clock size={14} className="text-custis-gold" />
+                      <Clock size={14} className="text-wedja-accent" />
                     }
                   />
                 </div>
@@ -846,7 +846,7 @@ export default function FootfallPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Camera size={16} className="text-custis-gold" />
+            <Camera size={16} className="text-wedja-accent" />
             <h2 className="text-sm font-semibold text-text-primary">
               Camera Status
             </h2>
@@ -863,7 +863,7 @@ export default function FootfallPage() {
             {cameras.slice(0, 8).map((cam) => (
               <div
                 key={cam.id}
-                className="flex items-center gap-3 p-3 rounded-lg bg-custis-bg border border-custis-border/50"
+                className="flex items-center gap-3 p-3 rounded-lg bg-wedja-bg border border-wedja-border/50"
               >
                 <div
                   className={cn(
@@ -899,7 +899,7 @@ export default function FootfallPage() {
             {cameras.length > 8 && (
               <Link
                 href="/dashboard/footfall/cameras"
-                className="flex items-center justify-center p-3 rounded-lg border border-dashed border-custis-border text-text-muted text-xs hover:text-custis-gold hover:border-custis-gold transition-colors"
+                className="flex items-center justify-center p-3 rounded-lg border border-dashed border-wedja-border text-text-muted text-xs hover:text-wedja-accent hover:border-wedja-accent transition-colors"
               >
                 +{cameras.length - 8} more cameras
               </Link>
@@ -957,7 +957,7 @@ function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <Card className={highlight ? "ring-1 ring-custis-gold/30" : ""}>
+    <Card className={highlight ? "ring-1 ring-wedja-accent/30" : ""}>
       <CardContent className="py-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-text-muted font-medium">{label}</span>
@@ -966,7 +966,7 @@ function StatCard({
         <p
           className={cn(
             "text-2xl font-bold tabular-nums",
-            highlight ? "text-custis-gold" : "text-text-primary"
+            highlight ? "text-wedja-accent" : "text-text-primary"
           )}
         >
           {value}
@@ -1094,14 +1094,14 @@ function ManualEntryModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative bg-custis-card border border-custis-border rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
+      <div className="relative bg-wedja-card border border-wedja-border rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-text-primary">
             Manual Footfall Entry
           </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-custis-border/50 text-text-muted"
+            className="p-1 rounded-lg hover:bg-wedja-border/50 text-text-muted"
             aria-label="Close"
           >
             <X size={18} />
@@ -1116,7 +1116,7 @@ function ManualEntryModal({
             <select
               value={selectedUnit}
               onChange={(e) => setSelectedUnit(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold focus:border-transparent"
+              className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent focus:border-transparent"
               required
             >
               <option value="">Select unit...</option>

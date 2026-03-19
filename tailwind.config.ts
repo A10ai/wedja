@@ -10,12 +10,13 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        "custis-bg": "var(--custis-bg)",
-        "custis-card": "var(--custis-card)",
-        "custis-border": "var(--custis-border)",
-        "custis-gold": "var(--custis-gold)",
-        "custis-gold-hover": "var(--custis-gold-hover)",
-        "custis-gold-muted": "var(--custis-gold-muted)",
+        "wedja-bg": "var(--wedja-bg)",
+        "wedja-card": "var(--wedja-card)",
+        "wedja-elevated": "var(--wedja-elevated)",
+        "wedja-border": "var(--wedja-border)",
+        "wedja-accent": "var(--wedja-accent)",
+        "wedja-accent-hover": "var(--wedja-accent-hover)",
+        "wedja-accent-muted": "var(--wedja-accent-muted)",
         "text-primary": "var(--text-primary)",
         "text-secondary": "var(--text-secondary)",
         "text-muted": "var(--text-muted)",
@@ -25,8 +26,9 @@ const config: Config = {
         "status-info": "#3B82F6",
       },
       fontFamily: {
-        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
-        mono: ["var(--font-jetbrains)", "JetBrains Mono", "monospace"],
+        sans: ["var(--font-instrument)", "Instrument Sans", "system-ui", "sans-serif"],
+        display: ["var(--font-jura)", "Jura", "system-ui", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "Geist Mono", "monospace"],
       },
       animation: {
         "fade-in": "fadeIn 0.3s ease-out",

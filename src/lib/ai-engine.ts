@@ -3,7 +3,7 @@ import { getFootfallOverview, getPeakPatterns } from "./footfall-engine";
 import { getDiscrepancySummary } from "./revenue-engine";
 
 // ============================================================
-// Custis AI Engine
+// Wedja AI Engine
 //
 // Analyses all property data and generates actionable insights,
 // health scores, daily briefings, and tenant performance cards.

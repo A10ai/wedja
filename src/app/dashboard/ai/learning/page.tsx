@@ -123,7 +123,7 @@ function ConfidenceBar({
   const height = size === "sm" ? "h-1.5" : "h-2";
 
   return (
-    <div className={`w-full ${height} bg-custis-border rounded-full overflow-hidden`}>
+    <div className={`w-full ${height} bg-wedja-border rounded-full overflow-hidden`}>
       <div
         className={`${height} rounded-full ${color} transition-all duration-700`}
         style={{ width: `${Math.min(value, 100)}%` }}
@@ -151,8 +151,8 @@ const patternTypeConfig: Record<
 function PulsingDot() {
   return (
     <span className="relative flex h-3 w-3">
-      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-custis-gold opacity-75" />
-      <span className="relative inline-flex rounded-full h-3 w-3 bg-custis-gold" />
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-wedja-accent opacity-75" />
+      <span className="relative inline-flex rounded-full h-3 w-3 bg-wedja-accent" />
     </span>
   );
 }
@@ -232,7 +232,7 @@ export default function LearningPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -253,13 +253,13 @@ export default function LearningPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-3">
-            <GraduationCap size={28} className="text-custis-gold" />
+            <GraduationCap size={28} className="text-wedja-accent" />
             Learning Engine
           </h1>
           <div className="flex items-center gap-3 mt-2">
             <PulsingDot />
             <p className="text-sm text-text-muted">
-              Custis is learning
+              Wedja is learning
               {stats.days_of_learning > 0 && (
                 <span className="text-text-secondary">
                   {" "}
@@ -288,10 +288,10 @@ export default function LearningPage() {
 
       {/* Run result toast */}
       {runResult && (
-        <div className="p-4 rounded-lg bg-custis-gold-muted border border-custis-gold/30 text-sm text-text-primary flex items-start gap-3">
-          <Brain size={18} className="text-custis-gold mt-0.5 shrink-0" />
+        <div className="p-4 rounded-lg bg-wedja-accent-muted border border-wedja-accent/30 text-sm text-text-primary flex items-start gap-3">
+          <Brain size={18} className="text-wedja-accent mt-0.5 shrink-0" />
           <div className="flex-1">
-            <p className="font-medium text-custis-gold mb-1">Learning cycle complete</p>
+            <p className="font-medium text-wedja-accent mb-1">Learning cycle complete</p>
             <p className="text-text-secondary">{runResult}</p>
           </div>
           <button
@@ -308,7 +308,7 @@ export default function LearningPage() {
         <StatCard
           label="Parameters Calibrated"
           value={stats.params_calibrated}
-          icon={<Target size={18} className="text-custis-gold" />}
+          icon={<Target size={18} className="text-wedja-accent" />}
           detail="Conversion rates, baselines"
         />
         <StatCard
@@ -336,7 +336,7 @@ export default function LearningPage() {
       <Card>
         <CardHeader>
           <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-            <Target size={16} className="text-custis-gold" />
+            <Target size={16} className="text-wedja-accent" />
             Calibrated Parameters
           </h2>
           <span className="text-xs text-text-muted">
@@ -352,7 +352,7 @@ export default function LearningPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
                       Entity
                     </th>
@@ -384,7 +384,7 @@ export default function LearningPage() {
                     return (
                       <tr
                         key={p.id}
-                        className="border-b border-custis-border/50 hover:bg-custis-border/10"
+                        className="border-b border-wedja-border/50 hover:bg-wedja-border/10"
                       >
                         <td className="px-5 py-3">
                           <span className="text-text-primary font-medium">
@@ -405,7 +405,7 @@ export default function LearningPage() {
                         <td className="px-5 py-3 text-right">
                           <span
                             className={`font-mono font-medium ${
-                              isSignificant ? "text-custis-gold" : "text-text-primary"
+                              isSignificant ? "text-wedja-accent" : "text-text-primary"
                             }`}
                           >
                             {isConversion
@@ -450,9 +450,9 @@ export default function LearningPage() {
                 ((p.learned_value - p.initial_value) / p.initial_value) * 100
               ) > 10
           ) && (
-            <div className="mx-5 mb-4 mt-2 p-3 rounded-lg bg-custis-gold-muted border border-custis-gold/20">
+            <div className="mx-5 mb-4 mt-2 p-3 rounded-lg bg-wedja-accent-muted border border-wedja-accent/20">
               <p className="text-xs text-text-secondary">
-                <span className="text-custis-gold font-medium">AI Insight:</span>{" "}
+                <span className="text-wedja-accent font-medium">AI Insight:</span>{" "}
                 {(() => {
                   const notable = params.find(
                     (p) =>
@@ -500,7 +500,7 @@ export default function LearningPage() {
                 return (
                   <div
                     key={pattern.id}
-                    className="p-4 rounded-lg border border-custis-border/50 bg-custis-border/5 hover:border-custis-border transition-colors"
+                    className="p-4 rounded-lg border border-wedja-border/50 bg-wedja-border/5 hover:border-wedja-border transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2">
@@ -550,7 +550,7 @@ export default function LearningPage() {
                       </span>
                     </div>
                     {pattern.impact_estimate && (
-                      <p className="text-[11px] text-custis-gold mt-1 font-medium">
+                      <p className="text-[11px] text-wedja-accent mt-1 font-medium">
                         {pattern.impact_estimate}
                       </p>
                     )}
@@ -566,7 +566,7 @@ export default function LearningPage() {
       <Card>
         <CardHeader>
           <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-            <Clock size={16} className="text-custis-gold" />
+            <Clock size={16} className="text-wedja-accent" />
             Learning Timeline
           </h2>
           <span className="text-xs text-text-muted">
@@ -580,7 +580,7 @@ export default function LearningPage() {
               start.
             </div>
           ) : (
-            <div className="divide-y divide-custis-border/50">
+            <div className="divide-y divide-wedja-border/50">
               {history.map((cycle) => {
                 const isExpanded = expandedCycles.has(cycle.id);
                 const hasImprovements =
@@ -594,8 +594,8 @@ export default function LearningPage() {
                       className="w-full flex items-center justify-between text-left group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-1.5 rounded-lg bg-custis-gold-muted shrink-0">
-                          <Brain size={14} className="text-custis-gold" />
+                        <div className="p-1.5 rounded-lg bg-wedja-accent-muted shrink-0">
+                          <Brain size={14} className="text-wedja-accent" />
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm text-text-primary font-medium truncate">
@@ -610,7 +610,7 @@ export default function LearningPage() {
                         <div className="hidden sm:flex items-center gap-3 text-xs text-text-muted">
                           {cycle.params_updated > 0 && (
                             <span>
-                              <span className="font-mono text-custis-gold">
+                              <span className="font-mono text-wedja-accent">
                                 {cycle.params_updated}
                               </span>{" "}
                               params
@@ -645,7 +645,7 @@ export default function LearningPage() {
                     {isExpanded && (
                       <div className="mt-3 ml-10 space-y-2">
                         <div className="grid grid-cols-3 gap-3 text-xs">
-                          <div className="p-2 rounded bg-custis-border/20">
+                          <div className="p-2 rounded bg-wedja-border/20">
                             <span className="text-text-muted block">
                               Params Updated
                             </span>
@@ -653,7 +653,7 @@ export default function LearningPage() {
                               {cycle.params_updated}
                             </span>
                           </div>
-                          <div className="p-2 rounded bg-custis-border/20">
+                          <div className="p-2 rounded bg-wedja-border/20">
                             <span className="text-text-muted block">
                               Patterns Found
                             </span>
@@ -661,7 +661,7 @@ export default function LearningPage() {
                               {cycle.patterns_found}
                             </span>
                           </div>
-                          <div className="p-2 rounded bg-custis-border/20">
+                          <div className="p-2 rounded bg-wedja-border/20">
                             <span className="text-text-muted block">
                               Confirmed
                             </span>
@@ -692,7 +692,7 @@ export default function LearningPage() {
                                   {imp.old_confidence}%
                                 </span>
                                 <span className="text-text-muted">&rarr;</span>
-                                <span className="text-custis-gold font-mono">
+                                <span className="text-wedja-accent font-mono">
                                   {imp.new_confidence}%
                                 </span>
                               </div>
@@ -724,13 +724,13 @@ export default function LearningPage() {
           {feedback.length === 0 ? (
             <div className="py-8 text-center text-text-muted text-sm">
               No feedback recorded yet. Approve, modify, or reject AI decisions
-              to teach Custis.
+              to teach Wedja.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
                       Date
                     </th>
@@ -757,7 +757,7 @@ export default function LearningPage() {
                     return (
                       <tr
                         key={f.id}
-                        className="border-b border-custis-border/50 hover:bg-custis-border/10"
+                        className="border-b border-wedja-border/50 hover:bg-wedja-border/10"
                       >
                         <td className="px-5 py-3 text-text-muted text-xs whitespace-nowrap">
                           {timeAgo(f.created_at)}

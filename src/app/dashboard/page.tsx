@@ -82,7 +82,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -100,7 +100,7 @@ export default function DashboardPage() {
       label: "Total Revenue",
       value: formatCurrency(stats.total_revenue_egp),
       icon: DollarSign,
-      color: "text-custis-gold",
+      color: "text-wedja-accent",
     },
     {
       label: "Occupancy Rate",
@@ -168,7 +168,7 @@ export default function DashboardPage() {
                     {stat.value}
                   </p>
                 </div>
-                <div className="p-2.5 rounded-lg bg-custis-gold-muted">
+                <div className="p-2.5 rounded-lg bg-wedja-accent-muted">
                   <Icon size={20} className={stat.color} />
                 </div>
               </CardContent>
@@ -215,7 +215,7 @@ export default function DashboardPage() {
               </h2>
               <Link
                 href="/dashboard/revenue"
-                className="text-xs text-custis-gold hover:text-custis-gold-hover flex items-center gap-1"
+                className="text-xs text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1"
               >
                 View all <ArrowRight size={12} />
               </Link>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-custis-border">
+                    <tr className="border-b border-wedja-border">
                       <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
                         Tenant
                       </th>
@@ -243,8 +243,8 @@ export default function DashboardPage() {
                     {stats.recent_transactions.map((tx, i) => (
                       <tr
                         key={tx.id}
-                        className={`border-b border-custis-border/50 hover:bg-custis-border/20 ${
-                          i % 2 === 1 ? "bg-custis-border/10" : ""
+                        className={`border-b border-wedja-border/50 hover:bg-wedja-border/20 ${
+                          i % 2 === 1 ? "bg-wedja-border/10" : ""
                         }`}
                       >
                         <td className="px-5 py-3 text-text-primary font-medium">
@@ -297,7 +297,7 @@ export default function DashboardPage() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-text-secondary hover:text-custis-gold hover:bg-custis-gold-muted transition-colors"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-text-secondary hover:text-wedja-accent hover:bg-wedja-accent-muted transition-colors"
                 >
                   <Icon size={16} />
                   {link.label}

@@ -11,10 +11,10 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    "bg-custis-gold text-white hover:bg-custis-gold-hover shadow-sm font-medium",
+    "wedja-gradient text-white hover:opacity-90 shadow-sm font-medium",
   secondary:
-    "bg-custis-card border border-custis-border text-text-primary hover:bg-custis-border/50",
-  ghost: "text-text-secondary hover:text-text-primary hover:bg-custis-border/50",
+    "bg-wedja-card border border-wedja-border text-text-primary hover:bg-wedja-border/50",
+  ghost: "text-text-secondary hover:text-text-primary hover:bg-wedja-border/50",
   danger: "bg-red-500/10 text-red-500 hover:bg-red-500/20",
 };
 

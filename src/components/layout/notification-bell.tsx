@@ -102,21 +102,21 @@ export function NotificationBell() {
           setOpen(!open);
           if (!open) fetchNotifications();
         }}
-        className="relative p-2 rounded-lg hover:bg-custis-border/50 text-text-secondary transition-colors"
+        className="relative p-2 rounded-lg hover:bg-wedja-border/50 text-text-secondary transition-colors"
         aria-label="Notifications"
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-custis-gold text-white text-[10px] font-bold rounded-full">
+          <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-wedja-accent text-white text-[10px] font-bold rounded-full">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-custis-card border border-custis-border rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+        <div className="absolute right-0 top-full mt-2 w-80 bg-wedja-card border border-wedja-border rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-custis-border flex items-center justify-between">
+          <div className="px-4 py-3 border-b border-wedja-border flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-primary">
               Notifications
             </h3>
@@ -124,7 +124,7 @@ export function NotificationBell() {
               <button
                 onClick={markAllRead}
                 disabled={loading}
-                className="text-xs text-custis-gold hover:text-custis-gold-hover flex items-center gap-1 transition-colors disabled:opacity-50"
+                className="text-xs text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1 transition-colors disabled:opacity-50"
               >
                 {loading ? (
                   <Loader2 size={12} className="animate-spin" />
@@ -147,8 +147,8 @@ export function NotificationBell() {
               <div
                 key={n.id}
                 className={cn(
-                  "px-4 py-3 border-b border-custis-border/50 hover:bg-custis-border/20 transition-colors cursor-pointer",
-                  !n.read && "bg-custis-gold-muted/20"
+                  "px-4 py-3 border-b border-wedja-border/50 hover:bg-wedja-border/20 transition-colors cursor-pointer",
+                  !n.read && "bg-wedja-accent-muted/20"
                 )}
                 onClick={() => {
                   if (!n.read) markRead(n.id);
@@ -160,8 +160,8 @@ export function NotificationBell() {
                     className={cn(
                       "w-2 h-2 rounded-full mt-1.5 shrink-0",
                       n.read
-                        ? "bg-custis-border"
-                        : typeColors[n.type] || "bg-custis-gold"
+                        ? "bg-wedja-border"
+                        : typeColors[n.type] || "bg-wedja-accent"
                     )}
                   />
                   <div className="flex-1 min-w-0">
@@ -188,7 +188,7 @@ export function NotificationBell() {
                         e.stopPropagation();
                         markRead(n.id);
                       }}
-                      className="p-1 rounded hover:bg-custis-border/50 text-text-muted hover:text-text-primary shrink-0"
+                      className="p-1 rounded hover:bg-wedja-border/50 text-text-muted hover:text-text-primary shrink-0"
                       aria-label="Mark as read"
                     >
                       <Check size={14} />

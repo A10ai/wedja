@@ -96,7 +96,7 @@ export default function LeasesPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <FileText size={28} className="text-custis-gold" />
+          <FileText size={28} className="text-wedja-accent" />
           Leases
         </h1>
         <p className="text-sm text-text-muted mt-1">
@@ -108,7 +108,7 @@ export default function LeasesPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="py-3 text-center">
-            <p className="text-lg font-bold text-custis-gold font-mono">
+            <p className="text-lg font-bold text-wedja-accent font-mono">
               {formatCurrency(totalMonthlyRent)}
             </p>
             <p className="text-xs text-text-muted">Total Monthly Min. Rent</p>
@@ -142,7 +142,7 @@ export default function LeasesPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+            className="px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
           >
             {STATUS_FILTERS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -158,13 +158,13 @@ export default function LeasesPage() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={28} className="animate-spin text-custis-gold" />
+              <Loader2 size={28} className="animate-spin text-wedja-accent" />
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Tenant</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden sm:table-cell">Unit</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">Zone</th>
@@ -182,11 +182,11 @@ export default function LeasesPage() {
                     return (
                       <tr
                         key={lease.id}
-                        className={`border-b border-custis-border/50 hover:bg-custis-border/20 ${
+                        className={`border-b border-wedja-border/50 hover:bg-wedja-border/20 ${
                           expiring
                             ? "bg-amber-500/5"
                             : i % 2 === 1
-                            ? "bg-custis-border/10"
+                            ? "bg-wedja-border/10"
                             : ""
                         }`}
                       >

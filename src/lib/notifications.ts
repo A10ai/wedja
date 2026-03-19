@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 // ============================================================
-// Custis Notifications
+// Wedja Notifications
 // ============================================================
 
 export interface Notification {

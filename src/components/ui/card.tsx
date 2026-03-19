@@ -8,7 +8,7 @@ export function Card({ children, className, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "bg-custis-card border border-custis-border rounded-xl theme-transition",
+        "bg-wedja-card border border-wedja-border rounded-xl theme-transition",
         className
       )}
       {...props}
@@ -26,7 +26,7 @@ export function CardHeader({ children, className, ...props }: CardHeaderProps) {
   return (
     <div
       className={cn(
-        "px-5 py-4 border-b border-custis-border flex items-center justify-between",
+        "px-5 py-4 border-b border-wedja-border flex items-center justify-between",
         className
       )}
       {...props}

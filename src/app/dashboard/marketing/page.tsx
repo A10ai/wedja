@@ -222,12 +222,12 @@ function FormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative z-10 bg-custis-card border border-custis-border rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6">
+      <div className="relative z-10 bg-wedja-card border border-wedja-border rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-text-primary">{title}</h2>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-custis-border/50 text-text-secondary"
+            className="p-1.5 rounded-lg hover:bg-wedja-border/50 text-text-secondary"
             aria-label="Close"
           >
             <X size={18} />
@@ -372,7 +372,7 @@ export default function MarketingPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -383,7 +383,7 @@ export default function MarketingPage() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Megaphone size={28} className="text-custis-gold" />
+            <Megaphone size={28} className="text-wedja-accent" />
             Marketing & Events
           </h1>
           <p className="text-sm text-text-muted mt-1">
@@ -394,13 +394,13 @@ export default function MarketingPage() {
         <div className="flex items-center gap-2">
           <Button
             onClick={() => setShowEventForm(true)}
-            className="bg-custis-gold hover:bg-custis-gold-hover text-black font-medium text-sm px-4 py-2 rounded-lg flex items-center gap-1.5"
+            className="bg-wedja-accent hover:bg-wedja-accent-hover text-black font-medium text-sm px-4 py-2 rounded-lg flex items-center gap-1.5"
           >
             <Plus size={16} /> New Event
           </Button>
           <Button
             onClick={() => setShowCampaignForm(true)}
-            className="bg-custis-border/50 hover:bg-custis-border text-text-primary font-medium text-sm px-4 py-2 rounded-lg flex items-center gap-1.5"
+            className="bg-wedja-border/50 hover:bg-wedja-border text-text-primary font-medium text-sm px-4 py-2 rounded-lg flex items-center gap-1.5"
           >
             <Plus size={16} /> New Campaign
           </Button>
@@ -452,7 +452,7 @@ export default function MarketingPage() {
                 </span>
                 <DollarSign size={16} className="text-amber-500" />
               </div>
-              <p className="text-xl font-bold font-mono text-custis-gold">
+              <p className="text-xl font-bold font-mono text-wedja-accent">
                 {formatCurrency(overview.total_marketing_spend_this_month)}
               </p>
               <p className="text-xs text-text-muted mt-1">This month</p>
@@ -542,7 +542,7 @@ export default function MarketingPage() {
       <Card>
         <CardHeader>
           <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-            <Calendar size={16} className="text-custis-gold" />
+            <Calendar size={16} className="text-wedja-accent" />
             Seasonal Calendar — {new Date().getFullYear()}
           </h2>
         </CardHeader>
@@ -575,7 +575,7 @@ export default function MarketingPage() {
             </div>
 
             {/* Timeline background with month dividers */}
-            <div className="relative h-2 bg-custis-border/30 rounded-full mb-1">
+            <div className="relative h-2 bg-wedja-border/30 rounded-full mb-1">
               {/* Current date marker */}
               {(() => {
                 const now = new Date();
@@ -598,7 +598,7 @@ export default function MarketingPage() {
               {Array.from({ length: 11 }, (_, i) => (
                 <div
                   key={i}
-                  className="absolute top-0 w-px h-full bg-custis-border/50"
+                  className="absolute top-0 w-px h-full bg-wedja-border/50"
                   style={{ left: `${((i + 1) / 12) * 100}%` }}
                 />
               ))}
@@ -660,7 +660,7 @@ export default function MarketingPage() {
 
                     {/* Expanded detail */}
                     {isExpanded && (
-                      <div className="ml-4 mt-1 mb-2 p-3 rounded-lg bg-custis-border/10 border border-custis-border/30">
+                      <div className="ml-4 mt-1 mb-2 p-3 rounded-lg bg-wedja-border/10 border border-wedja-border/30">
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <Badge variant={impactBadgeVariant(season.footfall_impact)}>
                             Footfall: {typeLabel(season.footfall_impact)}
@@ -695,8 +695,8 @@ export default function MarketingPage() {
                         <p className="text-xs text-text-secondary mb-1">
                           {season.planning_notes}
                         </p>
-                        <div className="mt-2 p-2 rounded bg-custis-gold-muted/50">
-                          <p className="text-xs text-custis-gold flex items-start gap-1.5">
+                        <div className="mt-2 p-2 rounded bg-wedja-accent-muted/50">
+                          <p className="text-xs text-wedja-accent flex items-start gap-1.5">
                             <Sparkles
                               size={13}
                               className="shrink-0 mt-0.5"
@@ -744,7 +744,7 @@ export default function MarketingPage() {
         <Card>
           <CardHeader>
             <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <AlertTriangle size={16} className="text-custis-gold" />
+              <AlertTriangle size={16} className="text-wedja-accent" />
               Seasonal Alerts & AI Planning
             </h2>
           </CardHeader>
@@ -762,7 +762,7 @@ export default function MarketingPage() {
                     ? "border-red-500/30 bg-red-500/5"
                     : alert.urgency === "warning"
                     ? "border-amber-500/30 bg-amber-500/5"
-                    : "border-custis-border/50"
+                    : "border-wedja-border/50"
                 }`}
               >
                 <div className="flex items-center justify-between mb-1.5">
@@ -798,7 +798,7 @@ export default function MarketingPage() {
                         key={i}
                         className="flex items-start gap-1.5 text-[11px] text-text-muted"
                       >
-                        <span className="text-custis-gold mt-px">&#9679;</span>
+                        <span className="text-wedja-accent mt-px">&#9679;</span>
                         {item}
                       </div>
                     ))}
@@ -813,7 +813,7 @@ export default function MarketingPage() {
         <Card>
           <CardHeader>
             <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <Calendar size={16} className="text-custis-gold" />
+              <Calendar size={16} className="text-wedja-accent" />
               Upcoming & Active Events
             </h2>
           </CardHeader>
@@ -827,7 +827,7 @@ export default function MarketingPage() {
                 return (
                   <div
                     key={event.id}
-                    className="p-3 rounded-lg border border-custis-border/50 hover:border-custis-border transition-colors"
+                    className="p-3 rounded-lg border border-wedja-border/50 hover:border-wedja-border transition-colors"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <h3 className="text-sm font-medium text-text-primary">
@@ -892,11 +892,11 @@ export default function MarketingPage() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <Target size={16} className="text-custis-gold" />
+                <Target size={16} className="text-wedja-accent" />
                 Campaigns
               </h2>
               {campaignData.recommendation && (
-                <div className="flex items-center gap-1.5 text-[11px] text-custis-gold bg-custis-gold-muted/50 px-2.5 py-1 rounded-full">
+                <div className="flex items-center gap-1.5 text-[11px] text-wedja-accent bg-wedja-accent-muted/50 px-2.5 py-1 rounded-full">
                   <Sparkles size={12} />
                   <span className="hidden sm:inline">
                     {campaignData.recommendation.slice(0, 80)}
@@ -919,7 +919,7 @@ export default function MarketingPage() {
                   return (
                     <div
                       key={camp.id}
-                      className="p-4 rounded-lg border border-custis-border/50 hover:border-custis-border transition-colors"
+                      className="p-4 rounded-lg border border-wedja-border/50 hover:border-wedja-border transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="text-sm font-medium text-text-primary truncate">
@@ -951,7 +951,7 @@ export default function MarketingPage() {
                               {formatCurrency(camp.budget_egp)}
                             </span>
                           </div>
-                          <div className="w-full h-1.5 bg-custis-border/50 rounded-full overflow-hidden">
+                          <div className="w-full h-1.5 bg-wedja-border/50 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all duration-500 ${
                                 budgetUsed > 90
@@ -1009,11 +1009,11 @@ export default function MarketingPage() {
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <BarChart3 size={16} className="text-custis-gold" />
+                <BarChart3 size={16} className="text-wedja-accent" />
                 Event Performance
               </h2>
               {performance.ai_insight && (
-                <div className="flex items-center gap-1.5 text-[11px] text-custis-gold bg-custis-gold-muted/50 px-2.5 py-1 rounded-full max-w-md">
+                <div className="flex items-center gap-1.5 text-[11px] text-wedja-accent bg-wedja-accent-muted/50 px-2.5 py-1 rounded-full max-w-md">
                   <Sparkles size={12} className="shrink-0" />
                   <span className="truncate">{performance.ai_insight}</span>
                 </div>
@@ -1024,7 +1024,7 @@ export default function MarketingPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">
                       Event
                     </th>
@@ -1061,12 +1061,12 @@ export default function MarketingPage() {
                   {performance.events.map((e) => (
                     <tr
                       key={e.id}
-                      className={`border-b border-custis-border/50 ${
+                      className={`border-b border-wedja-border/50 ${
                         e.performance_rating === "overperformer"
                           ? "bg-emerald-500/5"
                           : e.performance_rating === "underperformer"
                           ? "bg-red-500/5"
-                          : "hover:bg-custis-border/10"
+                          : "hover:bg-wedja-border/10"
                       }`}
                     >
                       <td className="px-4 py-2.5 text-text-primary font-medium max-w-[180px] truncate">
@@ -1099,7 +1099,7 @@ export default function MarketingPage() {
                           ? formatCurrency(e.actual_cost_egp)
                           : "-"}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-custis-gold">
+                      <td className="px-4 py-2.5 text-right font-mono text-wedja-accent">
                         {e.revenue_impact_egp
                           ? formatCurrency(e.revenue_impact_egp)
                           : "-"}
@@ -1146,7 +1146,7 @@ export default function MarketingPage() {
         <Card>
           <CardHeader>
             <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <Tag size={16} className="text-custis-gold" />
+              <Tag size={16} className="text-wedja-accent" />
               Tenant Promotions
             </h2>
           </CardHeader>
@@ -1154,7 +1154,7 @@ export default function MarketingPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">
                       Tenant
                     </th>
@@ -1185,7 +1185,7 @@ export default function MarketingPage() {
                   {promotions.map((p) => (
                     <tr
                       key={p.id}
-                      className="border-b border-custis-border/50 hover:bg-custis-border/10"
+                      className="border-b border-wedja-border/50 hover:bg-wedja-border/10"
                     >
                       <td className="px-4 py-2.5 text-text-primary font-medium">
                         {p.tenant_name}
@@ -1207,7 +1207,7 @@ export default function MarketingPage() {
                           ? `+${p.footfall_impact_pct}%`
                           : "-"}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-custis-gold">
+                      <td className="px-4 py-2.5 text-right font-mono text-wedja-accent">
                         {p.revenue_impact_pct
                           ? `+${p.revenue_impact_pct}%`
                           : "-"}
@@ -1248,7 +1248,7 @@ export default function MarketingPage() {
               <select
                 name="event_type"
                 required
-                className="w-full rounded-lg border border-custis-border bg-custis-card text-text-primary text-sm px-3 py-2"
+                className="w-full rounded-lg border border-wedja-border bg-wedja-card text-text-primary text-sm px-3 py-2"
               >
                 <option value="seasonal">Seasonal</option>
                 <option value="holiday">Holiday</option>
@@ -1265,7 +1265,7 @@ export default function MarketingPage() {
               </label>
               <select
                 name="target_audience"
-                className="w-full rounded-lg border border-custis-border bg-custis-card text-text-primary text-sm px-3 py-2"
+                className="w-full rounded-lg border border-wedja-border bg-wedja-card text-text-primary text-sm px-3 py-2"
               >
                 <option value="all">All</option>
                 <option value="families">Families</option>
@@ -1358,7 +1358,7 @@ export default function MarketingPage() {
             <textarea
               name="description"
               rows={3}
-              className="w-full rounded-lg border border-custis-border bg-custis-card text-text-primary text-sm px-3 py-2 resize-none"
+              className="w-full rounded-lg border border-wedja-border bg-wedja-card text-text-primary text-sm px-3 py-2 resize-none"
               placeholder="Event description..."
             />
           </div>
@@ -1367,14 +1367,14 @@ export default function MarketingPage() {
             <Button
               type="button"
               onClick={() => setShowEventForm(false)}
-              className="bg-custis-border/50 hover:bg-custis-border text-text-primary text-sm px-4 py-2 rounded-lg"
+              className="bg-wedja-border/50 hover:bg-wedja-border text-text-primary text-sm px-4 py-2 rounded-lg"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={submitting}
-              className="bg-custis-gold hover:bg-custis-gold-hover text-black font-medium text-sm px-4 py-2 rounded-lg flex items-center gap-1.5"
+              className="bg-wedja-accent hover:bg-wedja-accent-hover text-black font-medium text-sm px-4 py-2 rounded-lg flex items-center gap-1.5"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
               Create Event
@@ -1408,7 +1408,7 @@ export default function MarketingPage() {
             <select
               name="campaign_type"
               required
-              className="w-full rounded-lg border border-custis-border bg-custis-card text-text-primary text-sm px-3 py-2"
+              className="w-full rounded-lg border border-wedja-border bg-wedja-card text-text-primary text-sm px-3 py-2"
             >
               <option value="social_media">Social Media</option>
               <option value="email">Email</option>
@@ -1487,7 +1487,7 @@ export default function MarketingPage() {
             <textarea
               name="notes"
               rows={3}
-              className="w-full rounded-lg border border-custis-border bg-custis-card text-text-primary text-sm px-3 py-2 resize-none"
+              className="w-full rounded-lg border border-wedja-border bg-wedja-card text-text-primary text-sm px-3 py-2 resize-none"
               placeholder="Campaign notes..."
             />
           </div>
@@ -1496,14 +1496,14 @@ export default function MarketingPage() {
             <Button
               type="button"
               onClick={() => setShowCampaignForm(false)}
-              className="bg-custis-border/50 hover:bg-custis-border text-text-primary text-sm px-4 py-2 rounded-lg"
+              className="bg-wedja-border/50 hover:bg-wedja-border text-text-primary text-sm px-4 py-2 rounded-lg"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={submitting}
-              className="bg-custis-gold hover:bg-custis-gold-hover text-black font-medium text-sm px-4 py-2 rounded-lg flex items-center gap-1.5"
+              className="bg-wedja-accent hover:bg-wedja-accent-hover text-black font-medium text-sm px-4 py-2 rounded-lg flex items-center gap-1.5"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
               Create Campaign

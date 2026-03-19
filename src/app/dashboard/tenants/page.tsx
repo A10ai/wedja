@@ -92,7 +92,7 @@ export default function TenantsPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Store size={28} className="text-custis-gold" />
+            <Store size={28} className="text-wedja-accent" />
             Tenants
           </h1>
           <p className="text-sm text-text-muted mt-1">
@@ -124,7 +124,7 @@ export default function TenantsPage() {
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+              className="px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
             >
               {CATEGORIES.map((cat) => (
                 <option key={cat.value} value={cat.value}>
@@ -146,13 +146,13 @@ export default function TenantsPage() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={28} className="animate-spin text-custis-gold" />
+              <Loader2 size={28} className="animate-spin text-wedja-accent" />
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
                       Brand
                     </th>
@@ -177,14 +177,14 @@ export default function TenantsPage() {
                   {tenants.map((tenant, i) => (
                     <tr
                       key={tenant.id}
-                      className={`border-b border-custis-border/50 hover:bg-custis-border/20 cursor-pointer transition-colors ${
-                        i % 2 === 1 ? "bg-custis-border/10" : ""
+                      className={`border-b border-wedja-border/50 hover:bg-wedja-border/20 cursor-pointer transition-colors ${
+                        i % 2 === 1 ? "bg-wedja-border/10" : ""
                       }`}
                     >
                       <td className="px-5 py-3">
                         <Link
                           href={`/dashboard/tenants/${tenant.id}`}
-                          className="hover:text-custis-gold"
+                          className="hover:text-wedja-accent"
                         >
                           <p className="font-medium text-text-primary">
                             {tenant.brand_name}

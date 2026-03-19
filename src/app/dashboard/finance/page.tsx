@@ -198,7 +198,7 @@ export default function FinancePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -214,7 +214,7 @@ export default function FinancePage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Wallet size={28} className="text-custis-gold" />
+            <Wallet size={28} className="text-wedja-accent" />
             Finance
           </h1>
           <p className="text-sm text-text-muted mt-1">
@@ -255,7 +255,7 @@ export default function FinancePage() {
             label="Profit Margin"
             value={formatPercentage(overview.profit_margin_pct)}
             icon={<PieChart size={18} />}
-            color="text-custis-gold"
+            color="text-wedja-accent"
           />
         </div>
       )}
@@ -285,7 +285,7 @@ export default function FinancePage() {
                   onChange={(e) =>
                     setNewExpense({ ...newExpense, category: e.target.value })
                   }
-                  className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                  className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
                 >
                   {EXPENSE_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
@@ -356,7 +356,7 @@ export default function FinancePage() {
           <Card>
             <CardHeader>
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <Receipt size={16} className="text-custis-gold" />
+                <Receipt size={16} className="text-wedja-accent" />
                 P&L Summary &mdash; {pnl.period}
               </h2>
             </CardHeader>
@@ -372,7 +372,7 @@ export default function FinancePage() {
                     {formatCurrency(pnl.income.rent_collected)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-1.5 border-t border-custis-border">
+                <div className="flex items-center justify-between py-1.5 border-t border-wedja-border">
                   <span className="text-sm font-semibold text-text-primary">Total Income</span>
                   <span className="text-sm font-mono font-bold text-status-success">
                     {formatCurrency(pnl.income.total_income)}
@@ -398,7 +398,7 @@ export default function FinancePage() {
                     </span>
                   </div>
                 ))}
-                <div className="flex items-center justify-between py-1.5 border-t border-custis-border">
+                <div className="flex items-center justify-between py-1.5 border-t border-wedja-border">
                   <span className="text-sm font-semibold text-text-primary">
                     Total Expenses
                   </span>
@@ -409,7 +409,7 @@ export default function FinancePage() {
               </div>
 
               {/* Bottom Line */}
-              <div className="pt-2 border-t-2 border-custis-border">
+              <div className="pt-2 border-t-2 border-wedja-border">
                 <div className="flex items-center justify-between">
                   <span className="text-base font-bold text-text-primary">
                     Net Income
@@ -434,7 +434,7 @@ export default function FinancePage() {
           <Card>
             <CardHeader>
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <PieChart size={16} className="text-custis-gold" />
+                <PieChart size={16} className="text-wedja-accent" />
                 Expense Breakdown
               </h2>
             </CardHeader>
@@ -454,7 +454,7 @@ export default function FinancePage() {
                       </span>
                     </div>
                   </div>
-                  <div className="w-full h-2 bg-custis-border/50 rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-wedja-border/50 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
                         CATEGORY_COLORS[item.category] || "bg-gray-500"
@@ -474,7 +474,7 @@ export default function FinancePage() {
         <Card>
           <CardHeader>
             <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <BarChart3 size={16} className="text-custis-gold" />
+              <BarChart3 size={16} className="text-wedja-accent" />
               Cash Flow (6 months)
             </h2>
           </CardHeader>
@@ -553,7 +553,7 @@ export default function FinancePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">
                       Category
                     </th>
@@ -575,7 +575,7 @@ export default function FinancePage() {
                   {budget.map((b) => (
                     <tr
                       key={b.category}
-                      className="border-b border-custis-border/50 hover:bg-custis-border/10"
+                      className="border-b border-wedja-border/50 hover:bg-wedja-border/10"
                     >
                       <td className="px-4 py-2.5 text-text-primary font-medium capitalize">
                         {b.category}
@@ -640,7 +640,7 @@ export default function FinancePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">
                       Date
                     </th>
@@ -665,7 +665,7 @@ export default function FinancePage() {
                   {recentExpenses.map((exp) => (
                     <tr
                       key={exp.id}
-                      className="border-b border-custis-border/50 hover:bg-custis-border/10"
+                      className="border-b border-wedja-border/50 hover:bg-wedja-border/10"
                     >
                       <td className="px-4 py-2.5 text-text-secondary whitespace-nowrap">
                         {new Date(exp.expense_date).toLocaleDateString("en-GB", {

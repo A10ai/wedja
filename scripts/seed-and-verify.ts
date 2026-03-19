@@ -168,7 +168,7 @@ async function runVerification() {
 }
 
 async function main() {
-  console.log("=== Custis Revenue Verification — Seed & Verify ===\n");
+  console.log("=== Wedja Revenue Verification — Seed & Verify ===\n");
 
   const success = await seedSales();
   if (!success) {

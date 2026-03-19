@@ -2,9 +2,9 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { CATEGORY_MODELS } from "./revenue-engine";
 
 // ============================================================
-// Custis Learning Engine
+// Wedja Learning Engine
 //
-// The intelligence that makes Custis smarter every day.
+// The intelligence that makes Wedja smarter every day.
 // Learns from human feedback, calibrates conversion rates,
 // detects patterns in footfall/energy/maintenance, and
 // tracks confidence over time.

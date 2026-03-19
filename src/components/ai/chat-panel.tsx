@@ -108,7 +108,7 @@ export function AIChatPanel() {
         formatted = formatted.replace(/^-\s+|^\s+-\s+/, "");
         return (
           <div key={i} className={cn("flex gap-2 py-0.5", indent)}>
-            <span className="text-custis-gold mt-0.5 shrink-0">&#8226;</span>
+            <span className="text-wedja-accent mt-0.5 shrink-0">&#8226;</span>
             <span dangerouslySetInnerHTML={{ __html: formatted }} />
           </div>
         );
@@ -119,7 +119,7 @@ export function AIChatPanel() {
         formatted = formatted.replace(/^\d+\.\s/, "");
         return (
           <div key={i} className="flex gap-2 py-0.5">
-            <span className="text-custis-gold font-mono text-xs mt-0.5 shrink-0 w-4 text-right">
+            <span className="text-wedja-accent font-mono text-xs mt-0.5 shrink-0 w-4 text-right">
               {numMatch[1]}.
             </span>
             <span dangerouslySetInnerHTML={{ __html: formatted }} />
@@ -163,8 +163,8 @@ export function AIChatPanel() {
         className={cn(
           "fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-200",
           open
-            ? "bg-custis-card border border-custis-border text-text-secondary hover:text-text-primary rotate-0"
-            : "bg-custis-gold text-white hover:bg-custis-gold-hover shadow-custis-gold/25"
+            ? "bg-wedja-card border border-wedja-border text-text-secondary hover:text-text-primary rotate-0"
+            : "bg-wedja-accent text-white hover:bg-wedja-accent-hover shadow-wedja-accent/25"
         )}
         aria-label={open ? "Close AI chat" : "Open AI chat"}
       >
@@ -173,21 +173,21 @@ export function AIChatPanel() {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[400px] max-w-[calc(100vw-48px)] h-[560px] max-h-[calc(100vh-120px)] bg-custis-card border border-custis-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in">
+        <div className="fixed bottom-24 right-6 z-50 w-[400px] max-w-[calc(100vw-48px)] h-[560px] max-h-[calc(100vh-120px)] bg-wedja-card border border-wedja-border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-custis-border bg-custis-gold-muted/30 flex items-center gap-3 shrink-0">
-            <div className="w-8 h-8 rounded-full bg-custis-gold flex items-center justify-center">
+          <div className="px-4 py-3 border-b border-wedja-border bg-wedja-accent-muted/30 flex items-center gap-3 shrink-0">
+            <div className="w-8 h-8 rounded-full bg-wedja-accent flex items-center justify-center">
               <Eye size={16} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-text-primary">
-                Custis AI
+                Wedja AI
               </h3>
               <p className="text-xs text-text-muted">
                 Ask about your property
               </p>
             </div>
-            <Sparkles size={16} className="text-custis-gold" />
+            <Sparkles size={16} className="text-wedja-accent" />
           </div>
 
           {/* Messages */}
@@ -196,7 +196,7 @@ export function AIChatPanel() {
               <div className="text-center py-8">
                 <Eye
                   size={36}
-                  className="mx-auto text-custis-gold opacity-50 mb-3"
+                  className="mx-auto text-wedja-accent opacity-50 mb-3"
                 />
                 <p className="text-sm text-text-muted mb-4">
                   Ask me anything about Senzo Mall
@@ -206,7 +206,7 @@ export function AIChatPanel() {
                     <button
                       key={prompt}
                       onClick={() => sendMessage(prompt)}
-                      className="px-3 py-1.5 text-xs rounded-full border border-custis-border text-text-secondary hover:text-custis-gold hover:border-custis-gold transition-colors"
+                      className="px-3 py-1.5 text-xs rounded-full border border-wedja-border text-text-secondary hover:text-wedja-accent hover:border-wedja-accent transition-colors"
                     >
                       {prompt}
                     </button>
@@ -227,8 +227,8 @@ export function AIChatPanel() {
                   className={cn(
                     "max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm",
                     msg.role === "user"
-                      ? "bg-custis-gold text-white rounded-br-sm"
-                      : "bg-custis-border/30 text-text-secondary rounded-bl-sm"
+                      ? "bg-wedja-accent text-white rounded-br-sm"
+                      : "bg-wedja-border/30 text-text-secondary rounded-bl-sm"
                   )}
                 >
                   {msg.role === "assistant" ? (
@@ -244,7 +244,7 @@ export function AIChatPanel() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-custis-border/30 rounded-xl px-4 py-3 rounded-bl-sm">
+                <div className="bg-wedja-border/30 rounded-xl px-4 py-3 rounded-bl-sm">
                   <div className="flex items-center gap-2 text-text-muted text-sm">
                     <Loader2 size={14} className="animate-spin" />
                     Thinking...
@@ -263,7 +263,7 @@ export function AIChatPanel() {
                 <button
                   key={prompt}
                   onClick={() => sendMessage(prompt)}
-                  className="px-2.5 py-1 text-[11px] rounded-full border border-custis-border text-text-muted hover:text-custis-gold hover:border-custis-gold transition-colors whitespace-nowrap shrink-0"
+                  className="px-2.5 py-1 text-[11px] rounded-full border border-wedja-border text-text-muted hover:text-wedja-accent hover:border-wedja-accent transition-colors whitespace-nowrap shrink-0"
                 >
                   {prompt}
                 </button>
@@ -274,21 +274,21 @@ export function AIChatPanel() {
           {/* Input */}
           <form
             onSubmit={handleSubmit}
-            className="px-3 py-3 border-t border-custis-border flex items-center gap-2 shrink-0"
+            className="px-3 py-3 border-t border-wedja-border flex items-center gap-2 shrink-0"
           >
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask Custis..."
+              placeholder="Ask Wedja..."
               disabled={loading}
-              className="flex-1 px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-custis-gold focus:border-transparent disabled:opacity-50"
+              className="flex-1 px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-wedja-accent focus:border-transparent disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="p-2 rounded-lg bg-custis-gold text-white hover:bg-custis-gold-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-2 rounded-lg bg-wedja-accent text-white hover:bg-wedja-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               aria-label="Send message"
             >
               <Send size={16} />

@@ -13,7 +13,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider>
-      <div className="min-h-screen bg-custis-bg theme-transition">
+      <div className="min-h-screen bg-wedja-bg theme-transition">
         <Sidebar
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed(!collapsed)}

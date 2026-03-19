@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 // ============================================================
-// Custis Energy Engine
+// Wedja Energy Engine
 //
 // Energy monitoring, zone analysis, efficiency scoring,
 // and AI-powered recommendations.

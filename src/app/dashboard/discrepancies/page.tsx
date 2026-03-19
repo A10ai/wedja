@@ -332,7 +332,7 @@ export default function DiscrepanciesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Shield size={28} className="text-custis-gold" />
+            <Shield size={28} className="text-wedja-accent" />
             Revenue Verification
           </h1>
           <p className="text-sm text-text-muted mt-1">
@@ -407,9 +407,9 @@ export default function DiscrepanciesPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-custis-gold/30">
+        <Card className="border-wedja-accent/30">
           <CardContent className="py-4 text-center">
-            <p className="text-3xl font-bold text-custis-gold font-mono">
+            <p className="text-3xl font-bold text-wedja-accent font-mono">
               {loading ? (
                 <Loader2 size={24} className="animate-spin mx-auto" />
               ) : (
@@ -467,7 +467,7 @@ export default function DiscrepanciesPage() {
               <select
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                className="px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                className="px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
               >
                 {MONTH_NAMES.slice(1).map((name, i) => (
                   <option key={i + 1} value={i + 1}>
@@ -478,7 +478,7 @@ export default function DiscrepanciesPage() {
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                className="px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
               >
                 {[2025, 2026].map((y) => (
                   <option key={y} value={y}>
@@ -495,7 +495,7 @@ export default function DiscrepanciesPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                className="px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
               >
                 <option value="">All</option>
                 <option value="flagged">Flagged</option>
@@ -527,7 +527,7 @@ export default function DiscrepanciesPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <BarChart3 size={16} className="text-custis-gold" />
+              <BarChart3 size={16} className="text-wedja-accent" />
               <h2 className="text-sm font-semibold text-text-primary">
                 Revenue Comparison — Top 15 Tenants
               </h2>
@@ -538,7 +538,7 @@ export default function DiscrepanciesPage() {
                 Reported
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-custis-gold" />
+                <span className="w-3 h-3 rounded-sm bg-wedja-accent" />
                 Estimated
               </span>
             </div>
@@ -574,16 +574,16 @@ export default function DiscrepanciesPage() {
                         </span>
                         <div className="flex-1 space-y-0.5">
                           {/* Reported bar */}
-                          <div className="h-3 rounded-sm bg-custis-border/30 relative overflow-hidden">
+                          <div className="h-3 rounded-sm bg-wedja-border/30 relative overflow-hidden">
                             <div
                               className="h-full rounded-sm bg-gray-400/60 transition-all duration-500"
                               style={{ width: `${reportedPct}%` }}
                             />
                           </div>
                           {/* Estimated bar */}
-                          <div className="h-3 rounded-sm bg-custis-border/30 relative overflow-hidden">
+                          <div className="h-3 rounded-sm bg-wedja-border/30 relative overflow-hidden">
                             <div
-                              className="h-full rounded-sm bg-custis-gold transition-all duration-500"
+                              className="h-full rounded-sm bg-wedja-accent transition-all duration-500"
                               style={{ width: `${estimatedPct}%` }}
                             />
                           </div>
@@ -629,7 +629,7 @@ export default function DiscrepanciesPage() {
                       {count}
                     </span>
                   </div>
-                  <div className="h-2 rounded-full bg-custis-border/30">
+                  <div className="h-2 rounded-full bg-wedja-border/30">
                     <div
                       className={`h-full rounded-full ${c.bar} transition-all duration-500`}
                       style={{ width: `${pct}%` }}
@@ -649,7 +649,7 @@ export default function DiscrepanciesPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Search size={16} className="text-custis-gold" />
+            <Search size={16} className="text-wedja-accent" />
             <h2 className="text-sm font-semibold text-text-primary">
               Verification Results
             </h2>
@@ -665,13 +665,13 @@ export default function DiscrepanciesPage() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-16">
-              <Loader2 size={32} className="animate-spin text-custis-gold" />
+              <Loader2 size={32} className="animate-spin text-wedja-accent" />
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border bg-custis-bg/50">
+                  <tr className="border-b border-wedja-border bg-wedja-bg/50">
                     <th className="text-left px-4 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
                       Tenant
                     </th>
@@ -714,9 +714,9 @@ export default function DiscrepanciesPage() {
                       <>
                         <tr
                           key={t.tenant_id}
-                          className={`border-b border-custis-border/50 hover:bg-custis-border/20 cursor-pointer transition-colors ${
+                          className={`border-b border-wedja-border/50 hover:bg-wedja-border/20 cursor-pointer transition-colors ${
                             isFlagged ? "bg-red-500/[0.03]" : ""
-                          } ${i % 2 === 1 && !isFlagged ? "bg-custis-border/[0.06]" : ""}`}
+                          } ${i % 2 === 1 && !isFlagged ? "bg-wedja-border/[0.06]" : ""}`}
                           onClick={() => toggleTenantProfile(t.tenant_id)}
                         >
                           <td className="px-4 py-3">
@@ -809,7 +809,7 @@ export default function DiscrepanciesPage() {
                                   );
                                 }}
                                 onClick={(e) => e.stopPropagation()}
-                                className={`text-xs px-2 py-1 rounded-lg border border-custis-border bg-custis-bg ${STATUS_COLORS[t.status]} font-medium focus:outline-none focus:ring-2 focus:ring-custis-gold`}
+                                className={`text-xs px-2 py-1 rounded-lg border border-wedja-border bg-wedja-bg ${STATUS_COLORS[t.status]} font-medium focus:outline-none focus:ring-2 focus:ring-wedja-accent`}
                               >
                                 <option value="flagged">Flagged</option>
                                 <option value="investigating">
@@ -831,7 +831,7 @@ export default function DiscrepanciesPage() {
                           <tr key={`${t.tenant_id}-profile`}>
                             <td
                               colSpan={8}
-                              className="px-4 py-0 border-b border-custis-border"
+                              className="px-4 py-0 border-b border-wedja-border"
                             >
                               <TenantProfilePanel
                                 tenantProfile={tenantProfile}
@@ -890,7 +890,7 @@ function TenantProfilePanel({
   if (!tenantProfile || tenantProfile.tenant_id !== tenantId) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 size={20} className="animate-spin text-custis-gold" />
+        <Loader2 size={20} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -937,7 +937,7 @@ function TenantProfilePanel({
             e.stopPropagation();
             onClose();
           }}
-          className="p-1 hover:bg-custis-border/50 rounded"
+          className="p-1 hover:bg-wedja-border/50 rounded"
         >
           <X size={16} className="text-text-muted" />
         </button>
@@ -954,7 +954,7 @@ function TenantProfilePanel({
                 r="35"
                 fill="none"
                 stroke="currentColor"
-                className="text-custis-border/30"
+                className="text-wedja-border/30"
                 strokeWidth="6"
               />
               <circle
@@ -1039,7 +1039,7 @@ function TenantProfilePanel({
                     </div>
                     <div className="flex-1 relative">
                       <div
-                        className="w-full bg-custis-gold rounded-t transition-all duration-500"
+                        className="w-full bg-wedja-accent rounded-t transition-all duration-500"
                         style={{
                           height: `${estimatedH}%`,
                           minHeight: m.estimated_egp ? "2px" : "0",
@@ -1060,7 +1060,7 @@ function TenantProfilePanel({
               <span className="text-text-muted">Reported</span>
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-sm bg-custis-gold" />
+              <span className="w-2.5 h-2.5 rounded-sm bg-wedja-accent" />
               <span className="text-text-muted">Estimated</span>
             </span>
           </div>

@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 // ============================================================
-// Custis Finance Engine
+// Wedja Finance Engine
 //
 // Financial analytics: income, expenses, budgets, P&L.
 // All monetary values in EGP.

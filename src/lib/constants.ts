@@ -47,7 +47,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
 
-export const APP_NAME = "Custis";
+export const APP_NAME = "wedja.ai";
 export const APP_TAGLINE = "The AI that runs your property";
 export const DEFAULT_PROPERTY = "Senzo Mall, Hurghada";
 export const DEFAULT_CURRENCY = "EGP" as const;

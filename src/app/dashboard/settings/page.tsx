@@ -159,7 +159,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -169,7 +169,7 @@ export default function SettingsPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Settings size={28} className="text-custis-gold" />
+          <Settings size={28} className="text-wedja-accent" />
           Settings
         </h1>
         <p className="text-sm text-text-muted mt-1">
@@ -178,12 +178,12 @@ export default function SettingsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-custis-border">
+      <div className="flex gap-1 border-b border-wedja-border">
         <button
           onClick={() => setActiveTab("property")}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === "property"
-              ? "text-custis-gold border-custis-gold"
+              ? "text-wedja-accent border-wedja-accent"
               : "text-text-muted border-transparent hover:text-text-primary"
           }`}
         >
@@ -195,7 +195,7 @@ export default function SettingsPage() {
           onClick={() => setActiveTab("import")}
           className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeTab === "import"
-              ? "text-custis-gold border-custis-gold"
+              ? "text-wedja-accent border-wedja-accent"
               : "text-text-muted border-transparent hover:text-text-primary"
           }`}
         >
@@ -319,7 +319,7 @@ export default function SettingsPage() {
                   <select
                     value={importType}
                     onChange={(e) => setImportType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                    className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
                   >
                     {IMPORT_TYPES.map((t) => (
                       <option key={t.value} value={t.value}>
@@ -337,7 +337,7 @@ export default function SettingsPage() {
                     type="file"
                     accept=".csv"
                     onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm text-text-primary file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-custis-gold file:text-white hover:file:bg-custis-gold-hover file:cursor-pointer"
+                    className="w-full text-sm text-text-primary file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-wedja-accent file:text-white hover:file:bg-wedja-accent-hover file:cursor-pointer"
                   />
                 </div>
               </div>
@@ -411,28 +411,28 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-xs font-semibold text-custis-gold mb-1">Tenants</p>
-                <code className="text-xs text-text-secondary bg-custis-bg p-2 rounded block overflow-x-auto">
+                <p className="text-xs font-semibold text-wedja-accent mb-1">Tenants</p>
+                <code className="text-xs text-text-secondary bg-wedja-bg p-2 rounded block overflow-x-auto">
                   name,brand_name,category,brand_type,contact_name,contact_email,contact_phone
                 </code>
               </div>
               <div>
-                <p className="text-xs font-semibold text-custis-gold mb-1">Leases</p>
-                <code className="text-xs text-text-secondary bg-custis-bg p-2 rounded block overflow-x-auto">
+                <p className="text-xs font-semibold text-wedja-accent mb-1">Leases</p>
+                <code className="text-xs text-text-secondary bg-wedja-bg p-2 rounded block overflow-x-auto">
                   unit_id,tenant_id,start_date,end_date,min_rent_monthly_egp,percentage_rate,security_deposit_egp,escalation_rate,status
                 </code>
               </div>
               <div>
-                <p className="text-xs font-semibold text-custis-gold mb-1">Sales Data</p>
-                <code className="text-xs text-text-secondary bg-custis-bg p-2 rounded block overflow-x-auto">
+                <p className="text-xs font-semibold text-wedja-accent mb-1">Sales Data</p>
+                <code className="text-xs text-text-secondary bg-wedja-bg p-2 rounded block overflow-x-auto">
                   lease_id,tenant_id,period_month,period_year,reported_revenue_egp,submission_date
                 </code>
               </div>
               <div>
-                <p className="text-xs font-semibold text-custis-gold mb-1">
+                <p className="text-xs font-semibold text-wedja-accent mb-1">
                   Rent Transactions
                 </p>
-                <code className="text-xs text-text-secondary bg-custis-bg p-2 rounded block overflow-x-auto">
+                <code className="text-xs text-text-secondary bg-wedja-bg p-2 rounded block overflow-x-auto">
                   lease_id,period_month,period_year,min_rent_due,percentage_rent_due,amount_due,amount_paid,payment_date,status
                 </code>
               </div>

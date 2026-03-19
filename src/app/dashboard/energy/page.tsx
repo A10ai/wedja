@@ -127,7 +127,7 @@ export default function EnergyPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -141,7 +141,7 @@ export default function EnergyPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Zap size={28} className="text-custis-gold" />
+          <Zap size={28} className="text-wedja-accent" />
           Energy
         </h1>
         <p className="text-sm text-text-muted mt-1">
@@ -178,7 +178,7 @@ export default function EnergyPage() {
                 </span>
                 <Activity size={16} className="text-amber-500" />
               </div>
-              <p className="text-xl font-bold font-mono text-custis-gold">
+              <p className="text-xl font-bold font-mono text-wedja-accent">
                 {formatCurrency(overview.total_cost_egp_today)}
               </p>
               <p className="text-xs text-text-muted mt-1">
@@ -241,7 +241,7 @@ export default function EnergyPage() {
           <Card className="lg:col-span-2">
             <CardHeader>
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <Clock size={16} className="text-custis-gold" />
+                <Clock size={16} className="text-wedja-accent" />
                 Hourly Consumption (Today)
               </h2>
             </CardHeader>
@@ -253,7 +253,7 @@ export default function EnergyPage() {
                       ? (h.consumption_kwh / hourlyMax) * 100
                       : 0;
 
-                  let barColor = "bg-custis-border/50"; // off-hours default
+                  let barColor = "bg-wedja-border/50"; // off-hours default
                   if (h.is_peak) {
                     barColor = "bg-red-500";
                   } else if (h.is_operating) {
@@ -323,7 +323,7 @@ export default function EnergyPage() {
                       </span>
                     </div>
                     <div className="text-right shrink-0 ml-2">
-                      <span className="text-xs font-mono text-custis-gold">
+                      <span className="text-xs font-mono text-wedja-accent">
                         {formatCurrency(zone.cost_egp)}
                       </span>
                       <span className="block text-[10px] text-text-muted">
@@ -331,7 +331,7 @@ export default function EnergyPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="w-full h-1.5 bg-custis-border/50 rounded-full overflow-hidden">
+                  <div className="w-full h-1.5 bg-wedja-border/50 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
                         zone.share_pct > 25
@@ -368,7 +368,7 @@ export default function EnergyPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-4 py-2.5 text-xs font-medium text-text-muted">
                       Zone
                     </th>
@@ -399,10 +399,10 @@ export default function EnergyPage() {
                   {efficiency.map((z) => (
                     <tr
                       key={z.zone_id}
-                      className={`border-b border-custis-border/50 ${
+                      className={`border-b border-wedja-border/50 ${
                         z.status === "inefficient"
                           ? "bg-red-500/5"
-                          : "hover:bg-custis-border/10"
+                          : "hover:bg-wedja-border/10"
                       }`}
                     >
                       <td className="px-4 py-2.5 text-text-primary font-medium">
@@ -414,7 +414,7 @@ export default function EnergyPage() {
                       <td className="px-4 py-2.5 text-right font-mono text-text-primary">
                         {formatNumber(z.energy_kwh)}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-custis-gold">
+                      <td className="px-4 py-2.5 text-right font-mono text-wedja-accent">
                         {formatCurrency(z.energy_cost_egp)}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-text-secondary">
@@ -465,7 +465,7 @@ export default function EnergyPage() {
           <Card>
             <CardHeader>
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <BarChart3 size={16} className="text-custis-gold" />
+                <BarChart3 size={16} className="text-wedja-accent" />
                 30-Day Consumption Trend
               </h2>
             </CardHeader>
@@ -524,7 +524,7 @@ export default function EnergyPage() {
           <Card>
             <CardHeader>
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <Lightbulb size={16} className="text-custis-gold" />
+                <Lightbulb size={16} className="text-wedja-accent" />
                 AI Recommendations
               </h2>
             </CardHeader>
@@ -532,7 +532,7 @@ export default function EnergyPage() {
               {recommendations.map((rec) => (
                 <div
                   key={rec.id}
-                  className="p-3 rounded-lg border border-custis-border/50 hover:border-custis-border transition-colors"
+                  className="p-3 rounded-lg border border-wedja-border/50 hover:border-wedja-border transition-colors"
                 >
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <h3 className="text-sm font-medium text-text-primary">

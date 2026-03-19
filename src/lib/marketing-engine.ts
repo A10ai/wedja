@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 // ============================================================
-// Custis Marketing & Events Engine
+// Wedja Marketing & Events Engine
 //
 // Manages events, campaigns, seasonal calendar, tenant promotions,
 // and correlates marketing activity with footfall and revenue data.

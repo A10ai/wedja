@@ -35,17 +35,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-custis-bg flex items-center justify-center px-4">
+    <div className="min-h-screen bg-wedja-bg flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-8">
         {/* Branding */}
         <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-text-primary tracking-tight">
-            Cust
-            <span className="relative inline-block">
-              i
-              <span className="absolute -top-1 left-[0.15em] w-2 h-2 bg-custis-gold rounded-full" />
-            </span>
-            s
+          <h1 className="text-4xl font-bold text-text-primary tracking-tight font-display">
+            wedja<span className="wedja-gradient-text">.ai</span>
           </h1>
           <p className="text-sm text-text-muted">
             The AI that runs your property

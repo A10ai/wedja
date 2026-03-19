@@ -119,7 +119,7 @@ export default function RevenuePage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <DollarSign size={28} className="text-custis-gold" />
+          <DollarSign size={28} className="text-wedja-accent" />
           Revenue
         </h1>
         <p className="text-sm text-text-muted mt-1">
@@ -130,10 +130,10 @@ export default function RevenuePage() {
       {/* Revenue Verification Link */}
       <Link
         href="/dashboard/discrepancies"
-        className="flex items-center justify-between px-5 py-4 rounded-xl border-2 border-custis-gold/30 bg-custis-gold/5 hover:bg-custis-gold/10 transition-colors group"
+        className="flex items-center justify-between px-5 py-4 rounded-xl border-2 border-wedja-accent/30 bg-wedja-accent/5 hover:bg-wedja-accent/10 transition-colors group"
       >
         <div className="flex items-center gap-3">
-          <Shield size={20} className="text-custis-gold" />
+          <Shield size={20} className="text-wedja-accent" />
           <div>
             <p className="text-sm font-semibold text-text-primary">
               Revenue Verification
@@ -145,7 +145,7 @@ export default function RevenuePage() {
         </div>
         <ArrowRight
           size={18}
-          className="text-custis-gold group-hover:translate-x-1 transition-transform"
+          className="text-wedja-accent group-hover:translate-x-1 transition-transform"
         />
       </Link>
 
@@ -185,11 +185,11 @@ export default function RevenuePage() {
           </h2>
           <div className="flex items-center gap-4 text-xs">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-custis-gold" />
+              <span className="w-3 h-3 rounded-sm bg-wedja-accent" />
               Collected
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-custis-border" />
+              <span className="w-3 h-3 rounded-sm bg-wedja-border" />
               Due
             </span>
           </div>
@@ -202,7 +202,7 @@ export default function RevenuePage() {
                   {/* Due bar (background) */}
                   <div className="flex-1 relative">
                     <div
-                      className="w-full bg-custis-border/50 rounded-t"
+                      className="w-full bg-wedja-border/50 rounded-t"
                       style={{
                         height: `${(month.due / maxMonthly) * 100}%`,
                         minHeight: month.due > 0 ? "4px" : "0",
@@ -212,7 +212,7 @@ export default function RevenuePage() {
                   {/* Collected bar */}
                   <div className="flex-1 relative">
                     <div
-                      className="w-full bg-custis-gold rounded-t"
+                      className="w-full bg-wedja-accent rounded-t"
                       style={{
                         height: `${(month.collected / maxMonthly) * 100}%`,
                         minHeight: month.collected > 0 ? "4px" : "0",
@@ -235,7 +235,7 @@ export default function RevenuePage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+            className="px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
           >
             {STATUS_FILTERS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -259,13 +259,13 @@ export default function RevenuePage() {
         <CardContent className="p-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 size={28} className="animate-spin text-custis-gold" />
+              <Loader2 size={28} className="animate-spin text-wedja-accent" />
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border">
+                  <tr className="border-b border-wedja-border">
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Tenant</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden sm:table-cell">Period</th>
                     <th className="text-right px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Due</th>
@@ -278,8 +278,8 @@ export default function RevenuePage() {
                   {transactions.map((tx, i) => (
                     <tr
                       key={tx.id}
-                      className={`border-b border-custis-border/50 hover:bg-custis-border/20 ${
-                        i % 2 === 1 ? "bg-custis-border/10" : ""
+                      className={`border-b border-wedja-border/50 hover:bg-wedja-border/20 ${
+                        i % 2 === 1 ? "bg-wedja-border/10" : ""
                       }`}
                     >
                       <td className="px-5 py-3">

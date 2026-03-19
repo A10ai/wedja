@@ -123,7 +123,7 @@ export default function CamerasPage() {
               <ArrowLeft size={18} />
             </Link>
             <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-              <Camera size={28} className="text-custis-gold" />
+              <Camera size={28} className="text-wedja-accent" />
               Camera Management
             </h1>
           </div>
@@ -184,7 +184,7 @@ export default function CamerasPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Video size={16} className="text-custis-gold" />
+            <Video size={16} className="text-wedja-accent" />
             <h2 className="text-sm font-semibold text-text-primary">
               Registered Cameras
             </h2>
@@ -211,7 +211,7 @@ export default function CamerasPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-custis-border text-text-muted text-xs">
+                  <tr className="border-b border-wedja-border text-text-muted text-xs">
                     <th className="text-left px-4 py-2.5 font-medium w-8">
                       Status
                     </th>
@@ -242,7 +242,7 @@ export default function CamerasPage() {
                   {cameras.map((cam) => (
                     <tr
                       key={cam.id}
-                      className="border-b border-custis-border/50 hover:bg-custis-border/20 transition-colors"
+                      className="border-b border-wedja-border/50 hover:bg-wedja-border/20 transition-colors"
                     >
                       <td className="px-4 py-3">
                         <div
@@ -283,7 +283,7 @@ export default function CamerasPage() {
                         <div className="flex items-center justify-end gap-1">
                           <button
                             onClick={() => handleEdit(cam)}
-                            className="p-1.5 rounded-lg hover:bg-custis-border/50 text-text-muted hover:text-text-primary transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-wedja-border/50 text-text-muted hover:text-text-primary transition-colors"
                             title="Edit"
                           >
                             <Edit2 size={14} />
@@ -413,14 +413,14 @@ function CameraFormModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative bg-custis-card border border-custis-border rounded-xl shadow-2xl w-full max-w-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
+      <div className="relative bg-wedja-card border border-wedja-border rounded-xl shadow-2xl w-full max-w-lg p-6 animate-fade-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-text-primary">
             {isEdit ? "Edit Camera" : "Register Camera"}
           </h3>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-custis-border/50 text-text-muted"
+            className="p-1 rounded-lg hover:bg-wedja-border/50 text-text-muted"
             aria-label="Close"
           >
             <X size={18} />
@@ -450,7 +450,7 @@ function CameraFormModal({
             <select
               value={zoneId}
               onChange={(e) => setZoneId(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold focus:border-transparent"
+              className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent focus:border-transparent"
             >
               <option value="">Unassigned</option>
               {zones.map((z) => (
@@ -476,7 +476,7 @@ function CameraFormModal({
               <select
                 value={angleType}
                 onChange={(e) => setAngleType(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold focus:border-transparent"
+                className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent focus:border-transparent"
               >
                 <option value="entrance">Entrance</option>
                 <option value="overhead">Overhead</option>
@@ -500,7 +500,7 @@ function CameraFormModal({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold focus:border-transparent"
+                className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent focus:border-transparent"
               >
                 <option value="active">Active</option>
                 <option value="offline">Offline</option>

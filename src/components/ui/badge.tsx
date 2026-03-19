@@ -14,12 +14,12 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  default: "bg-custis-border/50 text-text-secondary",
+  default: "bg-wedja-border/50 text-text-secondary",
   success: "bg-emerald-500/15 text-emerald-500",
   warning: "bg-amber-500/15 text-amber-500",
   error: "bg-red-500/15 text-red-500",
   info: "bg-blue-500/15 text-blue-500",
-  gold: "bg-custis-gold-muted text-custis-gold",
+  gold: "bg-wedja-accent-muted text-wedja-accent",
 };
 
 export function Badge({

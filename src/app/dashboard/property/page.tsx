@@ -120,7 +120,7 @@ export default function PropertyPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -144,7 +144,7 @@ export default function PropertyPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Building2 size={28} className="text-custis-gold" />
+          <Building2 size={28} className="text-wedja-accent" />
           Property
         </h1>
         <p className="text-sm text-text-muted mt-1">
@@ -258,7 +258,7 @@ export default function PropertyPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-custis-border">
+                <tr className="border-b border-wedja-border">
                   <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Zone</th>
                   <th className="text-center px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Floor</th>
                   <th className="text-center px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Type</th>
@@ -273,13 +273,13 @@ export default function PropertyPage() {
                   <tr
                     key={zone.id}
                     onClick={() => setSelectedZone(zone.id === selectedZone ? null : zone.id)}
-                    className={`border-b border-custis-border/50 cursor-pointer transition-colors ${
+                    className={`border-b border-wedja-border/50 cursor-pointer transition-colors ${
                       zone.id === selectedZone
-                        ? "bg-custis-gold-muted"
+                        ? "bg-wedja-accent-muted"
                         : i % 2 === 1
-                        ? "bg-custis-border/10"
+                        ? "bg-wedja-border/10"
                         : ""
-                    } hover:bg-custis-border/20`}
+                    } hover:bg-wedja-border/20`}
                   >
                     <td className="px-5 py-3 font-medium text-text-primary">{zone.name}</td>
                     <td className="px-5 py-3 text-center text-text-secondary font-mono">
@@ -321,13 +321,13 @@ export default function PropertyPage() {
           <CardContent className="p-0">
             {unitsLoading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader2 size={24} className="animate-spin text-custis-gold" />
+                <Loader2 size={24} className="animate-spin text-wedja-accent" />
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-custis-border">
+                    <tr className="border-b border-wedja-border">
                       <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Unit</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Name</th>
                       <th className="text-right px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Area</th>
@@ -340,9 +340,9 @@ export default function PropertyPage() {
                     {units.map((unit, i) => (
                       <tr
                         key={unit.id}
-                        className={`border-b border-custis-border/50 ${
-                          i % 2 === 1 ? "bg-custis-border/10" : ""
-                        } hover:bg-custis-border/20`}
+                        className={`border-b border-wedja-border/50 ${
+                          i % 2 === 1 ? "bg-wedja-border/10" : ""
+                        } hover:bg-wedja-border/20`}
                       >
                         <td className="px-5 py-3 font-mono text-text-primary font-medium">
                           {unit.unit_number}

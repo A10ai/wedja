@@ -1,21 +1,29 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Jura, Instrument_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const inter = Inter({
+const jura = Jura({
   subsets: ["latin"],
-  variable: "--font-inter",
+  variable: "--font-jura",
+  display: "swap",
+  weight: ["300", "400", "500"],
+});
+
+const instrumentSans = Instrument_Sans({
+  subsets: ["latin"],
+  variable: "--font-instrument",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains",
+const geistMono = localFont({
+  src: "./fonts/GeistMonoVF.woff",
+  variable: "--font-geist-mono",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Custis — The AI That Runs Your Property",
+  title: "Wedja — The AI That Runs Your Property",
   description:
     "AI-powered property management platform for revenue protection and operational intelligence.",
 };
@@ -34,7 +42,7 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem('custis-theme');
+                  var theme = localStorage.getItem('wedja-theme');
                   if (theme === 'light') {
                     document.documentElement.classList.add('light');
                     document.documentElement.classList.remove('dark');
@@ -50,7 +58,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className={`${jura.variable} ${instrumentSans.variable} ${geistMono.variable}`}>
         {children}
       </body>
     </html>

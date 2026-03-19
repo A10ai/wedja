@@ -109,7 +109,7 @@ function HealthRing({
           fill="none"
           stroke="currentColor"
           strokeWidth={strokeWidth}
-          className="text-custis-border"
+          className="text-wedja-border"
         />
         {/* Score ring */}
         <circle
@@ -168,7 +168,7 @@ function ScoreBar({
           {score}/{max}
         </span>
       </div>
-      <div className="h-2 bg-custis-border rounded-full overflow-hidden">
+      <div className="h-2 bg-wedja-border rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full ${color} transition-all duration-700`}
           style={{ width: `${pct}%` }}
@@ -213,7 +213,7 @@ export default function AIPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-custis-gold" />
+        <Loader2 size={32} className="animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -233,7 +233,7 @@ export default function AIPage() {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-          <Eye size={28} className="text-custis-gold" />
+          <Eye size={28} className="text-wedja-accent" />
           AI Centre
         </h1>
         <p className="text-sm text-text-muted mt-1">
@@ -247,7 +247,7 @@ export default function AIPage() {
         <Card>
           <CardHeader>
             <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-              <Shield size={16} className="text-custis-gold" />
+              <Shield size={16} className="text-wedja-accent" />
               Property Health
             </h2>
           </CardHeader>
@@ -289,7 +289,7 @@ export default function AIPage() {
           <Card>
             <CardHeader>
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                <Activity size={16} className="text-custis-gold" />
+                <Activity size={16} className="text-wedja-accent" />
                 Daily Briefing
               </h2>
               <span className="text-xs text-text-muted">
@@ -319,10 +319,10 @@ export default function AIPage() {
                   return (
                     <div
                       key={section.title}
-                      className="p-3 rounded-lg bg-custis-border/20 border border-custis-border/50"
+                      className="p-3 rounded-lg bg-wedja-border/20 border border-wedja-border/50"
                     >
                       <div className="flex items-center gap-2 mb-2">
-                        <Icon size={14} className="text-custis-gold" />
+                        <Icon size={14} className="text-wedja-accent" />
                         <h3 className="text-xs font-semibold text-text-primary uppercase tracking-wider">
                           {section.title}
                         </h3>
@@ -335,7 +335,7 @@ export default function AIPage() {
                           >
                             <ChevronRight
                               size={10}
-                              className="text-custis-gold mt-0.5 shrink-0"
+                              className="text-wedja-accent mt-0.5 shrink-0"
                             />
                             {item}
                           </li>
@@ -358,7 +358,7 @@ export default function AIPage() {
       <Card>
         <CardHeader>
           <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-            <Eye size={16} className="text-custis-gold" />
+            <Eye size={16} className="text-wedja-accent" />
             AI Insights
           </h2>
           <span className="text-xs text-text-muted">
@@ -371,13 +371,13 @@ export default function AIPage() {
               No active insights. Property is running smoothly.
             </div>
           )}
-          <div className="divide-y divide-custis-border/50">
+          <div className="divide-y divide-wedja-border/50">
             {insights.map((insight) => {
               const config = severityConfig[insight.severity] || severityConfig.info;
               return (
                 <div
                   key={insight.id}
-                  className={`px-5 py-4 border-l-4 ${config.border} hover:bg-custis-border/10 transition-colors`}
+                  className={`px-5 py-4 border-l-4 ${config.border} hover:bg-wedja-border/10 transition-colors`}
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -395,7 +395,7 @@ export default function AIPage() {
                       </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="text-xs font-medium text-custis-gold">
+                      <p className="text-xs font-medium text-wedja-accent">
                         {insight.impact_estimate}
                       </p>
                       <p className="text-[11px] text-text-muted mt-0.5">
@@ -414,7 +414,7 @@ export default function AIPage() {
       <Card>
         <CardHeader>
           <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-            <TrendingUp size={16} className="text-custis-gold" />
+            <TrendingUp size={16} className="text-wedja-accent" />
             Tenant Performance Rankings
           </h2>
           <span className="text-xs text-text-muted">
@@ -425,7 +425,7 @@ export default function AIPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-custis-border">
+                <tr className="border-b border-wedja-border">
                   <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
                     #
                   </th>
@@ -460,7 +460,7 @@ export default function AIPage() {
                     : isBottom5
                     ? "bg-red-500/5"
                     : i % 2 === 1
-                    ? "bg-custis-border/10"
+                    ? "bg-wedja-border/10"
                     : "";
 
                   const scoreColor =
@@ -481,7 +481,7 @@ export default function AIPage() {
                   return (
                     <tr
                       key={t.tenant_id}
-                      className={`border-b border-custis-border/50 hover:bg-custis-border/20 ${rowBg}`}
+                      className={`border-b border-wedja-border/50 hover:bg-wedja-border/20 ${rowBg}`}
                     >
                       <td className="px-5 py-3 font-mono text-xs text-text-muted">
                         {i + 1}
@@ -501,7 +501,7 @@ export default function AIPage() {
                           >
                             {t.overall_score.toFixed(0)}
                           </span>
-                          <div className="w-16 h-2 bg-custis-border rounded-full overflow-hidden hidden sm:block">
+                          <div className="w-16 h-2 bg-wedja-border rounded-full overflow-hidden hidden sm:block">
                             <div
                               className={`h-full rounded-full ${barColor}`}
                               style={{ width: `${barWidth}%` }}
@@ -542,24 +542,24 @@ export default function AIPage() {
 
       {/* Learning Engine Card */}
       <Link href="/dashboard/ai/learning">
-        <Card className="hover:border-custis-gold/50 transition-colors cursor-pointer overflow-hidden">
+        <Card className="hover:border-wedja-accent/50 transition-colors cursor-pointer overflow-hidden">
           <CardContent className="py-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="relative p-3 rounded-xl bg-custis-gold-muted">
-                  <GraduationCap size={22} className="text-custis-gold" />
+                <div className="relative p-3 rounded-xl bg-wedja-accent-muted">
+                  <GraduationCap size={22} className="text-wedja-accent" />
                   <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-custis-gold opacity-75" />
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-custis-gold" />
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-wedja-accent opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-wedja-accent" />
                   </span>
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
-                    <Brain size={14} className="text-custis-gold" />
+                    <Brain size={14} className="text-wedja-accent" />
                     Learning Engine
                   </h3>
                   <p className="text-xs text-text-muted mt-0.5">
-                    Custis is getting smarter every day. View calibrated parameters, discovered patterns, and learning history.
+                    Wedja is getting smarter every day. View calibrated parameters, discovered patterns, and learning history.
                   </p>
                 </div>
               </div>
@@ -572,7 +572,7 @@ export default function AIPage() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link href="/dashboard/discrepancies">
-          <Card className="hover:border-custis-gold/50 transition-colors cursor-pointer">
+          <Card className="hover:border-wedja-accent/50 transition-colors cursor-pointer">
             <CardContent className="py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-red-500/10">
@@ -593,7 +593,7 @@ export default function AIPage() {
         </Link>
 
         <Link href="/dashboard/footfall">
-          <Card className="hover:border-custis-gold/50 transition-colors cursor-pointer">
+          <Card className="hover:border-wedja-accent/50 transition-colors cursor-pointer">
             <CardContent className="py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-blue-500/10">
@@ -614,7 +614,7 @@ export default function AIPage() {
         </Link>
 
         <Link href="/dashboard/maintenance">
-          <Card className="hover:border-custis-gold/50 transition-colors cursor-pointer">
+          <Card className="hover:border-wedja-accent/50 transition-colors cursor-pointer">
             <CardContent className="py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-amber-500/10">

@@ -9,7 +9,7 @@ import { getFootfallOverview, getFootfallByZone } from "./footfall-engine";
 import { getDiscrepancySummary } from "./revenue-engine";
 
 // ============================================================
-// Custis AI Chat — Natural Language Query Engine
+// Wedja AI Chat — Natural Language Query Engine
 //
 // Parses user messages and queries the appropriate data sources
 // to provide intelligent answers about mall operations.

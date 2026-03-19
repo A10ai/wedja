@@ -5,34 +5,36 @@
 /* ── Light theme (default) ── */
 :root,
 .light {
-  --custis-bg: #F9FAFB;
-  --custis-card: #FFFFFF;
-  --custis-border: #E5E7EB;
-  --custis-gold: #D97706;
-  --custis-gold-hover: #B45309;
-  --custis-gold-muted: rgba(217, 119, 6, 0.12);
-  --text-primary: #111827;
-  --text-secondary: #4B5563;
-  --text-muted: #9CA3AF;
+  --wedja-bg: #FAFBFC;
+  --wedja-card: #FFFFFF;
+  --wedja-elevated: #F1F5F9;
+  --wedja-border: #E2E8F0;
+  --wedja-accent: #4F46E5;
+  --wedja-accent-hover: #7C3AED;
+  --wedja-accent-muted: rgba(79, 70, 229, 0.12);
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
 }
 
 /* ── Dark theme ── */
 .dark {
-  --custis-bg: #0B0E18;
-  --custis-card: #111827;
-  --custis-border: #1F2937;
-  --custis-gold: #F59E0B;
-  --custis-gold-hover: #FBBF24;
-  --custis-gold-muted: rgba(245, 158, 11, 0.12);
-  --text-primary: #F9FAFB;
-  --text-secondary: #9CA3AF;
-  --text-muted: #6B7280;
+  --wedja-bg: #0A0A0F;
+  --wedja-card: #111118;
+  --wedja-elevated: #16161F;
+  --wedja-border: #334155;
+  --wedja-accent: #4F46E5;
+  --wedja-accent-hover: #7C3AED;
+  --wedja-accent-muted: rgba(79, 70, 229, 0.12);
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
 }
 
 /* ── Base styles ── */
 body {
-  @apply bg-custis-bg text-text-primary antialiased;
-  font-family: var(--font-inter), "Inter", system-ui, sans-serif;
+  @apply bg-wedja-bg text-text-primary antialiased;
+  font-family: var(--font-instrument), "Instrument Sans", system-ui, sans-serif;
 }
 
 /* ── Scrollbar styling ── */
@@ -46,7 +48,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-custis-border rounded-full;
+  @apply bg-wedja-border rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -56,23 +58,23 @@ body {
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--custis-border) transparent;
+  scrollbar-color: var(--wedja-border) transparent;
 }
 
 /* ── Selection styling ── */
 ::selection {
-  background: var(--custis-gold-muted);
-  color: var(--custis-gold);
+  background: var(--wedja-accent-muted);
+  color: var(--wedja-accent);
 }
 
 /* ── Utility classes ── */
 @layer utilities {
-  .gold-gradient {
-    background: linear-gradient(135deg, #F59E0B 0%, #D97706 50%, #B45309 100%);
+  .wedja-gradient {
+    background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #F97316 100%);
   }
 
-  .gold-gradient-text {
-    background: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+  .wedja-gradient-text {
+    background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #F97316 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -90,6 +92,6 @@ body {
 /* ── Focus ring ── */
 @layer base {
   *:focus-visible {
-    @apply outline-none ring-2 ring-custis-gold ring-offset-2 ring-offset-custis-bg rounded-sm;
+    @apply outline-none ring-2 ring-wedja-accent ring-offset-2 ring-offset-wedja-bg rounded-sm;
   }
 }

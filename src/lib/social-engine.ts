@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
 // ============================================================
-// Custis Social Media Engine
+// Wedja Social Media Engine
 //
 // AI-powered social media management for Senzo Mall.
 // Content ideas, analytics, calendar, captions, and insights

@@ -172,7 +172,7 @@ function platformBorderColor(platform: string): string {
     case "facebook": return "border-blue-600/30";
     case "tiktok": return "border-cyan-400/30";
     case "x": return "border-gray-400/30";
-    default: return "border-custis-border";
+    default: return "border-wedja-border";
   }
 }
 
@@ -416,7 +416,7 @@ export default function SocialMediaPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-custis-gold" />
+        <Loader2 className="w-8 h-8 animate-spin text-wedja-accent" />
       </div>
     );
   }
@@ -439,7 +439,7 @@ export default function SocialMediaPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <Share2 className="text-custis-gold" size={24} />
+            <Share2 className="text-wedja-accent" size={24} />
             Social Media Manager
           </h1>
           <p className="text-sm text-text-secondary mt-1">
@@ -463,8 +463,8 @@ export default function SocialMediaPage() {
             }}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
               activeTab === tab.key
-                ? "bg-custis-gold-muted text-custis-gold"
-                : "text-text-secondary hover:text-text-primary hover:bg-custis-border/30"
+                ? "bg-wedja-accent-muted text-wedja-accent"
+                : "text-text-secondary hover:text-text-primary hover:bg-wedja-border/30"
             }`}
           >
             {tab.icon}
@@ -503,7 +503,7 @@ export default function SocialMediaPage() {
                     </div>
                     <div>
                       <p className="text-xs text-text-muted">Engagement</p>
-                      <p className="text-lg font-bold text-custis-gold font-mono">
+                      <p className="text-lg font-bold text-wedja-accent font-mono">
                         {p.account.avg_engagement_rate}%
                       </p>
                     </div>
@@ -546,7 +546,7 @@ export default function SocialMediaPage() {
             <Card>
               <CardContent className="py-4 text-center">
                 <p className="text-xs text-text-muted mb-1">Best Platform</p>
-                <p className="text-lg font-bold text-custis-gold capitalize">
+                <p className="text-lg font-bold text-wedja-accent capitalize">
                   {overview.best_platform}
                 </p>
               </CardContent>
@@ -554,7 +554,7 @@ export default function SocialMediaPage() {
             <Card>
               <CardContent className="py-4 text-center">
                 <p className="text-xs text-text-muted mb-1">Best Time</p>
-                <p className="text-lg font-bold text-custis-gold flex items-center justify-center gap-1">
+                <p className="text-lg font-bold text-wedja-accent flex items-center justify-center gap-1">
                   <Clock size={16} />
                   {overview.best_posting_time}
                 </p>
@@ -590,9 +590,9 @@ export default function SocialMediaPage() {
                           <span className="text-emerald-500 ml-2">+{formatNumber(p.follower_growth_30d)}</span>
                         </span>
                       </div>
-                      <div className="w-full h-2 bg-custis-border/50 rounded-full overflow-hidden">
+                      <div className="w-full h-2 bg-wedja-border/50 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-custis-gold rounded-full transition-all duration-500"
+                          className="h-full bg-wedja-accent rounded-full transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -610,7 +610,7 @@ export default function SocialMediaPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-              <Sparkles className="text-custis-gold" size={20} />
+              <Sparkles className="text-wedja-accent" size={20} />
               AI Content Ideas
             </h2>
             <Button onClick={fetchIdeas} disabled={ideasLoading} size="sm">
@@ -621,7 +621,7 @@ export default function SocialMediaPage() {
 
           {ideasLoading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-custis-gold" />
+              <Loader2 className="w-6 h-6 animate-spin text-wedja-accent" />
               <span className="ml-2 text-text-secondary text-sm">Analyzing events, promotions, and trends...</span>
             </div>
           ) : (
@@ -698,7 +698,7 @@ export default function SocialMediaPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-              <Calendar className="text-custis-gold" size={20} />
+              <Calendar className="text-wedja-accent" size={20} />
               Content Calendar
             </h2>
             <div className="flex items-center gap-2">
@@ -737,13 +737,13 @@ export default function SocialMediaPage() {
               return (
                 <Card
                   key={date.toISOString()}
-                  className={isToday ? "ring-1 ring-custis-gold" : ""}
+                  className={isToday ? "ring-1 ring-wedja-accent" : ""}
                 >
-                  <div className={`px-3 py-2 border-b border-custis-border ${isToday ? "bg-custis-gold-muted" : ""}`}>
+                  <div className={`px-3 py-2 border-b border-wedja-border ${isToday ? "bg-wedja-accent-muted" : ""}`}>
                     <p className="text-xs font-medium text-text-muted">
                       {dayNames[date.getDay()]}
                     </p>
-                    <p className={`text-sm font-bold ${isToday ? "text-custis-gold" : "text-text-primary"}`}>
+                    <p className={`text-sm font-bold ${isToday ? "text-wedja-accent" : "text-text-primary"}`}>
                       {date.getDate()} {date.toLocaleString("en", { month: "short" })}
                     </p>
                   </div>
@@ -753,7 +753,7 @@ export default function SocialMediaPage() {
                       return (
                         <div
                           key={entry.id}
-                          className="p-2 rounded-lg bg-custis-border/20 hover:bg-custis-border/40 cursor-pointer transition-colors"
+                          className="p-2 rounded-lg bg-wedja-border/20 hover:bg-wedja-border/40 cursor-pointer transition-colors"
                         >
                           <div className="flex items-center gap-1.5 mb-1">
                             <span className={`w-5 h-5 rounded flex items-center justify-center text-[8px] font-bold ${platformColor(entry.platform)}`}>
@@ -763,7 +763,7 @@ export default function SocialMediaPage() {
                               {sb.label}
                             </Badge>
                             {entry.ai_suggested && (
-                              <Sparkles size={10} className="text-custis-gold" />
+                              <Sparkles size={10} className="text-wedja-accent" />
                             )}
                           </div>
                           <p className="text-[11px] font-medium text-text-primary line-clamp-2">
@@ -792,7 +792,7 @@ export default function SocialMediaPage() {
       {activeTab === "posts" && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-            <Send className="text-custis-gold" size={20} />
+            <Send className="text-wedja-accent" size={20} />
             Recent Posts
           </h2>
 
@@ -811,7 +811,7 @@ export default function SocialMediaPage() {
                         <Badge variant={sb.variant}>{sb.label}</Badge>
                       </div>
                       {post.ai_generated && (
-                        <Sparkles size={12} className="text-custis-gold" />
+                        <Sparkles size={12} className="text-wedja-accent" />
                       )}
                     </div>
 
@@ -848,7 +848,7 @@ export default function SocialMediaPage() {
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-custis-border">
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-wedja-border">
                       <div className="flex items-center gap-2 text-xs text-text-muted">
                         <Eye size={11} />
                         <span className="font-mono">{formatNumber(post.reach)}</span>
@@ -856,7 +856,7 @@ export default function SocialMediaPage() {
                       </div>
                       <div className="text-xs text-text-muted">
                         {post.engagement_rate > 0 && (
-                          <span className="text-custis-gold font-semibold">
+                          <span className="text-wedja-accent font-semibold">
                             {post.engagement_rate}% eng.
                           </span>
                         )}
@@ -882,7 +882,7 @@ export default function SocialMediaPage() {
       {activeTab === "analytics" && analytics && (
         <div className="space-y-6">
           <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-            <BarChart3 className="text-custis-gold" size={20} />
+            <BarChart3 className="text-wedja-accent" size={20} />
             Analytics (Last 60 Days)
           </h2>
 
@@ -911,9 +911,9 @@ export default function SocialMediaPage() {
                           <span className="text-text-muted ml-2">({ct.count} posts)</span>
                         </span>
                       </div>
-                      <div className="w-full h-3 bg-custis-border/50 rounded-full overflow-hidden">
+                      <div className="w-full h-3 bg-wedja-border/50 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-custis-gold rounded-full transition-all duration-500"
+                          className="h-full bg-wedja-accent rounded-full transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -949,7 +949,7 @@ export default function SocialMediaPage() {
                           <span className="text-text-muted ml-2">({cat.count} posts)</span>
                         </span>
                       </div>
-                      <div className="w-full h-3 bg-custis-border/50 rounded-full overflow-hidden">
+                      <div className="w-full h-3 bg-wedja-border/50 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                           style={{ width: `${pct}%` }}
@@ -972,8 +972,8 @@ export default function SocialMediaPage() {
             <CardContent>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {analytics.by_language.map((lang) => (
-                  <div key={lang.language} className="text-center p-3 rounded-lg bg-custis-border/20">
-                    <p className="text-lg font-bold text-custis-gold font-mono">
+                  <div key={lang.language} className="text-center p-3 rounded-lg bg-wedja-border/20">
+                    <p className="text-lg font-bold text-wedja-accent font-mono">
                       {lang.avg_engagement}%
                     </p>
                     <p className="text-xs text-text-secondary mt-1 uppercase font-medium">
@@ -1071,7 +1071,7 @@ export default function SocialMediaPage() {
                 {analytics.hashtag_performance.slice(0, 15).map((h) => (
                   <span
                     key={h.hashtag}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-custis-gold-muted text-custis-gold font-medium"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-wedja-accent-muted text-wedja-accent font-medium"
                   >
                     {h.hashtag}
                     <span className="text-text-muted ml-1">
@@ -1138,7 +1138,7 @@ export default function SocialMediaPage() {
       {activeTab === "insights" && (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-            <Lightbulb className="text-custis-gold" size={20} />
+            <Lightbulb className="text-wedja-accent" size={20} />
             AI Insights
           </h2>
 
@@ -1177,7 +1177,7 @@ export default function SocialMediaPage() {
                         {insight.description}
                       </p>
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="px-2 py-0.5 rounded bg-custis-gold-muted text-custis-gold font-medium">
+                        <span className="px-2 py-0.5 rounded bg-wedja-accent-muted text-wedja-accent font-medium">
                           Action: {insight.action}
                         </span>
                       </div>
@@ -1200,7 +1200,7 @@ export default function SocialMediaPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
-              <Plus className="text-custis-gold" size={20} />
+              <Plus className="text-wedja-accent" size={20} />
               Create Post
             </h2>
             {showCreateForm && (
@@ -1232,7 +1232,7 @@ export default function SocialMediaPage() {
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                           formPlatform === p
                             ? platformColor(p)
-                            : "bg-custis-border/30 text-text-secondary hover:text-text-primary"
+                            : "bg-wedja-border/30 text-text-secondary hover:text-text-primary"
                         }`}
                       >
                         {platformIcon(p)}
@@ -1255,8 +1255,8 @@ export default function SocialMediaPage() {
                           onClick={() => setFormContentType(ct)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                             formContentType === ct
-                              ? "bg-custis-gold text-white"
-                              : "bg-custis-border/30 text-text-secondary hover:text-text-primary"
+                              ? "bg-wedja-accent text-white"
+                              : "bg-wedja-border/30 text-text-secondary hover:text-text-primary"
                           }`}
                         >
                           {contentTypeLabel(ct)}
@@ -1274,7 +1274,7 @@ export default function SocialMediaPage() {
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary focus:outline-none focus:ring-2 focus:ring-custis-gold"
+                    className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary focus:outline-none focus:ring-2 focus:ring-wedja-accent"
                   >
                     {[
                       "promotion",
@@ -1312,8 +1312,8 @@ export default function SocialMediaPage() {
                         onClick={() => setFormLanguage(lang.val)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                           formLanguage === lang.val
-                            ? "bg-custis-gold text-white"
-                            : "bg-custis-border/30 text-text-secondary hover:text-text-primary"
+                            ? "bg-wedja-accent text-white"
+                            : "bg-wedja-border/30 text-text-secondary hover:text-text-primary"
                         }`}
                       >
                         {lang.label}
@@ -1337,7 +1337,7 @@ export default function SocialMediaPage() {
                     onChange={(e) => setFormCaption(e.target.value)}
                     rows={5}
                     placeholder="Write your caption..."
-                    className="w-full px-3 py-2 rounded-lg text-sm bg-custis-bg border border-custis-border text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-custis-gold resize-none"
+                    className="w-full px-3 py-2 rounded-lg text-sm bg-wedja-bg border border-wedja-border text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-wedja-accent resize-none"
                   />
                   <Button
                     variant="secondary"
@@ -1367,7 +1367,7 @@ export default function SocialMediaPage() {
                           setFormCaption(cap.caption_en);
                           setFormHashtags(cap.hashtags.join(", "));
                         }}
-                        className="w-full text-left p-3 rounded-lg bg-custis-border/20 hover:bg-custis-border/40 transition-colors"
+                        className="w-full text-left p-3 rounded-lg bg-wedja-border/20 hover:bg-wedja-border/40 transition-colors"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <Badge variant="gold" className="text-[10px]">
@@ -1469,7 +1469,7 @@ export default function SocialMediaPage() {
                   </div>
 
                   {/* Simulated post content */}
-                  <div className="rounded-lg bg-custis-border/20 aspect-video flex items-center justify-center">
+                  <div className="rounded-lg bg-wedja-border/20 aspect-video flex items-center justify-center">
                     <span className="text-text-muted text-sm">
                       [{contentTypeLabel(formContentType)} media]
                     </span>
