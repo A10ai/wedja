@@ -4,7 +4,10 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   DollarSign,
   Loader2,
+  Shield,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
@@ -123,6 +126,28 @@ export default function RevenuePage() {
           Revenue tracking, collections, and analysis
         </p>
       </div>
+
+      {/* Revenue Verification Link */}
+      <Link
+        href="/dashboard/discrepancies"
+        className="flex items-center justify-between px-5 py-4 rounded-xl border-2 border-custis-gold/30 bg-custis-gold/5 hover:bg-custis-gold/10 transition-colors group"
+      >
+        <div className="flex items-center gap-3">
+          <Shield size={20} className="text-custis-gold" />
+          <div>
+            <p className="text-sm font-semibold text-text-primary">
+              Revenue Verification
+            </p>
+            <p className="text-xs text-text-muted">
+              Detect underreporting with forensic analysis
+            </p>
+          </div>
+        </div>
+        <ArrowRight
+          size={18}
+          className="text-custis-gold group-hover:translate-x-1 transition-transform"
+        />
+      </Link>
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
