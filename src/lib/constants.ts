@@ -4,6 +4,7 @@ import {
   Building2,
   Store,
   FileText,
+  ScrollText,
   DollarSign,
   Users,
   AlertTriangle,
@@ -31,6 +32,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { label: "Property", href: "/dashboard/property", icon: Building2 },
   { label: "Tenants", href: "/dashboard/tenants", icon: Store },
   { label: "Leases", href: "/dashboard/leases", icon: FileText },
+  { label: "Contracts", href: "/dashboard/contracts", icon: ScrollText },
   { label: "Revenue", href: "/dashboard/revenue", icon: DollarSign },
   { label: "Footfall", href: "/dashboard/footfall", icon: Users },
   {

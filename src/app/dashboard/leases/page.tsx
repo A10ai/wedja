@@ -5,7 +5,10 @@ import {
   FileText,
   Loader2,
   AlertTriangle,
+  ScrollText,
+  ArrowRight,
 } from "lucide-react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -103,6 +106,28 @@ export default function LeasesPage() {
           Active leases, terms, and rent schedules
         </p>
       </div>
+
+      {/* Contract Analytics Link */}
+      <Link
+        href="/dashboard/contracts"
+        className="flex items-center justify-between px-5 py-4 rounded-xl border-2 border-wedja-accent/30 bg-wedja-accent/5 hover:bg-wedja-accent/10 transition-colors group"
+      >
+        <div className="flex items-center gap-3">
+          <ScrollText size={20} className="text-wedja-accent" />
+          <div>
+            <p className="text-sm font-semibold text-text-primary">
+              Contract Analytics
+            </p>
+            <p className="text-xs text-text-muted">
+              WALE, rent roll, rent vs sales gap analysis, escalation tracking
+            </p>
+          </div>
+        </div>
+        <ArrowRight
+          size={18}
+          className="text-wedja-accent group-hover:translate-x-1 transition-transform"
+        />
+      </Link>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
