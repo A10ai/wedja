@@ -157,20 +157,15 @@ export interface VerificationReport {
 /**
  * Estimate revenue for a tenant based on footfall and category.
  *
- * Given a monthly footfall count and tenant category, calculates:
- * - low_estimate  = footfall x low_conversion x low_ticket
- * - mid_estimate  = footfall x mid_conversion x mid_ticket (geometric mean)
- * - high_estimate = footfall x high_conversion x high_ticket
- *
- * Confidence is based on:
- * - Whether the category has a model (vs fallback)
- * - Footfall data volume (more days = higher confidence)
- * - Absolute footfall count (very low counts are less reliable)
+ * If a learnedConversionRate is provided (from the learning engine),
+ * it overrides the category default mid conversion for more accurate estimates.
+ * The low and high estimates still use category bounds for range.
  */
 export function estimateRevenue(
   footfall: number,
   category: string,
-  footfallDaysCount: number = 30
+  footfallDaysCount: number = 30,
+  learnedConversionRate?: { rate: number; confidence: number; source: "learned" | "default" }
 ): RevenueEstimate {
   const model = CATEGORY_MODELS[category] || CATEGORY_MODELS.services;
   const isFallback = !CATEGORY_MODELS[category];
@@ -179,8 +174,11 @@ export function estimateRevenue(
   const [tickLow, tickHigh] = model.avg_ticket;
 
   // Mid values use geometric mean for more balanced estimation
-  const convMid = Math.sqrt(convLow * convHigh);
   const tickMid = Math.sqrt(tickLow * tickHigh);
+
+  // Use learned conversion rate if available, otherwise geometric mean
+  const useLearned = learnedConversionRate && learnedConversionRate.source === "learned";
+  const convMid = useLearned ? learnedConversionRate!.rate : Math.sqrt(convLow * convHigh);
 
   const low_egp = Math.round(footfall * convLow * tickLow);
   const mid_egp = Math.round(footfall * convMid * tickMid);
@@ -191,6 +189,9 @@ export function estimateRevenue(
 
   // Category model quality
   if (!isFallback) confidence += 0.15;
+
+  // Learned rate bonus — significantly more confident
+  if (useLearned) confidence += 0.15;
 
   // Footfall data coverage (more days = more confident)
   if (footfallDaysCount >= 25) confidence += 0.2;
@@ -204,12 +205,17 @@ export function estimateRevenue(
 
   confidence = Math.min(confidence, 0.98);
 
+  const conversionNote = useLearned
+    ? `Learned conversion: ${(convMid * 100).toFixed(1)}% (confidence: ${learnedConversionRate!.confidence}%)`
+    : `Conversion range: ${(convLow * 100).toFixed(0)}%-${(convHigh * 100).toFixed(0)}%`;
+
   const methodology = [
     `Category model: ${isFallback ? "fallback (services)" : category}`,
-    `Conversion range: ${(convLow * 100).toFixed(0)}%-${(convHigh * 100).toFixed(0)}%`,
+    conversionNote,
     `Avg ticket range: EGP ${tickLow}-${tickHigh}`,
     `Footfall: ${footfall.toLocaleString()} visitors`,
     `Data coverage: ${footfallDaysCount} days`,
+    `Rate source: ${useLearned ? "AI learned" : "category default"}`,
     `Model version: ${MODEL_VERSION}`,
   ].join(" | ");
 
@@ -317,6 +323,30 @@ export async function runRevenueVerification(
     .eq("period_month", month)
     .eq("period_year", year);
 
+  // 5a. Load learned conversion rates for all tenants
+  const { data: learnedParams } = await supabase
+    .from("ai_learned_params")
+    .select("entity_id, learned_value, confidence, sample_count")
+    .eq("property_id", propertyId)
+    .eq("param_type", "conversion_rate")
+    .eq("param_key", "conversion_rate")
+    .gt("confidence", 50);
+
+  const learnedRates: Record<
+    string,
+    { rate: number; confidence: number; source: "learned" | "default"; sample_count: number }
+  > = {};
+  (learnedParams || []).forEach((p: any) => {
+    if (p.entity_id) {
+      learnedRates[p.entity_id] = {
+        rate: p.learned_value,
+        confidence: p.confidence,
+        source: "learned",
+        sample_count: p.sample_count,
+      };
+    }
+  });
+
   for (const lease of leases) {
     const tenant = (lease as any).tenants;
     const unit = (lease as any).units;
@@ -326,11 +356,15 @@ export async function runRevenueVerification(
     };
     const reportedRevenue = salesByTenant[lease.tenant_id] ?? null;
 
-    // Estimate revenue
+    // Check for learned conversion rate
+    const learnedRate = learnedRates[lease.tenant_id] || undefined;
+
+    // Estimate revenue — using learned rate if available
     const estimate = estimateRevenue(
       unitFootfall.total,
       tenant.category,
-      unitFootfall.days
+      unitFootfall.days,
+      learnedRate
     );
 
     // Calculate variance (positive = underreporting, negative = overreporting)

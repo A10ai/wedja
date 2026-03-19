@@ -12,6 +12,7 @@ import {
   Wallet,
   FileBarChart,
   Settings,
+  GraduationCap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export interface NavItem {
 
 export const SIDEBAR_NAV: NavItem[] = [
   { label: "AI Centre", href: "/dashboard/ai", icon: Eye },
+  { label: "Learning", href: "/dashboard/ai/learning", icon: GraduationCap },
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Property", href: "/dashboard/property", icon: Building2 },
   { label: "Tenants", href: "/dashboard/tenants", icon: Store },

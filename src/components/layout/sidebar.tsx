@@ -74,10 +74,18 @@ export function Sidebar({
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
         {SIDEBAR_NAV.map((item) => {
           const Icon = item.icon;
+          // Check if any other nav item is a more specific match
           const isActive =
             item.href === "/dashboard"
               ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+              : pathname === item.href ||
+                (pathname.startsWith(item.href + "/") &&
+                  !SIDEBAR_NAV.some(
+                    (other) =>
+                      other.href !== item.href &&
+                      other.href.startsWith(item.href) &&
+                      pathname.startsWith(other.href)
+                  ));
 
           return (
             <Link

@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Shield,
   Activity,
+  GraduationCap,
+  Brain,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -537,6 +539,35 @@ export default function AIPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Learning Engine Card */}
+      <Link href="/dashboard/ai/learning">
+        <Card className="hover:border-custis-gold/50 transition-colors cursor-pointer overflow-hidden">
+          <CardContent className="py-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="relative p-3 rounded-xl bg-custis-gold-muted">
+                  <GraduationCap size={22} className="text-custis-gold" />
+                  <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-custis-gold opacity-75" />
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-custis-gold" />
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                    <Brain size={14} className="text-custis-gold" />
+                    Learning Engine
+                  </h3>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Custis is getting smarter every day. View calibrated parameters, discovered patterns, and learning history.
+                  </p>
+                </div>
+              </div>
+              <ArrowRight size={18} className="text-text-muted shrink-0 ml-4" />
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
