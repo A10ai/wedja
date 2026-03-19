@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { AIChatPanel } from "@/components/ai/chat-panel";
 import { cn } from "@/lib/utils";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -29,6 +30,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <Header onMenuClick={() => setMobileOpen(true)} />
           <main className="p-4 lg:p-6">{children}</main>
         </div>
+
+        <AIChatPanel />
       </div>
     </ThemeProvider>
   );

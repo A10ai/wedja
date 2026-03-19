@@ -1,8 +1,9 @@
 "use client";
 
-import { Menu, Sun, Moon, Bell } from "lucide-react";
+import { Menu, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/providers/theme-provider";
 import { DEFAULT_PROPERTY } from "@/lib/constants";
+import { NotificationBell } from "./notification-bell";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -45,13 +46,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           </button>
 
           {/* Notifications */}
-          <button
-            className="relative p-2 rounded-lg hover:bg-custis-border/50 text-text-secondary transition-colors"
-            aria-label="Notifications"
-          >
-            <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-custis-gold rounded-full" />
-          </button>
+          <NotificationBell />
 
           {/* User avatar placeholder */}
           <div className="w-8 h-8 rounded-full bg-custis-gold-muted flex items-center justify-center ml-1">
