@@ -8,6 +8,8 @@ import {
   Users,
   AlertTriangle,
   Wrench,
+  Zap,
+  Wallet,
   FileBarChart,
   Settings,
   type LucideIcon,
@@ -33,6 +35,8 @@ export const SIDEBAR_NAV: NavItem[] = [
     icon: AlertTriangle,
   },
   { label: "Maintenance", href: "/dashboard/maintenance", icon: Wrench },
+  { label: "Energy", href: "/dashboard/energy", icon: Zap },
+  { label: "Finance", href: "/dashboard/finance", icon: Wallet },
   { label: "Reports", href: "/dashboard/reports", icon: FileBarChart },
   { label: "Settings", href: "/dashboard/settings", icon: Settings },
 ];
