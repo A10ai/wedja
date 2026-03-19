@@ -28,6 +28,13 @@ import {
   Heart,
   Search,
   RefreshCw,
+  Camera,
+  Car,
+  ShoppingCart,
+  MapPin,
+  AlertCircle,
+  Sparkles,
+  Video,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +72,8 @@ interface HealthScore {
   maintenance: HealthScoreDimension;
   marketing: HealthScoreDimension;
   financial: HealthScoreDimension;
+  cctv_security: HealthScoreDimension;
+  social_media: HealthScoreDimension;
 }
 
 interface BriefingItem {
@@ -105,6 +114,15 @@ interface PropertySnapshot {
   opportunity_cost_monthly: number;
   wale_years: number;
   health_score: number;
+  total_monthly_rent_egp: number;
+  top_tenant_by_rent: string;
+  kiosk_revenue_total: number;
+  cctv_alerts_active: number;
+  parking_occupancy_pct: number;
+  social_followers_total: number;
+  store_avg_conversion_rate: number;
+  dead_zones_count: number;
+  queue_alerts_active: number;
 }
 
 interface AIData {
@@ -116,8 +134,8 @@ interface AIData {
 
 // ── Health Ring ─────────────────────────────────────────────
 
-function HealthRing({ score, size = 200 }: { score: number; size?: number }) {
-  const strokeWidth = 14;
+function HealthRing({ score, size = 220 }: { score: number; size?: number }) {
+  const strokeWidth = 16;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
@@ -224,6 +242,8 @@ const moduleColors: Record<string, string> = {
   social: "bg-cyan-500/15 text-cyan-400",
   maintenance: "bg-orange-500/15 text-orange-400",
   "tenant-analytics": "bg-indigo-500/15 text-indigo-400",
+  cctv: "bg-violet-500/15 text-violet-400",
+  learning: "bg-teal-500/15 text-teal-400",
 };
 
 // ── Briefing Icon Map ──────────────────────────────────────
@@ -236,6 +256,8 @@ const briefingIcons: Record<string, any> = {
   Maintenance: Wrench,
   Marketing: Megaphone,
   Finance: DollarSign,
+  "CCTV/Security": Camera,
+  "Social Media": Wifi,
   "AI Learning": Brain,
 };
 
@@ -300,7 +322,7 @@ export default function AICentrePage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
         <Loader2 size={32} className="animate-spin text-wedja-accent" />
-        <p className="text-xs text-text-muted">Cross-referencing all modules...</p>
+        <p className="text-xs text-text-muted">Cross-referencing all 11 modules...</p>
       </div>
     );
   }
@@ -316,6 +338,13 @@ export default function AICentrePage() {
 
   const { insights, health_score, briefing, snapshot } = data;
 
+  // Group insights by severity
+  const criticalInsights = insights.filter((i) => i.severity === "critical");
+  const warningInsights = insights.filter((i) => i.severity === "warning");
+  const opportunityInsights = insights.filter((i) => i.severity === "opportunity");
+  const infoInsights = insights.filter((i) => i.severity === "info");
+  const totalOpportunity = insights.reduce((s, i) => s + i.impact_egp, 0);
+
   const dimensionEntries: Array<{ key: string; label: string; dim: HealthScoreDimension }> = [
     { key: "revenue", label: "Revenue", dim: health_score.revenue },
     { key: "occupancy", label: "Occupancy", dim: health_score.occupancy },
@@ -325,6 +354,8 @@ export default function AICentrePage() {
     { key: "maintenance", label: "Maintenance", dim: health_score.maintenance },
     { key: "marketing", label: "Marketing", dim: health_score.marketing },
     { key: "financial", label: "Financial", dim: health_score.financial },
+    { key: "cctv_security", label: "CCTV/Security", dim: health_score.cctv_security },
+    { key: "social_media", label: "Social Media", dim: health_score.social_media },
   ];
 
   return (
@@ -333,13 +364,13 @@ export default function AICentrePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-wedja-accent-muted">
+            <div className="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500/20 to-wedja-accent-muted">
               <Eye size={24} className="text-wedja-accent" />
             </div>
             AI Centre
           </h1>
           <p className="text-xs text-text-muted mt-1">
-            Cross-data intelligence hub — all modules, one view
+            Cross-data intelligence hub — 11 modules, one view. Powered by real JDE data.
           </p>
         </div>
         <button
@@ -351,22 +382,70 @@ export default function AICentrePage() {
         </button>
       </div>
 
+      {/* ── Total Opportunity Banner ── */}
+      {totalOpportunity > 0 && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 via-wedja-accent-muted to-indigo-500/10 border border-indigo-500/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Sparkles size={20} className="text-indigo-400" />
+              <div>
+                <p className="text-xs text-indigo-300 font-medium uppercase tracking-wider">Total Financial Opportunity Identified</p>
+                <p className="text-2xl font-bold font-mono text-text-primary">{formatCurrency(totalOpportunity)}<span className="text-sm text-text-muted font-normal">/year</span></p>
+              </div>
+            </div>
+            <div className="text-right text-xs text-text-muted">
+              <p>{criticalInsights.length} critical</p>
+              <p>{warningInsights.length} warning</p>
+              <p>{opportunityInsights.length} opportunity</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── D. Real Revenue Summary Card ── */}
+      {snapshot.revenue_this_month > 0 && (
+        <Card className="overflow-hidden">
+          <div className="p-4 bg-gradient-to-r from-emerald-500/5 to-transparent">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <DollarSign size={16} className="text-emerald-400" />
+                  <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Q1 2026 Revenue</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">Real JDE Data</span>
+                </div>
+                <p className="text-2xl font-bold font-mono text-text-primary">
+                  {formatCurrency(snapshot.revenue_this_month)}
+                  <span className="text-sm text-text-muted font-normal ml-2">collected this month from {snapshot.tenants.total} tenants</span>
+                </p>
+              </div>
+              <div className="text-right space-y-1">
+                <p className="text-xs text-text-secondary">Top tenant: <span className="font-semibold text-text-primary">{snapshot.top_tenant_by_rent}</span></p>
+                <p className="text-xs text-text-secondary">Monthly contracted: <span className="font-mono font-semibold">{formatCurrency(snapshot.total_monthly_rent_egp)}</span></p>
+                {snapshot.kiosk_revenue_total > 0 && (
+                  <p className="text-xs text-text-secondary">Kiosks: <span className="font-mono font-semibold">{formatCurrency(snapshot.kiosk_revenue_total)}</span>/mo</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* ── A. Health Score + B. Daily Briefing ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Health Score — prominent center */}
+        {/* Health Score */}
         <div className="lg:col-span-4">
           <Card className="h-full">
             <CardHeader>
               <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                 <Shield size={16} className="text-wedja-accent" />
-                Property Health
+                Property Health — 10 Dimensions
               </h2>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-center">
-                <HealthRing score={health_score.total} />
+                <HealthRing score={health_score.total} size={220} />
               </div>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                 {dimensionEntries.map(({ key, label, dim }) => (
                   <DimensionBar
                     key={key}
@@ -389,7 +468,7 @@ export default function AICentrePage() {
               <div className="flex items-center justify-between w-full">
                 <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
                   <Activity size={16} className="text-wedja-accent" />
-                  Daily Briefing
+                  Daily Briefing — 10 Sections
                 </h2>
                 <span className="text-xs text-text-muted">
                   {new Date().toLocaleDateString("en-US", {
@@ -406,7 +485,7 @@ export default function AICentrePage() {
                 {briefing.greeting}, here is your property update.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
                 {Object.values(briefing.sections).map((section) => {
                   const Icon = briefingIcons[section.title] || Eye;
                   return (
@@ -441,11 +520,11 @@ export default function AICentrePage() {
                 })}
               </div>
 
-              {/* Top 3 Actions */}
+              {/* Top 5 Actions */}
               {briefing.top_actions.length > 0 && (
-                <div className="mt-4 p-3 rounded-lg bg-wedja-accent-muted border border-wedja-accent/20">
+                <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-wedja-accent-muted to-indigo-500/10 border border-wedja-accent/20">
                   <h4 className="text-[10px] font-semibold text-wedja-accent uppercase tracking-wider mb-2">
-                    Top Actions for Today
+                    Top 5 Actions for Today
                   </h4>
                   <div className="space-y-1.5">
                     {briefing.top_actions.map((action, i) => (
@@ -483,9 +562,16 @@ export default function AICentrePage() {
               <Eye size={16} className="text-wedja-accent" />
               Cross-Data Insights
             </h2>
-            <span className="text-xs text-text-muted">
-              {insights.length} active — sorted by EGP impact
-            </span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-text-muted">
+                {criticalInsights.length > 0 && <span className="px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 font-medium">{criticalInsights.length} critical</span>}
+                {warningInsights.length > 0 && <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium">{warningInsights.length} warning</span>}
+                {opportunityInsights.length > 0 && <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">{opportunityInsights.length} opportunity</span>}
+              </div>
+              <span className="text-xs text-text-muted">
+                {insights.length} active — sorted by EGP impact
+              </span>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -504,7 +590,6 @@ export default function AICentrePage() {
                 >
                   <div className="flex items-start gap-4">
                     <div className="flex-1 min-w-0">
-                      {/* Badges row */}
                       <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                         <Badge variant={config.badge}>{insight.severity}</Badge>
                         {insight.source_modules.map((mod) => (
@@ -516,16 +601,13 @@ export default function AICentrePage() {
                           </span>
                         ))}
                       </div>
-                      {/* Title + message */}
                       <h3 className="text-sm font-medium text-text-primary">{insight.title}</h3>
                       <p className="text-xs text-text-muted mt-1">{insight.message}</p>
-                      {/* Recommended action */}
                       <div className="mt-2 flex items-start gap-1.5">
                         <Target size={10} className="text-wedja-accent mt-0.5 shrink-0" />
                         <p className="text-[11px] text-text-secondary">{insight.recommended_action}</p>
                       </div>
                     </div>
-                    {/* Right side: impact + confidence + link */}
                     <div className="text-right shrink-0 space-y-1.5 min-w-[120px]">
                       {insight.impact_egp > 0 && (
                         <p className="text-sm font-bold font-mono text-wedja-accent">
@@ -560,13 +642,14 @@ export default function AICentrePage() {
         </CardContent>
       </Card>
 
-      {/* ── D. Property Snapshot Grid ── */}
+      {/* ── E. Property Snapshot Grid — 4x4 ── */}
       <div>
         <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2 mb-3">
           <BarChart3 size={16} className="text-wedja-accent" />
-          Property Snapshot
+          Property Snapshot — 16 Metrics
         </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Row 1 */}
           <MetricCard
             label="Tenants"
             value={formatNumber(snapshot.tenants.total)}
@@ -581,10 +664,11 @@ export default function AICentrePage() {
             icon={Heart}
           />
           <MetricCard
-            label="Revenue MTD"
-            value={formatCurrency(snapshot.revenue_this_month)}
+            label="Monthly Rent"
+            value={formatCurrency(snapshot.total_monthly_rent_egp)}
+            subtext="Contracted"
             link="/dashboard/finance"
-            icon={TrendingUp}
+            icon={DollarSign}
           />
           <MetricCard
             label="Footfall Today"
@@ -593,6 +677,8 @@ export default function AICentrePage() {
             link="/dashboard/footfall"
             icon={Users}
           />
+
+          {/* Row 2 */}
           <MetricCard
             label="Energy Cost"
             value={formatCurrency(snapshot.energy_cost_today)}
@@ -624,6 +710,8 @@ export default function AICentrePage() {
             icon={FileText}
             alert={snapshot.expiring_leases_90d > 3}
           />
+
+          {/* Row 3 */}
           <MetricCard
             label="Campaigns"
             value={`${snapshot.active_campaigns} active`}
@@ -633,17 +721,50 @@ export default function AICentrePage() {
           />
           <MetricCard
             label="Social Followers"
-            value={formatNumber(snapshot.social_followers)}
+            value={formatNumber(snapshot.social_followers_total)}
             subtext={snapshot.social_growth > 0 ? `+${formatNumber(snapshot.social_growth)} in 30d` : undefined}
             link="/dashboard/social"
             icon={Wifi}
           />
           <MetricCard
-            label="Opportunity Cost"
-            value={formatCurrency(snapshot.opportunity_cost_monthly)}
-            subtext="Monthly potential gain"
-            link="/dashboard/tenant-analytics"
-            icon={DollarSign}
+            label="Parking"
+            value={`${snapshot.parking_occupancy_pct}%`}
+            subtext="Occupancy"
+            link="/dashboard/cctv"
+            icon={Car}
+          />
+          <MetricCard
+            label="CCTV Alerts"
+            value={formatNumber(snapshot.cctv_alerts_active)}
+            subtext="Active"
+            link="/dashboard/cctv"
+            icon={Camera}
+            alert={snapshot.cctv_alerts_active > 0}
+          />
+
+          {/* Row 4 */}
+          <MetricCard
+            label="Store Conversion"
+            value={`${snapshot.store_avg_conversion_rate}%`}
+            subtext="Mall average"
+            link="/dashboard/cctv"
+            icon={ShoppingCart}
+          />
+          <MetricCard
+            label="Dead Zones"
+            value={formatNumber(snapshot.dead_zones_count)}
+            subtext="Low traffic areas"
+            link="/dashboard/cctv"
+            icon={MapPin}
+            alert={snapshot.dead_zones_count > 2}
+          />
+          <MetricCard
+            label="Queue Alerts"
+            value={formatNumber(snapshot.queue_alerts_active)}
+            subtext="Active"
+            link="/dashboard/cctv"
+            icon={AlertCircle}
+            alert={snapshot.queue_alerts_active > 0}
           />
           <MetricCard
             label="WALE"
@@ -655,13 +776,15 @@ export default function AICentrePage() {
         </div>
       </div>
 
-      {/* ── E. Quick Actions ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* ── F. Quick Actions — 6 now ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {[
-          { label: "Run Revenue Verification", sub: "Review discrepancies", href: "/dashboard/discrepancies", icon: AlertTriangle, color: "bg-red-500/10 text-red-500" },
-          { label: "View Expiring Leases", sub: "Contract renewals", href: "/dashboard/contracts", icon: FileText, color: "bg-purple-500/10 text-purple-500" },
-          { label: "Check Underperformers", sub: "Tenant analytics", href: "/dashboard/tenant-analytics", icon: BarChart3, color: "bg-amber-500/10 text-amber-500" },
-          { label: "Social Media Ideas", sub: "Content calendar", href: "/dashboard/social", icon: Megaphone, color: "bg-pink-500/10 text-pink-500" },
+          { label: "Revenue Verification", sub: "Review discrepancies", href: "/dashboard/discrepancies", icon: AlertTriangle, color: "bg-red-500/10 text-red-500" },
+          { label: "Expiring Leases", sub: "Contract renewals", href: "/dashboard/contracts", icon: FileText, color: "bg-purple-500/10 text-purple-500" },
+          { label: "Underperformers", sub: "Tenant analytics", href: "/dashboard/tenant-analytics", icon: BarChart3, color: "bg-amber-500/10 text-amber-500" },
+          { label: "Social Ideas", sub: "Content calendar", href: "/dashboard/social", icon: Megaphone, color: "bg-pink-500/10 text-pink-500" },
+          { label: "CCTV Overview", sub: "Cameras & security", href: "/dashboard/cctv", icon: Video, color: "bg-violet-500/10 text-violet-500" },
+          { label: "Energy Savings", sub: "Optimization ideas", href: "/dashboard/energy", icon: Zap, color: "bg-yellow-500/10 text-yellow-500" },
         ].map((action) => (
           <Link key={action.href} href={action.href}>
             <Card className="hover:border-wedja-accent/50 transition-colors cursor-pointer">
@@ -682,13 +805,13 @@ export default function AICentrePage() {
         ))}
       </div>
 
-      {/* ── F. Learning Status ── */}
+      {/* ── G. Learning Status ── */}
       <Link href="/dashboard/ai/learning">
         <Card className="hover:border-wedja-accent/50 transition-colors cursor-pointer overflow-hidden">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="relative p-3 rounded-xl bg-wedja-accent-muted">
+                <div className="relative p-3 rounded-xl bg-gradient-to-br from-wedja-accent-muted to-indigo-500/10">
                   <GraduationCap size={20} className="text-wedja-accent" />
                   <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-wedja-accent opacity-75" />
