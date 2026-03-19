@@ -1,5 +1,5 @@
 import {
-  BrainCircuit,
+  Eye,
   LayoutDashboard,
   Building2,
   Store,
@@ -20,7 +20,7 @@ export interface NavItem {
 }
 
 export const SIDEBAR_NAV: NavItem[] = [
-  { label: "AI Centre", href: "/dashboard/ai", icon: BrainCircuit },
+  { label: "AI Centre", href: "/dashboard/ai", icon: Eye },
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Property", href: "/dashboard/property", icon: Building2 },
   { label: "Tenants", href: "/dashboard/tenants", icon: Store },
