@@ -29,9 +29,21 @@ interface Tenant {
       id: string;
       name: string;
       unit_number: string;
+      area_sqm: number;
       zone: { id: string; name: string } | null;
     } | null;
   } | null;
+}
+
+interface TenantRanking {
+  tenant_id: string;
+  overall_score: number;
+  revenue_per_sqm: number;
+}
+
+interface DiscrepancyItem {
+  tenant_id: string;
+  status: string;
 }
 
 const CATEGORIES = [
@@ -53,12 +65,22 @@ const categoryVariant: Record<string, "gold" | "success" | "warning" | "info" | 
   grocery: "success",
 };
 
+function getScoreBadge(score: number): { variant: "success" | "warning" | "error"; label: string } {
+  if (score >= 70) return { variant: "success", label: `${Math.round(score)}` };
+  if (score >= 40) return { variant: "warning", label: `${Math.round(score)}` };
+  return { variant: "error", label: `${Math.round(score)}` };
+}
+
 export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Cross-data state
+  const [rankings, setRankings] = useState<Record<string, TenantRanking>>({});
+  const [discrepancyTenants, setDiscrepancyTenants] = useState<Set<string>>(new Set());
 
   // Debounce search
   useEffect(() => {
@@ -85,6 +107,43 @@ export default function TenantsPage() {
   useEffect(() => {
     fetchTenants();
   }, [fetchTenants]);
+
+  // Fetch cross-data: rankings and discrepancies
+  useEffect(() => {
+    async function fetchCrossData() {
+      try {
+        const [rankRes, discRes] = await Promise.all([
+          fetch("/api/v1/tenant-analytics?type=rankings").catch(() => null),
+          fetch("/api/v1/discrepancies").catch(() => null),
+        ]);
+
+        if (rankRes?.ok) {
+          const rankData = await rankRes.json();
+          const list = Array.isArray(rankData) ? rankData : rankData?.rankings || [];
+          const map: Record<string, TenantRanking> = {};
+          list.forEach((r: TenantRanking) => {
+            map[r.tenant_id] = r;
+          });
+          setRankings(map);
+        }
+
+        if (discRes?.ok) {
+          const discData = await discRes.json();
+          const list = Array.isArray(discData) ? discData : discData?.discrepancies || [];
+          const activeSet = new Set<string>();
+          list.forEach((d: DiscrepancyItem) => {
+            if (d.status === "flagged" || d.status === "investigating") {
+              activeSet.add(d.tenant_id);
+            }
+          });
+          setDiscrepancyTenants(activeSet);
+        }
+      } catch {
+        // Cross-data optional
+      }
+    }
+    fetchCrossData();
+  }, []);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -176,60 +235,94 @@ export default function TenantsPage() {
                     <th className="text-right px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">
                       Monthly Rent
                     </th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                      Rev/sqm
+                    </th>
+                    <th className="text-center px-3 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">
+                      Score
+                    </th>
                     <th className="text-center px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">
                       Status
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {tenants.map((tenant, i) => (
-                    <tr
-                      key={tenant.id}
-                      className={`border-b border-wedja-border/50 hover:bg-wedja-border/20 cursor-pointer transition-colors ${
-                        i % 2 === 1 ? "bg-wedja-border/10" : ""
-                      }`}
-                    >
-                      <td className="px-5 py-3">
-                        <Link
-                          href={`/dashboard/tenants/${tenant.id}`}
-                          className="hover:text-wedja-accent"
-                        >
-                          <p className="font-medium text-text-primary">
-                            {tenant.brand_name}
-                          </p>
-                          <p className="text-xs text-text-muted">{tenant.name}</p>
-                        </Link>
-                      </td>
-                      <td className="px-5 py-3 hidden sm:table-cell">
-                        <Badge variant={categoryVariant[tenant.category] || "default"}>
-                          {tenant.category}
-                        </Badge>
-                      </td>
-                      <td className="px-5 py-3 hidden md:table-cell font-mono text-text-secondary text-xs">
-                        {tenant.active_lease?.unit?.unit_number || (
-                          <span className="text-text-muted italic">No unit</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 hidden lg:table-cell text-text-secondary text-xs">
-                        {tenant.active_lease?.unit?.zone?.name || "-"}
-                      </td>
-                      <td className="px-5 py-3 text-right hidden md:table-cell font-mono text-text-primary">
-                        {tenant.active_lease
-                          ? formatCurrency(tenant.active_lease.min_rent_monthly_egp)
-                          : "-"}
-                      </td>
-                      <td className="px-5 py-3 text-center">
-                        <Badge
-                          variant={tenant.status === "active" ? "success" : "error"}
-                        >
-                          {tenant.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
+                  {tenants.map((tenant, i) => {
+                    const ranking = rankings[tenant.id];
+                    const hasDiscrepancy = discrepancyTenants.has(tenant.id);
+                    const scoreBadge = ranking ? getScoreBadge(ranking.overall_score) : null;
+
+                    return (
+                      <tr
+                        key={tenant.id}
+                        className={`border-b border-wedja-border/50 hover:bg-wedja-border/20 cursor-pointer transition-colors ${
+                          i % 2 === 1 ? "bg-wedja-border/10" : ""
+                        }`}
+                      >
+                        <td className="px-5 py-3">
+                          <Link
+                            href={`/dashboard/tenants/${tenant.id}`}
+                            className="hover:text-wedja-accent"
+                          >
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-text-primary">
+                                {tenant.brand_name}
+                              </p>
+                              {hasDiscrepancy && (
+                                <span
+                                  className="w-2 h-2 rounded-full bg-status-error shrink-0"
+                                  title="Active discrepancy"
+                                />
+                              )}
+                            </div>
+                            <p className="text-xs text-text-muted">{tenant.name}</p>
+                          </Link>
+                        </td>
+                        <td className="px-5 py-3 hidden sm:table-cell">
+                          <Badge variant={categoryVariant[tenant.category] || "default"}>
+                            {tenant.category}
+                          </Badge>
+                        </td>
+                        <td className="px-5 py-3 hidden md:table-cell font-mono text-text-secondary text-xs">
+                          {tenant.active_lease?.unit?.unit_number || (
+                            <span className="text-text-muted italic">No unit</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 hidden lg:table-cell text-text-secondary text-xs">
+                          {tenant.active_lease?.unit?.zone?.name || "-"}
+                        </td>
+                        <td className="px-5 py-3 text-right hidden md:table-cell font-mono text-text-primary">
+                          {tenant.active_lease
+                            ? formatCurrency(tenant.active_lease.min_rent_monthly_egp)
+                            : "-"}
+                        </td>
+                        <td className="px-3 py-3 text-right hidden lg:table-cell font-mono text-text-secondary text-xs">
+                          {ranking?.revenue_per_sqm
+                            ? formatCurrency(Math.round(ranking.revenue_per_sqm))
+                            : "-"}
+                        </td>
+                        <td className="px-3 py-3 text-center hidden lg:table-cell">
+                          {scoreBadge ? (
+                            <Badge variant={scoreBadge.variant}>
+                              {scoreBadge.label}
+                            </Badge>
+                          ) : (
+                            <span className="text-text-muted text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-center">
+                          <Badge
+                            variant={tenant.status === "active" ? "success" : "error"}
+                          >
+                            {tenant.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {tenants.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={6} className="px-5 py-12 text-center text-text-muted">
+                      <td colSpan={8} className="px-5 py-12 text-center text-text-muted">
                         No tenants found
                       </td>
                     </tr>

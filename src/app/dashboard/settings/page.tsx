@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Building2,
   FileUp,
+  LayoutGrid,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,8 @@ const IMPORT_TYPES = [
 ];
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<"property" | "import">("property");
+  const [activeTab, setActiveTab] = useState<"property" | "import" | "modules">("property");
+  const [moduleStatuses, setModuleStatuses] = useState<{ name: string; enabled: boolean; status: string }[]>([]);
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -93,6 +95,57 @@ export default function SettingsPage() {
     }
     fetchProperty();
   }, []);
+
+  // Check module statuses
+  useEffect(() => {
+    if (activeTab !== "modules") return;
+
+    const modules = [
+      { name: "AI Engine", endpoint: "/api/v1/ai/insights" },
+      { name: "Revenue Engine", endpoint: "/api/v1/revenue-verification" },
+      { name: "Footfall Engine", endpoint: "/api/v1/footfall?type=overview" },
+      { name: "Energy Engine", endpoint: "/api/v1/energy?type=overview" },
+      { name: "Finance Engine", endpoint: "/api/v1/finance?type=overview" },
+      { name: "Contract Engine", endpoint: "/api/v1/contracts" },
+      { name: "Tenant Analytics", endpoint: "/api/v1/tenant-analytics?type=rankings" },
+      { name: "Percentage Rent Engine", endpoint: "/api/v1/percentage-rent?type=overview" },
+      { name: "Marketing Engine", endpoint: "/api/v1/marketing?type=overview" },
+      { name: "Social Engine", endpoint: "/api/v1/social?type=overview" },
+      { name: "CCTV Engine", endpoint: "/api/v1/cctv?type=overview" },
+      { name: "Anomaly Engine", endpoint: "/api/v1/anomalies?type=active" },
+      { name: "Learning Engine", endpoint: "/api/v1/ai/learning" },
+      { name: "Heatmap Engine", endpoint: "/api/v1/heatmap" },
+      { name: "Dashboard Stats", endpoint: "/api/v1/dashboard/stats" },
+      { name: "Properties", endpoint: "/api/v1/properties" },
+      { name: "Zones", endpoint: "/api/v1/zones" },
+      { name: "Units", endpoint: "/api/v1/units" },
+      { name: "Tenants", endpoint: "/api/v1/tenants" },
+      { name: "Leases", endpoint: "/api/v1/leases" },
+      { name: "Rent Transactions", endpoint: "/api/v1/rent-transactions" },
+      { name: "Maintenance", endpoint: "/api/v1/maintenance" },
+    ];
+
+    async function checkModules() {
+      const results = await Promise.all(
+        modules.map(async (mod) => {
+          try {
+            const res = await fetch(mod.endpoint, { method: "HEAD" }).catch(() =>
+              fetch(mod.endpoint).catch(() => null)
+            );
+            return {
+              name: mod.name,
+              enabled: true,
+              status: res && res.ok ? "connected" : res ? `error (${res.status})` : "unreachable",
+            };
+          } catch {
+            return { name: mod.name, enabled: true, status: "error" };
+          }
+        })
+      );
+      setModuleStatuses(results);
+    }
+    checkModules();
+  }, [activeTab]);
 
   const handleSaveProperty = async () => {
     if (!property) return;
@@ -203,6 +256,18 @@ export default function SettingsPage() {
             <FileUp size={14} /> Data Import
           </span>
         </button>
+        <button
+          onClick={() => setActiveTab("modules")}
+          className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            activeTab === "modules"
+              ? "text-wedja-accent border-wedja-accent"
+              : "text-text-muted border-transparent hover:text-text-primary"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <LayoutGrid size={14} /> Module Status
+          </span>
+        </button>
       </div>
 
       {/* Property Settings Tab */}
@@ -292,6 +357,60 @@ export default function SettingsPage() {
                 )}
               </Button>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Module Status Tab */}
+      {activeTab === "modules" && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary">
+              Connected Modules ({moduleStatuses.length})
+            </h2>
+          </CardHeader>
+          <CardContent className="p-0">
+            {moduleStatuses.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 size={24} className="animate-spin text-wedja-accent" />
+                <span className="ml-2 text-sm text-text-muted">Checking modules...</span>
+              </div>
+            ) : (
+              <div className="divide-y divide-wedja-border/50">
+                {moduleStatuses.map((mod) => (
+                  <div
+                    key={mod.name}
+                    className="flex items-center justify-between px-5 py-3 hover:bg-wedja-border/10"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          mod.status === "connected"
+                            ? "bg-emerald-500"
+                            : mod.status === "unreachable"
+                            ? "bg-red-500"
+                            : "bg-amber-500"
+                        }`}
+                      />
+                      <span className="text-sm font-medium text-text-primary">
+                        {mod.name}
+                      </span>
+                    </div>
+                    <Badge
+                      variant={
+                        mod.status === "connected"
+                          ? "success"
+                          : mod.status === "unreachable"
+                          ? "error"
+                          : "warning"
+                      }
+                    >
+                      {mod.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

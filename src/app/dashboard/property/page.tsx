@@ -12,7 +12,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatNumber } from "@/lib/utils";
+import { formatNumber, formatCurrency } from "@/lib/utils";
 
 interface Property {
   id: string;
@@ -53,6 +53,19 @@ interface Unit {
   current_tenant: { brand_name: string; category: string } | null;
 }
 
+interface ZoneFootfall {
+  zone_id: string;
+  zone_name: string;
+  total_in: number;
+}
+
+interface ZoneEnergy {
+  zone_id: string;
+  zone_name: string;
+  consumption_kwh: number;
+  cost_egp: number;
+}
+
 const typeColors: Record<string, "gold" | "success" | "warning" | "info" | "error" | "default"> = {
   retail: "gold",
   food: "warning",
@@ -76,6 +89,11 @@ export default function PropertyPage() {
   const [loading, setLoading] = useState(true);
   const [unitsLoading, setUnitsLoading] = useState(false);
 
+  // Cross-data state
+  const [zoneFootfall, setZoneFootfall] = useState<Record<string, number>>({});
+  const [zoneEnergy, setZoneEnergy] = useState<Record<string, number>>({});
+  const [zoneRevenue, setZoneRevenue] = useState<Record<string, number>>({});
+
   useEffect(() => {
     async function fetchData() {
       try {
@@ -94,6 +112,55 @@ export default function PropertyPage() {
       }
     }
     fetchData();
+  }, []);
+
+  // Fetch cross-data for zone enrichment
+  useEffect(() => {
+    async function fetchCrossData() {
+      try {
+        const [ffRes, enRes, txRes] = await Promise.all([
+          fetch("/api/v1/footfall?type=by_zone").catch(() => null),
+          fetch("/api/v1/energy?type=by_zone").catch(() => null),
+          fetch("/api/v1/rent-transactions").catch(() => null),
+        ]);
+
+        if (ffRes?.ok) {
+          const ffData: ZoneFootfall[] = await ffRes.json();
+          const map: Record<string, number> = {};
+          if (Array.isArray(ffData)) {
+            ffData.forEach((z) => { map[z.zone_id] = z.total_in; });
+          }
+          setZoneFootfall(map);
+        }
+
+        if (enRes?.ok) {
+          const enData: ZoneEnergy[] = await enRes.json();
+          const map: Record<string, number> = {};
+          if (Array.isArray(enData)) {
+            enData.forEach((z) => { map[z.zone_id] = z.consumption_kwh; });
+          }
+          setZoneEnergy(map);
+        }
+
+        if (txRes?.ok) {
+          const txData = await txRes.json();
+          const map: Record<string, number> = {};
+          if (Array.isArray(txData)) {
+            txData.forEach((tx: any) => {
+              const zoneName = tx.lease?.unit?.zone?.name;
+              const zoneId = tx.lease?.unit?.zone?.id;
+              if (zoneId) {
+                map[zoneId] = (map[zoneId] || 0) + (tx.amount_paid || 0);
+              }
+            });
+          }
+          setZoneRevenue(map);
+        }
+      } catch {
+        // Cross-data optional
+      }
+    }
+    fetchCrossData();
   }, []);
 
   useEffect(() => {
@@ -138,6 +205,15 @@ export default function PropertyPage() {
   const totalOccupied = zones.reduce((s, z) => s + (z.occupied_count || 0), 0);
   const totalVacant = zones.reduce((s, z) => s + (z.vacant_count || 0), 0);
   const totalMaintenance = zones.reduce((s, z) => s + (z.maintenance_count || 0), 0);
+
+  // Performance color coding for zones
+  function getZonePerformanceColor(zoneId: string): string {
+    const ff = zoneFootfall[zoneId] || 0;
+    const rev = zoneRevenue[zoneId] || 0;
+    if (ff > 0 && rev > 0) return "";
+    if (ff === 0 && rev === 0) return "bg-red-500/5";
+    return "";
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -266,6 +342,9 @@ export default function PropertyPage() {
                   <th className="text-center px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Units</th>
                   <th className="text-center px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Occupied</th>
                   <th className="text-center px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Vacant</th>
+                  <th className="text-right px-3 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">Footfall</th>
+                  <th className="text-right px-3 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">Energy (kWh)</th>
+                  <th className="text-right px-3 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">Revenue (EGP)</th>
                 </tr>
               </thead>
               <tbody>
@@ -276,9 +355,9 @@ export default function PropertyPage() {
                     className={`border-b border-wedja-border/50 cursor-pointer transition-colors ${
                       zone.id === selectedZone
                         ? "bg-wedja-accent-muted"
-                        : i % 2 === 1
+                        : getZonePerformanceColor(zone.id) || (i % 2 === 1
                         ? "bg-wedja-border/10"
-                        : ""
+                        : "")
                     } hover:bg-wedja-border/20`}
                   >
                     <td className="px-5 py-3 font-medium text-text-primary">{zone.name}</td>
@@ -301,6 +380,15 @@ export default function PropertyPage() {
                     </td>
                     <td className="px-5 py-3 text-center font-mono text-status-warning">
                       {zone.vacant_count || 0}
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono text-text-secondary hidden lg:table-cell">
+                      {zoneFootfall[zone.id] ? formatNumber(zoneFootfall[zone.id]) : "-"}
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono text-text-secondary hidden lg:table-cell">
+                      {zoneEnergy[zone.id] ? formatNumber(zoneEnergy[zone.id]) : "-"}
+                    </td>
+                    <td className="px-3 py-3 text-right font-mono text-wedja-accent hidden lg:table-cell">
+                      {zoneRevenue[zone.id] ? formatCurrency(zoneRevenue[zone.id]) : "-"}
                     </td>
                   </tr>
                 ))}

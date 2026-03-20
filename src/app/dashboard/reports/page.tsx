@@ -19,6 +19,9 @@ const REPORT_TYPES = [
   { value: "footfall_analysis", label: "Footfall Analysis" },
   { value: "rent_collection", label: "Rent Collection" },
   { value: "maintenance", label: "Maintenance" },
+  { value: "energy", label: "Energy Report" },
+  { value: "marketing", label: "Marketing Report" },
+  { value: "anomaly", label: "Anomaly Report" },
 ];
 
 const MONTHS = [
@@ -97,6 +100,21 @@ export default function ReportsPage() {
       csv = "Zone,Type,Total In,Total Out,Share %,Avg Dwell (s)\n";
       reportData.data.zones.forEach((z: any) => {
         csv += `"${z.zone_name}","${z.zone_type}",${z.total_in},${z.total_out},${z.share_of_total_pct}%,${z.avg_dwell_seconds}\n`;
+      });
+    } else if (type === "energy" && reportData.data?.zones) {
+      csv = "Zone,Type,Consumption (kWh),Cost (EGP),Share %,kWh/sqm\n";
+      reportData.data.zones.forEach((z: any) => {
+        csv += `"${z.zone_name}","${z.zone_type}",${z.consumption_kwh},${z.cost_egp},${z.share_pct}%,${z.kwh_per_sqm}\n`;
+      });
+    } else if (type === "marketing" && reportData.data?.events) {
+      csv = "Event,Type,Start,End,Status,Budget (EGP)\n";
+      reportData.data.events.forEach((e: any) => {
+        csv += `"${e.name}","${e.type}","${e.start_date}","${e.end_date}","${e.status}",${e.budget_egp || 0}\n`;
+      });
+    } else if (type === "anomaly" && reportData.data?.anomalies) {
+      csv = "Title,Type,Severity,Zone,Status,Created\n";
+      reportData.data.anomalies.forEach((a: any) => {
+        csv += `"${a.title}","${a.type}","${a.severity}","${a.zone_name || "N/A"}","${a.status}","${a.created_at}"\n`;
       });
     }
 
@@ -272,6 +290,21 @@ export default function ReportsPage() {
           {/* Maintenance */}
           {reportData.type === "maintenance" && (
             <MaintenanceReport data={reportData.data} />
+          )}
+
+          {/* Energy Report */}
+          {reportData.type === "energy" && (
+            <EnergyReport data={reportData.data} />
+          )}
+
+          {/* Marketing Report */}
+          {reportData.type === "marketing" && (
+            <MarketingReport data={reportData.data} />
+          )}
+
+          {/* Anomaly Report */}
+          {reportData.type === "anomaly" && (
+            <AnomalyReport data={reportData.data} />
           )}
         </div>
       )}
@@ -705,6 +738,276 @@ function MaintenanceReport({ data }: { data: any }) {
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function EnergyReport({ data }: { data: any }) {
+  const zones = data?.zones || [];
+  const overview = data?.overview;
+
+  return (
+    <div className="space-y-4">
+      {overview && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary">Energy Overview</h2>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-text-primary">
+                  {(overview.total_this_month_kwh || 0).toLocaleString()} kWh
+                </p>
+                <p className="text-xs text-text-muted">Monthly Consumption</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-wedja-accent">
+                  {formatCurrency(overview.cost_this_month_egp || 0)}
+                </p>
+                <p className="text-xs text-text-muted">Monthly Cost</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-text-primary">
+                  {(overview.avg_daily_kwh || 0).toLocaleString()} kWh
+                </p>
+                <p className="text-xs text-text-muted">Daily Average</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-text-primary">
+                  {formatCurrency(overview.avg_daily_cost_egp || 0)}
+                </p>
+                <p className="text-xs text-text-muted">Avg Daily Cost</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {zones.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary">Energy by Zone</h2>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-wedja-border">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Zone</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Type</th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-text-muted">Consumption (kWh)</th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-text-muted">Cost (EGP)</th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-text-muted">Share %</th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-text-muted">kWh/sqm</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {zones.map((z: any) => (
+                    <tr key={z.zone_id} className="border-b border-wedja-border/50">
+                      <td className="px-3 py-2 text-text-primary font-medium">{z.zone_name}</td>
+                      <td className="px-3 py-2 text-text-secondary capitalize">{z.zone_type}</td>
+                      <td className="px-3 py-2 text-right font-mono">{(z.consumption_kwh || 0).toLocaleString()}</td>
+                      <td className="px-3 py-2 text-right font-mono">{formatCurrency(z.cost_egp || 0)}</td>
+                      <td className="px-3 py-2 text-right font-mono">{z.share_pct}%</td>
+                      <td className="px-3 py-2 text-right font-mono">{z.kwh_per_sqm}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {zones.length === 0 && !overview && (
+        <Card>
+          <CardContent className="py-8 text-center text-text-muted text-sm">
+            No energy data available for this period
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function MarketingReport({ data }: { data: any }) {
+  const overview = data?.overview;
+  const events = data?.events || [];
+  const campaigns = data?.campaigns || [];
+
+  return (
+    <div className="space-y-4">
+      {overview && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary">Marketing Overview</h2>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-text-primary">{overview.total_events || 0}</p>
+                <p className="text-xs text-text-muted">Total Events</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-text-primary">{overview.active_campaigns || 0}</p>
+                <p className="text-xs text-text-muted">Active Campaigns</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-wedja-accent">
+                  {formatCurrency(overview.total_budget_egp || 0)}
+                </p>
+                <p className="text-xs text-text-muted">Total Budget</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-status-success">
+                  {overview.avg_roi ? `${overview.avg_roi.toFixed(1)}x` : "N/A"}
+                </p>
+                <p className="text-xs text-text-muted">Avg ROI</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {events.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary">Events & Campaigns</h2>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-wedja-border">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Name</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Type</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Dates</th>
+                    <th className="text-right px-3 py-2 text-xs font-medium text-text-muted">Budget</th>
+                    <th className="text-center px-3 py-2 text-xs font-medium text-text-muted">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((e: any, i: number) => (
+                    <tr key={e.id || i} className="border-b border-wedja-border/50">
+                      <td className="px-3 py-2 text-text-primary font-medium">{e.name || e.title}</td>
+                      <td className="px-3 py-2 text-text-secondary capitalize">{e.type || e.category}</td>
+                      <td className="px-3 py-2 text-text-secondary text-xs">
+                        {e.start_date} - {e.end_date}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono">{formatCurrency(e.budget_egp || 0)}</td>
+                      <td className="px-3 py-2 text-center">
+                        <Badge variant={e.status === "active" ? "success" : e.status === "completed" ? "default" : "warning"}>
+                          {e.status}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {events.length === 0 && !overview && (
+        <Card>
+          <CardContent className="py-8 text-center text-text-muted text-sm">
+            No marketing data available for this period
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function AnomalyReport({ data }: { data: any }) {
+  const stats = data?.stats;
+  const anomalies = data?.anomalies || [];
+
+  return (
+    <div className="space-y-4">
+      {stats && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary">Anomaly Summary</h2>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-text-primary">{stats.total || anomalies.length}</p>
+                <p className="text-xs text-text-muted">Total Anomalies</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-status-error">{stats.critical || 0}</p>
+                <p className="text-xs text-text-muted">Critical</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-status-warning">{stats.warning || stats.medium || 0}</p>
+                <p className="text-xs text-text-muted">Warning</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg font-bold font-mono text-status-success">{stats.resolved || 0}</p>
+                <p className="text-xs text-text-muted">Resolved</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {anomalies.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary">All Anomalies</h2>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-wedja-border">
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Title</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Type</th>
+                    <th className="text-center px-3 py-2 text-xs font-medium text-text-muted">Severity</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Zone</th>
+                    <th className="text-center px-3 py-2 text-xs font-medium text-text-muted">Status</th>
+                    <th className="text-left px-3 py-2 text-xs font-medium text-text-muted">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {anomalies.map((a: any) => (
+                    <tr key={a.id} className="border-b border-wedja-border/50">
+                      <td className="px-3 py-2 text-text-primary font-medium">{a.title}</td>
+                      <td className="px-3 py-2 text-text-secondary capitalize">{a.type}</td>
+                      <td className="px-3 py-2 text-center">
+                        <Badge variant={a.severity === "critical" ? "error" : a.severity === "warning" || a.severity === "high" ? "warning" : "info"}>
+                          {a.severity}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-text-secondary text-xs">{a.zone_name || "-"}</td>
+                      <td className="px-3 py-2 text-center">
+                        <Badge variant={a.status === "resolved" ? "success" : a.status === "active" ? "warning" : "default"}>
+                          {a.status}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-text-secondary text-xs">
+                        {a.created_at ? new Date(a.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {anomalies.length === 0 && !stats && (
+        <Card>
+          <CardContent className="py-8 text-center text-text-muted text-sm">
+            No anomaly data available for this period
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

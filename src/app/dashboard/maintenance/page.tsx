@@ -63,10 +63,29 @@ const statusBadge: Record<string, "error" | "warning" | "success" | "default" | 
   cancelled: "default",
 };
 
+interface ZoneEnergy {
+  zone_id: string;
+  zone_name: string;
+  consumption_kwh: number;
+  share_pct: number;
+}
+
+interface AnomalyItem {
+  id: string;
+  zone_id?: string;
+  zone_name?: string;
+  type: string;
+  severity: string;
+}
+
 export default function MaintenancePage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Cross-data
+  const [highEnergyZones, setHighEnergyZones] = useState<Set<string>>(new Set());
+  const [zoneAnomalies, setZoneAnomalies] = useState<Record<string, AnomalyItem[]>>({});
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -102,6 +121,46 @@ export default function MaintenancePage() {
     setLoading(true);
     fetchTickets();
   }, [fetchTickets]);
+
+  // Fetch cross-data: energy zones and anomalies
+  useEffect(() => {
+    async function fetchCrossData() {
+      try {
+        const [enRes, anomalyRes] = await Promise.all([
+          fetch("/api/v1/energy?type=by_zone").catch(() => null),
+          fetch("/api/v1/anomalies?type=active").catch(() => null),
+        ]);
+
+        if (enRes?.ok) {
+          const enData: ZoneEnergy[] = await enRes.json();
+          const highSet = new Set<string>();
+          if (Array.isArray(enData)) {
+            enData.forEach((z) => {
+              if (z.share_pct > 20) highSet.add(z.zone_name);
+            });
+          }
+          setHighEnergyZones(highSet);
+        }
+
+        if (anomalyRes?.ok) {
+          const anomalyData = await anomalyRes.json();
+          const list = Array.isArray(anomalyData) ? anomalyData : anomalyData?.anomalies || [];
+          const map: Record<string, AnomalyItem[]> = {};
+          list.forEach((a: AnomalyItem) => {
+            const zoneName = a.zone_name;
+            if (zoneName) {
+              if (!map[zoneName]) map[zoneName] = [];
+              map[zoneName].push(a);
+            }
+          });
+          setZoneAnomalies(map);
+        }
+      } catch {
+        // Cross-data optional
+      }
+    }
+    fetchCrossData();
+  }, []);
 
   const createTicket = async () => {
     if (!newTicket.title.trim()) return;
@@ -346,7 +405,7 @@ export default function MaintenancePage() {
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <Badge variant={priorityBadge[ticket.priority] || "default"}>
                             {ticket.priority}
                           </Badge>
@@ -354,6 +413,19 @@ export default function MaintenancePage() {
                             {ticket.status.replace(/_/g, " ")}
                           </Badge>
                           <Badge variant="default">{ticket.category}</Badge>
+                          {ticket.zone?.name && highEnergyZones.has(ticket.zone.name) && (
+                            <Badge variant="warning">Energy Impact</Badge>
+                          )}
+                          {ticket.zone?.name && tickets.filter(
+                            (t) => t.zone?.name === ticket.zone?.name &&
+                                   t.id !== ticket.id &&
+                                   new Date(t.created_at) > new Date(Date.now() - 7 * 86400000)
+                          ).length >= 2 && (
+                            <Badge variant="info">Pattern</Badge>
+                          )}
+                          {ticket.zone?.name && zoneAnomalies[ticket.zone.name]?.length > 0 && (
+                            <Badge variant="error">Anomaly</Badge>
+                          )}
                         </div>
                         <h3 className="text-sm font-medium text-text-primary">
                           {ticket.title}

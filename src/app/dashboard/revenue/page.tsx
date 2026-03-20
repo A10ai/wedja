@@ -6,6 +6,7 @@ import {
   Loader2,
   Shield,
   ArrowRight,
+  Percent,
 } from "lucide-react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -54,6 +55,9 @@ export default function RevenuePage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
 
+  // Cross-data
+  const [percentRentPremium, setPercentRentPremium] = useState<number>(0);
+
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
@@ -73,6 +77,25 @@ export default function RevenuePage() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // Fetch percentage rent premium
+  useEffect(() => {
+    async function fetchPctRent() {
+      try {
+        const res = await fetch("/api/v1/percentage-rent?type=overview");
+        if (res.ok) {
+          const data = await res.json();
+          setPercentRentPremium(
+            data?.summary?.total_percentage_rent_premium_egp ??
+            data?.total_percentage_rent_premium_egp ?? 0
+          );
+        }
+      } catch {
+        // Optional
+      }
+    }
+    fetchPctRent();
+  }, []);
+
   // Summary calculations
   const totalCollected = transactions
     .filter((t) => t.status === "paid" || t.status === "partial")
@@ -84,6 +107,12 @@ export default function RevenuePage() {
   const totalOverdue = transactions
     .filter((t) => t.status === "overdue")
     .reduce((sum, t) => sum + t.amount_due, 0);
+
+  // Base rent total (min rent due)
+  const totalBase = transactions.reduce(
+    (sum, t) => sum + (t.min_rent_due || 0),
+    0
+  );
 
   // Monthly revenue trend (last 6 months)
   const monthlyData = useMemo(() => {
@@ -149,8 +178,47 @@ export default function RevenuePage() {
         />
       </Link>
 
+      {/* % Rent Analysis Link */}
+      <Link
+        href="/dashboard/percentage-rent"
+        className="flex items-center justify-between px-5 py-4 rounded-xl border-2 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors group"
+      >
+        <div className="flex items-center gap-3">
+          <Percent size={20} className="text-emerald-500" />
+          <div>
+            <p className="text-sm font-semibold text-text-primary">
+              % Rent Analysis
+            </p>
+            <p className="text-xs text-text-muted">
+              Percentage rent premium, inflation hedge, and rate optimization
+            </p>
+          </div>
+        </div>
+        <ArrowRight
+          size={18}
+          className="text-emerald-500 group-hover:translate-x-1 transition-transform"
+        />
+      </Link>
+
+      {/* Revenue Summary Line */}
+      {(totalBase > 0 || percentRentPremium > 0) && (
+        <Card>
+          <CardContent className="py-3">
+            <p className="text-sm text-text-secondary">
+              Total base: <span className="font-mono font-semibold text-text-primary">{formatCurrency(totalBase)}</span>
+              {percentRentPremium > 0 && (
+                <>
+                  {" "}+ % premium: <span className="font-mono font-semibold text-emerald-500">{formatCurrency(percentRentPremium)}</span>
+                  {" "}= Total: <span className="font-mono font-bold text-wedja-accent">{formatCurrency(totalBase + percentRentPremium)}</span>
+                </>
+              )}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="py-4 text-center">
             <p className="text-2xl font-bold text-status-success font-mono">
@@ -173,6 +241,14 @@ export default function RevenuePage() {
               {formatCurrency(totalOverdue)}
             </p>
             <p className="text-xs text-text-muted mt-1">Overdue</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-2xl font-bold text-emerald-500 font-mono">
+              {percentRentPremium > 0 ? formatCurrency(percentRentPremium) : "N/A"}
+            </p>
+            <p className="text-xs text-text-muted mt-1">% Rent Premium</p>
           </CardContent>
         </Card>
       </div>

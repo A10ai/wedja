@@ -39,6 +39,18 @@ interface Lease {
   } | null;
 }
 
+interface TenantRanking {
+  tenant_id: string;
+  overall_score: number;
+}
+
+interface PercentageRentTenant {
+  tenant_id: string;
+  rent_type: string; // "percentage" or "minimum"
+  percentage_rent_egp: number;
+  min_rent_egp: number;
+}
+
 const STATUS_FILTERS = [
   { value: "", label: "All Statuses" },
   { value: "active", label: "Active" },
@@ -61,10 +73,22 @@ function isExpiringSoon(endDate: string): boolean {
   return end <= threeMonths && end >= new Date();
 }
 
+function getScoreColor(score: number): string {
+  if (score >= 70) return "text-emerald-500";
+  if (score >= 40) return "text-amber-500";
+  return "text-red-500";
+}
+
 export default function LeasesPage() {
   const [leases, setLeases] = useState<Lease[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+
+  // Cross-data
+  const [rankings, setRankings] = useState<Record<string, TenantRanking>>({});
+  const [rentTypes, setRentTypes] = useState<Record<string, string>>({});
+  const [minOnlyCount, setMinOnlyCount] = useState(0);
+  const [pctCount, setPctCount] = useState(0);
 
   const fetchLeases = useCallback(async () => {
     setLoading(true);
@@ -84,6 +108,48 @@ export default function LeasesPage() {
   useEffect(() => {
     fetchLeases();
   }, [fetchLeases]);
+
+  // Fetch cross-data: rankings and percentage rent types
+  useEffect(() => {
+    async function fetchCrossData() {
+      try {
+        const [rankRes, pctRes] = await Promise.all([
+          fetch("/api/v1/tenant-analytics?type=rankings").catch(() => null),
+          fetch("/api/v1/percentage-rent?type=overview").catch(() => null),
+        ]);
+
+        if (rankRes?.ok) {
+          const rankData = await rankRes.json();
+          const list = Array.isArray(rankData) ? rankData : rankData?.rankings || [];
+          const map: Record<string, TenantRanking> = {};
+          list.forEach((r: TenantRanking) => { map[r.tenant_id] = r; });
+          setRankings(map);
+        }
+
+        if (pctRes?.ok) {
+          const pctData = await pctRes.json();
+          const tenants = pctData?.tenants || pctData?.details || [];
+          const typeMap: Record<string, string> = {};
+          let minOnly = 0;
+          let pct = 0;
+          if (Array.isArray(tenants)) {
+            tenants.forEach((t: PercentageRentTenant) => {
+              const isPercentage = t.rent_type === "percentage" || (t.percentage_rent_egp > t.min_rent_egp);
+              typeMap[t.tenant_id] = isPercentage ? "percentage" : "minimum";
+              if (isPercentage) pct++;
+              else minOnly++;
+            });
+          }
+          setRentTypes(typeMap);
+          setMinOnlyCount(minOnly);
+          setPctCount(pct);
+        }
+      } catch {
+        // Cross-data optional
+      }
+    }
+    fetchCrossData();
+  }, []);
 
   const totalMonthlyRent = leases
     .filter((l) => l.status === "active")
@@ -128,6 +194,18 @@ export default function LeasesPage() {
           className="text-wedja-accent group-hover:translate-x-1 transition-transform"
         />
       </Link>
+
+      {/* Rent type summary */}
+      {(minOnlyCount > 0 || pctCount > 0) && (
+        <Card>
+          <CardContent className="py-3">
+            <p className="text-sm text-text-secondary">
+              <span className="font-mono font-semibold text-amber-500">{minOnlyCount}</span> tenants on minimum rent only,{" "}
+              <span className="font-mono font-semibold text-emerald-500">{pctCount}</span> on percentage rent
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -195,6 +273,8 @@ export default function LeasesPage() {
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">Zone</th>
                     <th className="text-right px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Min Rent</th>
                     <th className="text-center px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">% Rate</th>
+                    <th className="text-center px-3 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">Rent Type</th>
+                    <th className="text-center px-3 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden lg:table-cell">Performance</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">Start</th>
                     <th className="text-left px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider hidden md:table-cell">End</th>
                     <th className="text-center px-5 py-3 text-xs font-medium text-text-muted uppercase tracking-wider">Status</th>
@@ -204,6 +284,9 @@ export default function LeasesPage() {
                   {leases.map((lease, i) => {
                     const expiring =
                       lease.status === "active" && isExpiringSoon(lease.end_date);
+                    const tenantRentType = lease.tenant_id ? rentTypes[lease.tenant_id] : undefined;
+                    const ranking = lease.tenant_id ? rankings[lease.tenant_id] : undefined;
+
                     return (
                       <tr
                         key={lease.id}
@@ -233,6 +316,24 @@ export default function LeasesPage() {
                         <td className="px-5 py-3 text-center hidden md:table-cell font-mono text-text-secondary">
                           {lease.percentage_rate}%
                         </td>
+                        <td className="px-3 py-3 text-center hidden md:table-cell">
+                          {tenantRentType === "percentage" ? (
+                            <Badge variant="success">%</Badge>
+                          ) : tenantRentType === "minimum" ? (
+                            <Badge variant="warning">Min</Badge>
+                          ) : (
+                            <span className="text-text-muted text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-center hidden lg:table-cell">
+                          {ranking ? (
+                            <span className={`font-mono font-bold text-sm ${getScoreColor(ranking.overall_score)}`}>
+                              {Math.round(ranking.overall_score)}
+                            </span>
+                          ) : (
+                            <span className="text-text-muted text-xs">-</span>
+                          )}
+                        </td>
                         <td className="px-5 py-3 hidden md:table-cell text-text-secondary text-xs">
                           {formatDate(lease.start_date)}
                         </td>
@@ -259,7 +360,7 @@ export default function LeasesPage() {
                   })}
                   {leases.length === 0 && !loading && (
                     <tr>
-                      <td colSpan={8} className="px-5 py-12 text-center text-text-muted">
+                      <td colSpan={10} className="px-5 py-12 text-center text-text-muted">
                         No leases found
                       </td>
                     </tr>

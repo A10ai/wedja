@@ -122,6 +122,11 @@ export default function FinancePage() {
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
   const [showNewExpense, setShowNewExpense] = useState(false);
   const [creating, setCreating] = useState(false);
+
+  // Cross-data
+  const [percentRentPremium, setPercentRentPremium] = useState<number>(0);
+  const [inflationHedgeRatio, setInflationHedgeRatio] = useState<number | null>(null);
+
   const [newExpense, setNewExpense] = useState({
     category: "utilities",
     description: "",
@@ -164,6 +169,36 @@ export default function FinancePage() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  // Fetch cross-data: percentage rent and inflation hedge
+  useEffect(() => {
+    async function fetchCrossData() {
+      try {
+        const [pctRes, inflRes] = await Promise.all([
+          fetch("/api/v1/percentage-rent?type=overview").catch(() => null),
+          fetch("/api/v1/percentage-rent?type=inflation").catch(() => null),
+        ]);
+
+        if (pctRes?.ok) {
+          const pctData = await pctRes.json();
+          setPercentRentPremium(
+            pctData?.summary?.total_percentage_rent_premium_egp ??
+            pctData?.total_percentage_rent_premium_egp ?? 0
+          );
+        }
+
+        if (inflRes?.ok) {
+          const inflData = await inflRes.json();
+          setInflationHedgeRatio(
+            inflData?.hedge_ratio ?? inflData?.inflation_hedge_ratio ?? null
+          );
+        }
+      } catch {
+        // Cross-data optional
+      }
+    }
+    fetchCrossData();
+  }, []);
 
   const handleCreateExpense = async () => {
     if (!newExpense.description || !newExpense.amount_egp) return;
@@ -257,6 +292,14 @@ export default function FinancePage() {
             icon={<PieChart size={18} />}
             color="text-wedja-accent"
           />
+          {inflationHedgeRatio !== null && (
+            <StatCard
+              label="Inflation Hedge Ratio"
+              value={`${(inflationHedgeRatio * 100).toFixed(1)}%`}
+              icon={<TrendingUp size={18} />}
+              color="text-status-info"
+            />
+          )}
         </div>
       )}
 
@@ -372,10 +415,18 @@ export default function FinancePage() {
                     {formatCurrency(pnl.income.rent_collected)}
                   </span>
                 </div>
+                {percentRentPremium > 0 && (
+                  <div className="flex items-center justify-between py-1.5">
+                    <span className="text-sm text-text-secondary">% Rent Premium</span>
+                    <span className="text-sm font-mono text-emerald-500">
+                      {formatCurrency(percentRentPremium)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between py-1.5 border-t border-wedja-border">
                   <span className="text-sm font-semibold text-text-primary">Total Income</span>
                   <span className="text-sm font-mono font-bold text-status-success">
-                    {formatCurrency(pnl.income.total_income)}
+                    {formatCurrency(pnl.income.total_income + percentRentPremium)}
                   </span>
                 </div>
               </div>

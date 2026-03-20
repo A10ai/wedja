@@ -23,7 +23,7 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatNumber, formatPercentage, cn } from "@/lib/utils";
+import { formatNumber, formatPercentage, formatCurrency, cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -154,6 +154,10 @@ export default function FootfallPage() {
   const [cameras, setCameras] = useState<CameraData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showManualEntry, setShowManualEntry] = useState(false);
+
+  // Cross-data: revenue per visitor and conversion from CCTV
+  const [unitRevenue, setUnitRevenue] = useState<Record<string, number>>({});
+  const [unitConversion, setUnitConversion] = useState<Record<string, number>>({});
   const [zoneSortKey, setZoneSortKey] = useState<string>("total_in");
   const [zoneSortAsc, setZoneSortAsc] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -213,6 +217,47 @@ export default function FootfallPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Fetch cross-data: rent transactions for revenue/visitor, CCTV for conversion
+  useEffect(() => {
+    async function fetchCrossData() {
+      try {
+        const [txRes, cctvRes] = await Promise.all([
+          fetch("/api/v1/rent-transactions").catch(() => null),
+          fetch("/api/v1/cctv?type=store_conversion").catch(() => null),
+        ]);
+
+        if (txRes?.ok) {
+          const txData = await txRes.json();
+          const map: Record<string, number> = {};
+          if (Array.isArray(txData)) {
+            txData.forEach((tx: any) => {
+              const unitId = tx.lease?.unit?.id;
+              if (unitId) {
+                map[unitId] = (map[unitId] || 0) + (tx.amount_paid || 0);
+              }
+            });
+          }
+          setUnitRevenue(map);
+        }
+
+        if (cctvRes?.ok) {
+          const cctvData = await cctvRes.json();
+          const stores = Array.isArray(cctvData) ? cctvData : cctvData?.stores || [];
+          const map: Record<string, number> = {};
+          stores.forEach((s: any) => {
+            if (s.unit_id && s.conversion_rate !== undefined) {
+              map[s.unit_id] = s.conversion_rate;
+            }
+          });
+          setUnitConversion(map);
+        }
+      } catch {
+        // Cross-data optional
+      }
+    }
+    fetchCrossData();
+  }, []);
 
   // ── Sorted zones ─────────────────────────────────────────
 
@@ -609,13 +654,24 @@ export default function FootfallPage() {
                   <th className="text-right px-2 py-2.5 font-medium">
                     Exits
                   </th>
-                  <th className="text-right px-4 py-2.5 font-medium">
+                  <th className="text-right px-2 py-2.5 font-medium">
                     Dwell Time
+                  </th>
+                  <th className="text-right px-2 py-2.5 font-medium hidden md:table-cell">
+                    Rev/Visitor
+                  </th>
+                  <th className="text-right px-4 py-2.5 font-medium hidden md:table-cell">
+                    Conversion
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {topStores.map((u, i) => (
+                {topStores.map((u, i) => {
+                  const rev = unitRevenue[u.unit_id] || 0;
+                  const revPerVisitor = u.count_in > 0 && rev > 0 ? rev / u.count_in : 0;
+                  const conversion = unitConversion[u.unit_id];
+
+                  return (
                   <tr
                     key={u.unit_id}
                     className="border-b border-wedja-border/50 hover:bg-wedja-border/20 transition-colors"
@@ -635,15 +691,22 @@ export default function FootfallPage() {
                     <td className="px-2 py-2.5 text-right tabular-nums text-text-secondary">
                       {formatNumber(u.count_out)}
                     </td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-text-secondary">
+                    <td className="px-2 py-2.5 text-right tabular-nums text-text-secondary">
                       {formatDwell(u.dwell_seconds)}
                     </td>
+                    <td className="px-2 py-2.5 text-right tabular-nums text-wedja-accent font-mono hidden md:table-cell">
+                      {revPerVisitor > 0 ? `EGP ${Math.round(revPerVisitor)}` : "-"}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-text-secondary font-mono hidden md:table-cell">
+                      {conversion !== undefined ? `${(conversion * 100).toFixed(1)}%` : "-"}
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {topStores.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={8}
                       className="px-4 py-8 text-center text-text-muted text-sm"
                     >
                       No unit data for this date

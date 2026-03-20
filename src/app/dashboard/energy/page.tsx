@@ -87,6 +87,11 @@ export default function EnergyPage() {
   const [trend, setTrend] = useState<DailyTrend[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
+  // Cross-data
+  const [zoneOccupancy, setZoneOccupancy] = useState<Record<string, number>>({});
+  const [zoneAnomalyCount, setZoneAnomalyCount] = useState<Record<string, number>>({});
+  const [hvacTicketCount, setHvacTicketCount] = useState<number>(0);
+
   const fetchAll = useCallback(async () => {
     try {
       const [ovRes, hrRes, znRes, effRes, trRes, recRes] = await Promise.all([
@@ -123,6 +128,53 @@ export default function EnergyPage() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  // Fetch cross-data: footfall for occupancy, anomalies, maintenance HVAC
+  useEffect(() => {
+    async function fetchCrossData() {
+      try {
+        const [ffRes, anomalyRes, maintRes] = await Promise.all([
+          fetch("/api/v1/footfall?type=by_zone").catch(() => null),
+          fetch("/api/v1/anomalies?type=active").catch(() => null),
+          fetch("/api/v1/maintenance?category=hvac").catch(() => null),
+        ]);
+
+        if (ffRes?.ok) {
+          const ffData = await ffRes.json();
+          const map: Record<string, number> = {};
+          if (Array.isArray(ffData)) {
+            ffData.forEach((z: any) => { map[z.zone_id] = z.total_in || 0; });
+          }
+          setZoneOccupancy(map);
+        }
+
+        if (anomalyRes?.ok) {
+          const anomalyData = await anomalyRes.json();
+          const list = Array.isArray(anomalyData) ? anomalyData : anomalyData?.anomalies || [];
+          const map: Record<string, number> = {};
+          list.forEach((a: any) => {
+            if (a.type === "energy" || a.type === "energy_anomaly") {
+              const zid = a.zone_id;
+              if (zid) map[zid] = (map[zid] || 0) + 1;
+            }
+          });
+          setZoneAnomalyCount(map);
+        }
+
+        if (maintRes?.ok) {
+          const maintData = await maintRes.json();
+          const tickets = maintData?.tickets || [];
+          const openHvac = Array.isArray(tickets)
+            ? tickets.filter((t: any) => ["open", "assigned", "in_progress"].includes(t.status)).length
+            : 0;
+          setHvacTicketCount(openHvac);
+        }
+      } catch {
+        // Cross-data optional
+      }
+    }
+    fetchCrossData();
+  }, []);
 
   if (loading) {
     return (
@@ -320,15 +372,25 @@ export default function EnergyPage() {
                       <span className="text-[10px] text-text-muted">
                         {formatNumber(zone.consumption_kwh)} kWh &middot;{" "}
                         {zone.kwh_per_sqm} kWh/sqm
+                        {zoneOccupancy[zone.zone_id] > 0 && (
+                          <> &middot; {formatNumber(zoneOccupancy[zone.zone_id])} visitors</>
+                        )}
                       </span>
                     </div>
-                    <div className="text-right shrink-0 ml-2">
-                      <span className="text-xs font-mono text-wedja-accent">
-                        {formatCurrency(zone.cost_egp)}
-                      </span>
-                      <span className="block text-[10px] text-text-muted">
-                        {zone.share_pct}%
-                      </span>
+                    <div className="text-right shrink-0 ml-2 flex items-center gap-2">
+                      {zoneAnomalyCount[zone.zone_id] > 0 && (
+                        <span className="text-[10px] text-status-error font-medium">
+                          {zoneAnomalyCount[zone.zone_id]} anomal{zoneAnomalyCount[zone.zone_id] === 1 ? "y" : "ies"}
+                        </span>
+                      )}
+                      <div>
+                        <span className="text-xs font-mono text-wedja-accent">
+                          {formatCurrency(zone.cost_egp)}
+                        </span>
+                        <span className="block text-[10px] text-text-muted">
+                          {zone.share_pct}%
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="w-full h-1.5 bg-wedja-border/50 rounded-full overflow-hidden">
@@ -355,6 +417,17 @@ export default function EnergyPage() {
           </Card>
         )}
       </div>
+
+      {/* HVAC Maintenance Connection */}
+      {hvacTicketCount > 0 && (
+        <Card>
+          <CardContent className="py-3">
+            <p className="text-sm text-text-secondary">
+              <span className="font-mono font-semibold text-status-warning">{hvacTicketCount}</span> open HVAC maintenance ticket{hvacTicketCount !== 1 ? "s" : ""} in high-energy zones
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Energy vs Footfall Efficiency ─────────────────────── */}
       {efficiency.length > 0 && (

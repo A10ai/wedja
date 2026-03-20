@@ -13,6 +13,10 @@ import {
   ArrowRight,
   FileText,
   Settings,
+  Percent,
+  ShieldAlert,
+  Sparkles,
+  Megaphone,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +50,34 @@ interface DashboardStats {
   footfall_today: number;
 }
 
+interface AnomalyData {
+  id: string;
+  title: string;
+  severity: string;
+  type: string;
+  zone_name?: string;
+  created_at: string;
+}
+
+interface AIInsight {
+  title: string;
+  message: string;
+  severity: string;
+  confidence: number;
+}
+
+interface PercentageRentData {
+  summary?: {
+    total_percentage_rent_premium_egp?: number;
+  };
+  total_percentage_rent_premium_egp?: number;
+}
+
+interface SocialData {
+  total_followers?: number;
+  active_campaigns?: number;
+}
+
 const MONTH_NAMES = [
   "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -58,10 +90,35 @@ const statusVariant: Record<string, "success" | "warning" | "error" | "default">
   waived: "default",
 };
 
+const severityColor: Record<string, string> = {
+  critical: "text-status-error",
+  high: "text-status-error",
+  warning: "text-status-warning",
+  medium: "text-status-warning",
+  low: "text-status-info",
+  info: "text-text-muted",
+};
+
+const severityBadge: Record<string, "error" | "warning" | "info" | "default"> = {
+  critical: "error",
+  high: "error",
+  warning: "warning",
+  medium: "warning",
+  low: "info",
+  info: "default",
+};
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Cross-data state
+  const [percentRentPremium, setPercentRentPremium] = useState<number>(0);
+  const [anomalies, setAnomalies] = useState<AnomalyData[]>([]);
+  const [anomalyCount, setAnomalyCount] = useState<number>(0);
+  const [aiInsights, setAiInsights] = useState<AIInsight[]>([]);
+  const [socialData, setSocialData] = useState<SocialData | null>(null);
 
   useEffect(() => {
     async function fetchStats() {
@@ -77,6 +134,49 @@ export default function DashboardPage() {
       }
     }
     fetchStats();
+  }, []);
+
+  // Fetch cross-data: percentage rent, anomalies, AI insights, social
+  useEffect(() => {
+    async function fetchCrossData() {
+      try {
+        const [pctRes, anomalyRes, insightsRes, socialRes] = await Promise.all([
+          fetch("/api/v1/percentage-rent?type=overview").catch(() => null),
+          fetch("/api/v1/anomalies?type=active").catch(() => null),
+          fetch("/api/v1/ai/insights").catch(() => null),
+          fetch("/api/v1/social?type=overview").catch(() => null),
+        ]);
+
+        if (pctRes?.ok) {
+          const pctData: PercentageRentData = await pctRes.json();
+          setPercentRentPremium(
+            pctData?.summary?.total_percentage_rent_premium_egp ??
+            pctData?.total_percentage_rent_premium_egp ?? 0
+          );
+        }
+
+        if (anomalyRes?.ok) {
+          const anomalyData = await anomalyRes.json();
+          const list = Array.isArray(anomalyData) ? anomalyData : anomalyData?.anomalies || [];
+          setAnomalies(list.slice(0, 3));
+          setAnomalyCount(list.length);
+        }
+
+        if (insightsRes?.ok) {
+          const insightsData = await insightsRes.json();
+          const insights = insightsData?.insights || [];
+          setAiInsights(Array.isArray(insights) ? insights.slice(0, 3) : []);
+        }
+
+        if (socialRes?.ok) {
+          const sData = await socialRes.json();
+          setSocialData(sData);
+        }
+      } catch {
+        // Cross-data is optional — fail silently
+      }
+    }
+    fetchCrossData();
   }, []);
 
   if (loading) {
@@ -131,6 +231,28 @@ export default function DashboardPage() {
       value: stats.discrepancies_found.toString(),
       icon: AlertTriangle,
       color: stats.discrepancies_found > 0 ? "text-status-error" : "text-status-success",
+    },
+    {
+      label: "% Rent Premium",
+      value: percentRentPremium > 0 ? formatCurrency(percentRentPremium) : "N/A",
+      icon: Percent,
+      color: "text-status-success",
+    },
+    {
+      label: "Active Anomalies",
+      value: anomalyCount.toString(),
+      icon: ShieldAlert,
+      color: anomalyCount > 5 ? "text-status-error" : anomalyCount > 0 ? "text-status-warning" : "text-status-success",
+    },
+    {
+      label: socialData?.active_campaigns !== undefined ? "Campaigns Active" : "Social Followers",
+      value: socialData?.active_campaigns !== undefined
+        ? (socialData.active_campaigns || 0).toString()
+        : socialData?.total_followers
+          ? formatNumber(socialData.total_followers)
+          : "N/A",
+      icon: Megaphone,
+      color: "text-status-info",
     },
   ];
 
@@ -201,6 +323,103 @@ export default function DashboardPage() {
               {stats.maintenance_units}
             </p>
             <p className="text-xs text-text-muted">Maintenance</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI Alerts + Quick Insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* AI Alerts: top 3 anomalies by severity */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <ShieldAlert size={14} className="text-status-warning" />
+              AI Alerts
+            </h2>
+            {anomalyCount > 3 && (
+              <Link
+                href="/dashboard/anomalies"
+                className="text-xs text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1"
+              >
+                View all ({anomalyCount}) <ArrowRight size={12} />
+              </Link>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {anomalies.length > 0 ? (
+              anomalies.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-start gap-3 p-3 rounded-lg border border-wedja-border/50 hover:border-wedja-border transition-colors"
+                >
+                  <div className={`mt-0.5 ${severityColor[a.severity] || "text-text-muted"}`}>
+                    <AlertTriangle size={14} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">
+                      {a.title}
+                    </p>
+                    <p className="text-xs text-text-muted">
+                      {a.zone_name || a.type}
+                    </p>
+                  </div>
+                  <Badge variant={severityBadge[a.severity] || "default"}>
+                    {a.severity}
+                  </Badge>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-text-muted text-center py-4">
+                No active alerts
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Insights: top 3 cross-data insights */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <Sparkles size={14} className="text-wedja-accent" />
+              Quick Insights
+            </h2>
+            <Link
+              href="/dashboard/ai"
+              className="text-xs text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1"
+            >
+              AI Centre <ArrowRight size={12} />
+            </Link>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {aiInsights.length > 0 ? (
+              aiInsights.map((insight, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 p-3 rounded-lg border border-wedja-border/50 hover:border-wedja-border transition-colors"
+                >
+                  <div className={`mt-0.5 ${severityColor[insight.severity] || "text-wedja-accent"}`}>
+                    <Sparkles size={14} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">
+                      {insight.title}
+                    </p>
+                    <p className="text-xs text-text-muted line-clamp-2">
+                      {insight.message}
+                    </p>
+                  </div>
+                  {insight.confidence > 0 && (
+                    <span className="text-[10px] font-mono text-text-muted shrink-0">
+                      {Math.round(insight.confidence * 100)}%
+                    </span>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-text-muted text-center py-4">
+                No insights available
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
