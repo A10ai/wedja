@@ -22,6 +22,7 @@ import {
   TrendingUp,
   AlertOctagon,
   Activity,
+  Timer,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +36,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { label: "Live Map", href: "/dashboard/heatmap", icon: Map },
   { label: "CCTV Analytics", href: "/dashboard/cctv", icon: Camera },
   { label: "AI Centre", href: "/dashboard/ai", icon: Eye },
+  { label: "AI Scheduler", href: "/dashboard/ai/scheduler", icon: Timer },
   { label: "Event Bus", href: "/dashboard/ai/events", icon: Activity },
   { label: "Anomalies", href: "/dashboard/anomalies", icon: AlertOctagon },
   { label: "Learning", href: "/dashboard/ai/learning", icon: GraduationCap },
