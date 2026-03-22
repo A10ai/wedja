@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent } from "@/lib/event-bus";
 import { createNotification } from "@/lib/notifications";
+import { logAudit } from "@/lib/audit";
 
 // ============================================================
 // Wedja AI Brain — The Decision Engine of Senzo Mall
@@ -867,6 +868,25 @@ export async function runBrainCycle(
   brainConfig.total_cycles++;
   brainConfig.total_decisions += decisions.length;
   brainConfig.total_executed += executedCount;
+
+  // Audit log
+  await logAudit(supabase, {
+    action: "brain_cycle_completed",
+    category: "ai_brain",
+    description: `Brain cycle ${cycleId}: ${decisions.length} decisions (${source}). ${result.summary}`,
+    new_data: { cycle_id: cycleId, decisions_count: decisions.length, executed: executedCount, source },
+  });
+
+  for (const d of decisions) {
+    await logAudit(supabase, {
+      action: d.executed ? "ai_decision_executed" : "ai_decision_proposed",
+      category: "ai_decision",
+      resource_type: "brain_decision",
+      resource_id: d.id,
+      description: `[${d.category}] ${d.action} — ${d.reasoning}`,
+      new_data: { confidence: d.confidence, executed: d.executed, impact: d.impact_estimate },
+    });
+  }
 
   return {
     cycle_id: cycleId,

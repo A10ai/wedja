@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createNotification } from "@/lib/notifications";
+import { logAudit } from "@/lib/audit";
 
 // ============================================================
 // Wedja Event Bus — Cross-system event processing
@@ -154,6 +155,16 @@ export async function emitEvent(
     .eq("id", event.id)
     .select()
     .single();
+
+  // Audit log
+  await logAudit(supabase, {
+    action: "event_emitted",
+    category: "system",
+    resource_type: "system_event",
+    resource_id: event.id,
+    description: `Event ${type} from ${sourceSystem} — ${results.length} handler results`,
+    new_data: { type, source: sourceSystem, handlers: results.length },
+  });
 
   return { event: updated || event, results };
 }
