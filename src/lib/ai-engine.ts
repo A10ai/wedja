@@ -11,6 +11,7 @@ import { getLearningStats, getLearnedPatterns } from "./learning-engine";
 import { getCCTVDashboardData, getStoreConversion, getDeadZones, getDemographics, getParkingStatus, getSecurityAlerts, getQueueStatus } from "./cctv-engine";
 import { calculatePercentageRent, getInflationHedgeAnalysis } from "./percentage-rent-engine";
 import { getAnomalyStats } from "./anomaly-engine";
+import { forecastFootfall, forecastRevenue } from "./prediction-model";
 
 // ============================================================
 // Wedja AI Engine — The All-Seeing Eye of Senzo Mall
@@ -978,6 +979,61 @@ export async function generateCrossDataInsights(
         link: "/dashboard/anomalies",
       });
     }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ── ML Prediction Insights ──
+  // ══════════════════════════════════════════════════════════
+
+  try {
+    const [footfallForecast, revenueForecast] = await Promise.all([
+      forecastFootfall(supabase, 30, propertyId).catch(() => null),
+      forecastRevenue(supabase, 6, propertyId).catch(() => null),
+    ]);
+
+    if (footfallForecast) {
+      const avgPredicted = Math.round(
+        footfallForecast.predictions.reduce((s, p) => s + p.predicted_value, 0) /
+          footfallForecast.predictions.length
+      );
+      const trendDirection = footfallForecast.model.trend_slope > 0 ? "growing" : "declining";
+      const trendMagnitude = Math.abs(footfallForecast.model.trend_slope).toFixed(1);
+
+      insights.push({
+        id: makeId(),
+        type: "general",
+        severity: footfallForecast.model.trend_slope < -5 ? "warning" : "info",
+        title: `ML Forecast: Footfall ${trendDirection} at ${trendMagnitude} visitors/day — 30-day avg: ${avgPredicted.toLocaleString()}`,
+        message: `Trained on ${footfallForecast.model.training_samples.toLocaleString()} data points (R²=${footfallForecast.model.r_squared.toFixed(3)}). Model predicts average daily footfall of ${avgPredicted.toLocaleString()} visitors over the next 30 days.`,
+        impact_egp: 0,
+        confidence: Math.min(0.95, footfallForecast.model.r_squared + 0.1),
+        source_modules: ["footfall", "ml-predictions"],
+        recommended_action: "Review footfall predictions dashboard for daily breakdowns and confidence intervals",
+        link: "/dashboard/ai/predictions",
+      });
+    }
+
+    if (revenueForecast) {
+      const totalPredicted = revenueForecast.predictions.reduce(
+        (s, p) => s + p.predicted_value, 0
+      );
+      const trendDirection = revenueForecast.model.trend_slope > 0 ? "growing" : "declining";
+
+      insights.push({
+        id: makeId(),
+        type: "general",
+        severity: revenueForecast.model.trend_slope < 0 ? "warning" : "opportunity",
+        title: `ML Forecast: Revenue ${trendDirection} — next 6 months predicted: EGP ${Math.round(totalPredicted).toLocaleString()}`,
+        message: `Revenue model trained on ${revenueForecast.model.training_samples.toLocaleString()} transactions (R²=${revenueForecast.model.r_squared.toFixed(3)}, MAPE=${revenueForecast.model.accuracy_mape.toFixed(1)}%). 6-month collection forecast based on trend + seasonal patterns.`,
+        impact_egp: Math.round(totalPredicted),
+        confidence: Math.min(0.95, revenueForecast.model.r_squared + 0.1),
+        source_modules: ["revenue", "ml-predictions"],
+        recommended_action: "Review revenue predictions and plan cash flow based on ML-forecasted collection",
+        link: "/dashboard/ai/predictions",
+      });
+    }
+  } catch {
+    // ML predictions are non-critical — silently skip if they fail
   }
 
   // Sort by impact_egp descending (highest money impact first)

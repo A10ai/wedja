@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { emitEvent } from "@/lib/event-bus";
 import { runBrainCycle, getBrainConfig } from "@/lib/ai-brain";
 import { runAllAutomations } from "@/lib/automations-engine";
+import { trainFootfallModel, trainRevenueModel } from "@/lib/prediction-model";
 
 // In-memory scheduler state (resets on deploy)
 let lastRun: string | null = null;
@@ -102,6 +103,22 @@ async function executeCycle() {
       };
     } catch (autoErr) {
       results.automations_error = autoErr instanceof Error ? autoErr.message : "Automations failed";
+    }
+
+    // 0c. Retrain ML prediction models
+    try {
+      const [footfallModel, revenueModel] = await Promise.all([
+        trainFootfallModel(supabase),
+        trainRevenueModel(supabase),
+      ]);
+      results.predictions = {
+        footfall_r2: footfallModel.r_squared,
+        footfall_samples: footfallModel.training_samples,
+        revenue_r2: revenueModel.r_squared,
+        revenue_samples: revenueModel.training_samples,
+      };
+    } catch (predErr) {
+      results.predictions_error = predErr instanceof Error ? predErr.message : "ML retraining failed";
     }
 
     // 1. Check for expiring leases (within 90 days)

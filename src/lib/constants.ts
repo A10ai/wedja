@@ -41,6 +41,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { label: "AI Centre", href: "/dashboard/ai", icon: Eye },
   { label: "AI Scheduler", href: "/dashboard/ai/scheduler", icon: Timer },
   { label: "Automations", href: "/dashboard/ai/automations", icon: Workflow },
+  { label: "Predictions", href: "/dashboard/ai/predictions", icon: TrendingUp },
   { label: "Event Bus", href: "/dashboard/ai/events", icon: Activity },
   { label: "Anomalies", href: "/dashboard/anomalies", icon: AlertOctagon },
   { label: "Learning", href: "/dashboard/ai/learning", icon: GraduationCap },
