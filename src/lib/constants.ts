@@ -23,6 +23,7 @@ import {
   AlertOctagon,
   Activity,
   Timer,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 
@@ -33,6 +34,7 @@ export interface NavItem {
 }
 
 export const SIDEBAR_NAV: NavItem[] = [
+  { label: "AI Brain", href: "/dashboard/ai/brain", icon: Brain },
   { label: "Live Map", href: "/dashboard/heatmap", icon: Map },
   { label: "CCTV Analytics", href: "/dashboard/cctv", icon: Camera },
   { label: "AI Centre", href: "/dashboard/ai", icon: Eye },

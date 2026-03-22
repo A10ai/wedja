@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emitEvent } from "@/lib/event-bus";
+import { runBrainCycle, getBrainConfig } from "@/lib/ai-brain";
 
 // In-memory scheduler state (resets on deploy)
 let lastRun: string | null = null;
@@ -72,6 +73,25 @@ async function executeCycle() {
   const results: Record<string, unknown> = { timestamp };
 
   try {
+    // 0. Run AI Brain cycle (if enabled)
+    const brainConfig = getBrainConfig();
+    if (brainConfig.enabled) {
+      try {
+        const brainResult = await runBrainCycle(supabase);
+        results.brain = {
+          cycle_id: brainResult.cycle_id,
+          decisions: brainResult.decisions.length,
+          source: brainResult.source,
+          summary: brainResult.summary,
+          duration_ms: brainResult.duration_ms,
+        };
+      } catch (brainErr) {
+        results.brain_error = brainErr instanceof Error ? brainErr.message : "Brain cycle failed";
+      }
+    } else {
+      results.brain = { skipped: true, reason: "Brain disabled" };
+    }
+
     // 1. Check for expiring leases (within 90 days)
     const ninetyDaysOut = new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0];
     const { data: expiringLeases } = await supabase

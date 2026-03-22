@@ -37,6 +37,7 @@ export type SourceSystem =
   | "maintenance"
   | "marketing"
   | "event-bus"
+  | "ai-brain"
   | "manual";
 
 export interface SystemEvent {
