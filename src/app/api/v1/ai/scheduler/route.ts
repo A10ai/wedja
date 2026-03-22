@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emitEvent } from "@/lib/event-bus";
 import { runBrainCycle, getBrainConfig } from "@/lib/ai-brain";
+import { runAllAutomations } from "@/lib/automations-engine";
 
 // In-memory scheduler state (resets on deploy)
 let lastRun: string | null = null;
@@ -90,6 +91,17 @@ async function executeCycle() {
       }
     } else {
       results.brain = { skipped: true, reason: "Brain disabled" };
+    }
+
+    // 0b. Run Smart Automations
+    try {
+      const autoResult = await runAllAutomations(supabase);
+      results.automations = {
+        total_actions: autoResult.total_actions,
+        automation_count: Object.keys(autoResult.results).length,
+      };
+    } catch (autoErr) {
+      results.automations_error = autoErr instanceof Error ? autoErr.message : "Automations failed";
     }
 
     // 1. Check for expiring leases (within 90 days)
