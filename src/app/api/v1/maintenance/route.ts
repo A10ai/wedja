@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { emitEvent } from "@/lib/event-bus";
 
 export const dynamic = "force-dynamic";
 
@@ -68,6 +69,21 @@ export async function POST(req: NextRequest) {
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
+
+      // Emit maintenance.resolved when ticket is completed
+      if (body.status === "completed" && data) {
+        emitEvent(
+          "maintenance.resolved",
+          "maintenance",
+          {
+            ticket_id: data.id,
+            title: data.title,
+            zone_id: data.zone_id,
+          },
+          supabase
+        ).catch((err) => console.error("[EventBus] maintenance.resolved emit failed:", err));
+      }
+
       return NextResponse.json(data);
     }
 
@@ -92,6 +108,21 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Emit maintenance.created event through the event bus
+    emitEvent(
+      "maintenance.created",
+      "maintenance",
+      {
+        ticket_id: data.id,
+        title: data.title,
+        priority: data.priority,
+        category: data.category,
+        zone_id: data.zone_id,
+        unit_id: data.unit_id,
+      },
+      supabase
+    ).catch((err) => console.error("[EventBus] maintenance.created emit failed:", err));
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {

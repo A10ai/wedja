@@ -21,6 +21,7 @@ import {
   Camera,
   TrendingUp,
   AlertOctagon,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 
@@ -34,6 +35,7 @@ export const SIDEBAR_NAV: NavItem[] = [
   { label: "Live Map", href: "/dashboard/heatmap", icon: Map },
   { label: "CCTV Analytics", href: "/dashboard/cctv", icon: Camera },
   { label: "AI Centre", href: "/dashboard/ai", icon: Eye },
+  { label: "Event Bus", href: "/dashboard/ai/events", icon: Activity },
   { label: "Anomalies", href: "/dashboard/anomalies", icon: AlertOctagon },
   { label: "Learning", href: "/dashboard/ai/learning", icon: GraduationCap },
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },

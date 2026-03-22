@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { emitEvent } from "@/lib/event-bus";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,22 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Emit rent.overdue event if the transaction status is overdue
+    if (data && data.status === "overdue") {
+      emitEvent(
+        "rent.overdue",
+        "revenue-engine",
+        {
+          transaction_id: data.id,
+          lease_id: data.lease_id,
+          amount_due: data.amount_due,
+          period_month: data.period_month,
+          period_year: data.period_year,
+        },
+        supabase
+      ).catch((err) => console.error("[EventBus] rent.overdue emit failed:", err));
     }
 
     return NextResponse.json(data, { status: 201 });

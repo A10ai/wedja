@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { emitEvent } from "@/lib/event-bus";
 
 export const dynamic = "force-dynamic";
 
@@ -135,6 +136,23 @@ export async function PUT(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Emit tenant.underreporting when flagging a discrepancy
+    if (data && status === "flagged") {
+      emitEvent(
+        "tenant.underreporting",
+        "revenue-engine",
+        {
+          discrepancy_id: data.id,
+          tenant_id: data.tenant_id,
+          tenant_name: data.tenants?.name || data.tenants?.brand_name || "Unknown",
+          variance_egp: data.variance_egp,
+          variance_pct: data.variance_pct,
+          unit_number: data.units?.unit_number,
+        },
+        supabase
+      ).catch((err) => console.error("[EventBus] tenant.underreporting emit failed:", err));
     }
 
     return NextResponse.json(data);
