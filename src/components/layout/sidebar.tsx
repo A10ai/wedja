@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronLeft, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SIDEBAR_NAV } from "@/lib/constants";
+import { SIDEBAR_NAV, type NavGroup } from "@/lib/constants";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -67,44 +67,61 @@ export function Sidebar({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
-        {SIDEBAR_NAV.map((item) => {
-          const Icon = item.icon;
-          // Check if any other nav item is a more specific match
-          const isActive =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname === item.href ||
-                (pathname.startsWith(item.href + "/") &&
-                  !SIDEBAR_NAV.some(
-                    (other) =>
-                      other.href !== item.href &&
-                      other.href.startsWith(item.href) &&
-                      pathname.startsWith(other.href)
-                  ));
+      <nav className="flex-1 overflow-y-auto py-2 px-2">
+        {SIDEBAR_NAV.map((group) => {
+          const allItems = SIDEBAR_NAV.flatMap((g) => g.items);
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onCloseMobile}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-150",
-                isActive
-                  ? "bg-wedja-accent-muted text-wedja-accent"
-                  : "text-text-secondary hover:text-text-primary hover:bg-wedja-border/30",
-                collapsed && "lg:justify-center lg:px-2"
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon
-                size={18}
-                className={cn(isActive ? "text-wedja-accent" : "")}
-              />
-              <span className={cn(collapsed && "lg:hidden")}>
-                {item.label}
-              </span>
-            </Link>
+            <div key={group.label}>
+              <p
+                className={cn(
+                  "text-[10px] font-semibold uppercase tracking-widest text-text-muted px-3 pt-4 pb-1",
+                  collapsed && "lg:hidden"
+                )}
+              >
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    item.href === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : pathname === item.href ||
+                        (pathname.startsWith(item.href + "/") &&
+                          !allItems.some(
+                            (other) =>
+                              other.href !== item.href &&
+                              other.href.startsWith(item.href) &&
+                              pathname.startsWith(other.href)
+                          ));
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onCloseMobile}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150",
+                        isActive
+                          ? "bg-wedja-accent-muted text-wedja-accent"
+                          : "text-text-secondary hover:text-text-primary hover:bg-wedja-border/30",
+                        collapsed && "lg:justify-center lg:px-2"
+                      )}
+                      title={collapsed ? item.label : undefined}
+                    >
+                      <Icon
+                        size={18}
+                        className={cn(isActive ? "text-wedja-accent" : "")}
+                      />
+                      <span className={cn(collapsed && "lg:hidden")}>
+                        {item.label}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
       </nav>

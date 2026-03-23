@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
   DollarSign,
@@ -21,6 +21,20 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatNumber, formatPercentage } from "@/lib/utils";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
 interface DashboardStats {
   total_revenue_egp: number;
@@ -78,6 +92,12 @@ interface SocialData {
   active_campaigns?: number;
 }
 
+interface FootfallTrend {
+  date: string;
+  total_in: number;
+  total_out: number;
+}
+
 const MONTH_NAMES = [
   "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -108,6 +128,18 @@ const severityBadge: Record<string, "error" | "warning" | "info" | "default"> = 
   info: "default",
 };
 
+const CHART_TOOLTIP_STYLE = {
+  contentStyle: {
+    backgroundColor: '#111827',
+    border: '1px solid #1F2937',
+    borderRadius: '8px',
+  },
+  labelStyle: { color: '#9CA3AF' },
+  itemStyle: { color: '#F9FAFB' },
+};
+
+const OCCUPANCY_COLORS = ['#10B981', '#F59E0B', '#EF4444'];
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,6 +151,7 @@ export default function DashboardPage() {
   const [anomalyCount, setAnomalyCount] = useState<number>(0);
   const [aiInsights, setAiInsights] = useState<AIInsight[]>([]);
   const [socialData, setSocialData] = useState<SocialData | null>(null);
+  const [footfallTrend, setFootfallTrend] = useState<FootfallTrend[]>([]);
 
   useEffect(() => {
     async function fetchStats() {
@@ -136,15 +169,16 @@ export default function DashboardPage() {
     fetchStats();
   }, []);
 
-  // Fetch cross-data: percentage rent, anomalies, AI insights, social
+  // Fetch cross-data: percentage rent, anomalies, AI insights, social, footfall trend
   useEffect(() => {
     async function fetchCrossData() {
       try {
-        const [pctRes, anomalyRes, insightsRes, socialRes] = await Promise.all([
+        const [pctRes, anomalyRes, insightsRes, socialRes, footfallRes] = await Promise.all([
           fetch("/api/v1/percentage-rent?type=overview").catch(() => null),
           fetch("/api/v1/anomalies?type=active").catch(() => null),
           fetch("/api/v1/ai/insights").catch(() => null),
           fetch("/api/v1/social?type=overview").catch(() => null),
+          fetch("/api/v1/footfall?type=trend&days=7").catch(() => null),
         ]);
 
         if (pctRes?.ok) {
@@ -172,12 +206,65 @@ export default function DashboardPage() {
           const sData = await socialRes.json();
           setSocialData(sData);
         }
+
+        if (footfallRes?.ok) {
+          const ffData = await footfallRes.json();
+          const trend = Array.isArray(ffData) ? ffData : ffData?.trend || ffData?.data || [];
+          setFootfallTrend(trend);
+        }
       } catch {
         // Cross-data is optional — fail silently
       }
     }
     fetchCrossData();
   }, []);
+
+  // Compute monthly revenue trend from recent_transactions (last 6 months)
+  const monthlyRevenueData = useMemo(() => {
+    if (!stats?.recent_transactions?.length) return [];
+
+    const grouped: Record<string, { month: string; collected: number; due: number; sortKey: number }> = {};
+
+    for (const tx of stats.recent_transactions) {
+      const key = `${tx.period_year}-${String(tx.period_month).padStart(2, '0')}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          month: `${MONTH_NAMES[tx.period_month]} ${tx.period_year}`,
+          collected: 0,
+          due: 0,
+          sortKey: tx.period_year * 100 + tx.period_month,
+        };
+      }
+      grouped[key].collected += tx.amount_paid || 0;
+      grouped[key].due += tx.amount_due || 0;
+    }
+
+    return Object.values(grouped)
+      .sort((a, b) => a.sortKey - b.sortKey)
+      .slice(-6);
+  }, [stats?.recent_transactions]);
+
+  // Compute occupancy donut data
+  const occupancyData = useMemo(() => {
+    if (!stats) return [];
+    return [
+      { name: 'Occupied', value: stats.occupied_units },
+      { name: 'Vacant', value: stats.vacant_units },
+      { name: 'Maintenance', value: stats.maintenance_units },
+    ].filter((d) => d.value > 0);
+  }, [stats]);
+
+  // Format footfall trend data for the bar chart
+  const footfallChartData = useMemo(() => {
+    return footfallTrend.map((d) => {
+      const dateObj = new Date(d.date);
+      const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+      return {
+        day: dayName,
+        visitors: d.total_in,
+      };
+    });
+  }, [footfallTrend]);
 
   if (loading) {
     return (
@@ -265,6 +352,8 @@ export default function DashboardPage() {
     { label: "Settings", href: "/dashboard/settings", icon: Settings },
   ];
 
+  const totalUnitsForDonut = stats.occupied_units + stats.vacant_units + stats.maintenance_units;
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -299,33 +388,208 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Unit status summary */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Charts Row: Monthly Revenue Trend + Footfall Weekly */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Monthly Revenue Trend (AreaChart) */}
         <Card>
-          <CardContent className="py-3 text-center">
-            <p className="text-lg font-bold text-status-success font-mono">
-              {stats.occupied_units}
-            </p>
-            <p className="text-xs text-text-muted">Occupied</p>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <DollarSign size={14} className="text-wedja-accent" />
+              Monthly Revenue Trend
+            </h2>
+            <Link
+              href="/dashboard/revenue"
+              className="text-xs text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1"
+            >
+              Details <ArrowRight size={12} />
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {monthlyRevenueData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={monthlyRevenueData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorDue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6B7280" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#6B7280" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                    axisLine={{ stroke: '#1F2937' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                    axisLine={{ stroke: '#1F2937' }}
+                    tickLine={false}
+                    tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    contentStyle={CHART_TOOLTIP_STYLE.contentStyle}
+                    labelStyle={CHART_TOOLTIP_STYLE.labelStyle}
+                    itemStyle={CHART_TOOLTIP_STYLE.itemStyle}
+                    formatter={(value: any) => formatCurrency(Number(value))}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="due"
+                    name="Due"
+                    stroke="#6B7280"
+                    fillOpacity={1}
+                    fill="url(#colorDue)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="collected"
+                    name="Collected"
+                    stroke="#F59E0B"
+                    fillOpacity={1}
+                    fill="url(#colorCollected)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[280px]">
+                <p className="text-sm text-text-muted">No revenue data available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Footfall Weekly Chart (BarChart) */}
         <Card>
-          <CardContent className="py-3 text-center">
-            <p className="text-lg font-bold text-status-warning font-mono">
-              {stats.vacant_units}
-            </p>
-            <p className="text-xs text-text-muted">Vacant</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-3 text-center">
-            <p className="text-lg font-bold text-status-error font-mono">
-              {stats.maintenance_units}
-            </p>
-            <p className="text-xs text-text-muted">Maintenance</p>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <Users size={14} className="text-wedja-accent" />
+              Weekly Footfall
+            </h2>
+            <Link
+              href="/dashboard/footfall"
+              className="text-xs text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1"
+            >
+              Details <ArrowRight size={12} />
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {footfallChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={footfallChartData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                    axisLine={{ stroke: '#1F2937' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: '#9CA3AF', fontSize: 12 }}
+                    axisLine={{ stroke: '#1F2937' }}
+                    tickLine={false}
+                    tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    contentStyle={CHART_TOOLTIP_STYLE.contentStyle}
+                    labelStyle={CHART_TOOLTIP_STYLE.labelStyle}
+                    itemStyle={CHART_TOOLTIP_STYLE.itemStyle}
+                    formatter={(value: any) => formatNumber(Number(value))}
+                  />
+                  <Bar
+                    dataKey="visitors"
+                    name="Visitors"
+                    fill="#F59E0B"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={48}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[280px]">
+                <p className="text-sm text-text-muted">No footfall data available</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Occupancy Donut (replaces Unit status summary) */}
+      <Card>
+        <CardHeader>
+          <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+            <Building2 size={14} className="text-status-success" />
+            Unit Occupancy
+          </h2>
+          <Link
+            href="/dashboard/property"
+            className="text-xs text-wedja-accent hover:text-wedja-accent-hover flex items-center gap-1"
+          >
+            View units <ArrowRight size={12} />
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {totalUnitsForDonut > 0 ? (
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              <ResponsiveContainer width="100%" height={220} className="max-w-[280px]">
+                <PieChart>
+                  <Pie
+                    data={occupancyData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={3}
+                    dataKey="value"
+                    strokeWidth={0}
+                  >
+                    {occupancyData.map((_, index) => {
+                      const colorIndex = ['Occupied', 'Vacant', 'Maintenance'].indexOf(occupancyData[index].name);
+                      return (
+                        <Cell key={`cell-${index}`} fill={OCCUPANCY_COLORS[colorIndex >= 0 ? colorIndex : 0]} />
+                      );
+                    })}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={CHART_TOOLTIP_STYLE.contentStyle}
+                    labelStyle={CHART_TOOLTIP_STYLE.labelStyle}
+                    itemStyle={CHART_TOOLTIP_STYLE.itemStyle}
+                    formatter={(value: any, name: any) => [`${value} units`, name]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex sm:flex-col gap-4 sm:gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-[#10B981]" />
+                  <span className="text-sm text-text-secondary">
+                    Occupied: <span className="font-mono font-bold text-text-primary">{stats.occupied_units}</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-[#F59E0B]" />
+                  <span className="text-sm text-text-secondary">
+                    Vacant: <span className="font-mono font-bold text-text-primary">{stats.vacant_units}</span>
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-[#EF4444]" />
+                  <span className="text-sm text-text-secondary">
+                    Maintenance: <span className="font-mono font-bold text-text-primary">{stats.maintenance_units}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-text-muted text-center py-4">No unit data available</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* AI Alerts + Quick Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

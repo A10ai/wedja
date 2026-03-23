@@ -20,6 +20,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatNumber, formatPercentage } from "@/lib/utils";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -96,6 +108,19 @@ const CATEGORY_COLORS: Record<string, string> = {
   technology: "bg-indigo-500",
   admin: "bg-gray-500",
   other: "bg-slate-500",
+};
+
+const CATEGORY_HEX_COLORS: Record<string, string> = {
+  salaries: "#3B82F6",
+  utilities: "#F59E0B",
+  security: "#EF4444",
+  cleaning: "#10B981",
+  maintenance: "#F97316",
+  marketing: "#A855F7",
+  insurance: "#06B6D4",
+  technology: "#6366F1",
+  admin: "#6B7280",
+  other: "#64748B",
 };
 
 const CATEGORY_TEXT_COLORS: Record<string, string> = {
@@ -237,11 +262,6 @@ export default function FinancePage() {
       </div>
     );
   }
-
-  // Cash flow chart max value
-  const cfMax = Math.max(
-    ...cashFlow.map((c) => Math.max(c.income_egp, c.expenses_egp, 1))
-  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -480,7 +500,7 @@ export default function FinancePage() {
           </Card>
         )}
 
-        {/* Expense Breakdown */}
+        {/* Expense Breakdown — Recharts Donut */}
         {overview && overview.expense_breakdown.length > 0 && (
           <Card>
             <CardHeader>
@@ -489,38 +509,60 @@ export default function FinancePage() {
                 Expense Breakdown
               </h2>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {overview.expense_breakdown.map((item) => (
-                <div key={item.category}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-text-primary capitalize">
-                      {item.category}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-text-muted">
-                        {formatPercentage(item.percentage)}
-                      </span>
-                      <span className="text-sm font-mono text-text-primary w-28 text-right">
-                        {formatCurrency(item.amount_egp)}
+            <CardContent>
+              <ResponsiveContainer width="100%" height={280}>
+                <RechartsPieChart>
+                  <Pie
+                    data={overview.expense_breakdown}
+                    dataKey="amount_egp"
+                    nameKey="category"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={2}
+                  >
+                    {overview.expense_breakdown.map((item) => (
+                      <Cell
+                        key={item.category}
+                        fill={CATEGORY_HEX_COLORS[item.category] || "#64748B"}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#111827",
+                      border: "1px solid #1F2937",
+                      borderRadius: "8px",
+                      color: "#F9FAFB",
+                    }}
+                    formatter={(value: any) => [formatCurrency(Number(value)), "Amount"]}
+                  />
+                </RechartsPieChart>
+              </ResponsiveContainer>
+              {/* Legend */}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-4">
+                {overview.expense_breakdown.map((item) => (
+                  <div key={item.category} className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className="w-3 h-3 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: CATEGORY_HEX_COLORS[item.category] || "#64748B" }}
+                      />
+                      <span className="text-xs text-text-secondary capitalize truncate">
+                        {item.category}
                       </span>
                     </div>
+                    <span className="text-xs font-mono text-text-primary flex-shrink-0">
+                      {formatCurrency(item.amount_egp)}
+                    </span>
                   </div>
-                  <div className="w-full h-2 bg-wedja-border/50 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        CATEGORY_COLORS[item.category] || "bg-gray-500"
-                      }`}
-                      style={{ width: `${Math.min(item.percentage, 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* ── Cash Flow Chart ──────────────────────────────────── */}
+      {/* ── Cash Flow Chart — Recharts BarChart ───────────────── */}
       {cashFlow.length > 0 && (
         <Card>
           <CardHeader>
@@ -530,61 +572,44 @@ export default function FinancePage() {
             </h2>
           </CardHeader>
           <CardContent>
-            <div className="flex items-end gap-2 sm:gap-4 h-56">
-              {cashFlow.map((m) => {
-                const incomeH = cfMax > 0 ? (m.income_egp / cfMax) * 100 : 0;
-                const expenseH = cfMax > 0 ? (m.expenses_egp / cfMax) * 100 : 0;
-
-                return (
-                  <div
-                    key={`${m.year}-${m.month}`}
-                    className="flex-1 flex flex-col items-center gap-1"
-                  >
-                    {/* Net indicator */}
-                    <span
-                      className={`text-[10px] font-mono ${
-                        m.net_egp >= 0
-                          ? "text-status-success"
-                          : "text-status-error"
-                      }`}
-                    >
-                      {m.net_egp >= 0 ? "+" : ""}
-                      {formatCurrency(m.net_egp)}
-                    </span>
-
-                    {/* Bars */}
-                    <div className="flex gap-0.5 sm:gap-1 items-end w-full h-40">
-                      {/* Income bar */}
-                      <div
-                        className="flex-1 bg-emerald-500/80 rounded-t-sm transition-all duration-500 min-h-[2px]"
-                        style={{ height: `${incomeH}%` }}
-                        title={`Income: ${formatCurrency(m.income_egp)}`}
-                      />
-                      {/* Expense bar */}
-                      <div
-                        className="flex-1 bg-red-500/70 rounded-t-sm transition-all duration-500 min-h-[2px]"
-                        style={{ height: `${expenseH}%` }}
-                        title={`Expenses: ${formatCurrency(m.expenses_egp)}`}
-                      />
-                    </div>
-
-                    {/* Label */}
-                    <span className="text-[10px] text-text-muted whitespace-nowrap">
-                      {m.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={cashFlow}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                  axisLine={{ stroke: "#1F2937" }}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                  axisLine={{ stroke: "#1F2937" }}
+                  tickLine={false}
+                  tickFormatter={(value: number) => formatCurrency(value)}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#111827",
+                    border: "1px solid #1F2937",
+                    borderRadius: "8px",
+                    color: "#F9FAFB",
+                  }}
+                  formatter={(value: any) => formatCurrency(Number(value))}
+                  labelStyle={{ color: "#F9FAFB" }}
+                />
+                <Bar dataKey="income_egp" name="Income" fill="#10B981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expenses_egp" name="Expenses" fill="#EF4444" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
 
             {/* Legend */}
             <div className="flex items-center gap-4 mt-4 justify-center">
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-emerald-500/80" />
+                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#10B981" }} />
                 <span className="text-xs text-text-muted">Income</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-red-500/70" />
+                <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: "#EF4444" }} />
                 <span className="text-xs text-text-muted">Expenses</span>
               </div>
             </div>

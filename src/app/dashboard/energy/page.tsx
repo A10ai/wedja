@@ -14,6 +14,18 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatNumber, formatPercentage } from "@/lib/utils";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  AreaChart,
+  Area,
+  Cell,
+} from "recharts";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -184,8 +196,6 @@ export default function EnergyPage() {
     );
   }
 
-  const hourlyMax = Math.max(...hourly.map((h) => h.consumption_kwh), 1);
-  const trendMax = Math.max(...trend.map((t) => t.consumption_kwh), 1);
   const zoneMax = Math.max(...zones.map((z) => z.consumption_kwh), 1);
 
   return (
@@ -298,54 +308,48 @@ export default function EnergyPage() {
               </h2>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-[2px] sm:gap-1 h-48">
-                {hourly.map((h) => {
-                  const pct =
-                    hourlyMax > 0
-                      ? (h.consumption_kwh / hourlyMax) * 100
-                      : 0;
-
-                  let barColor = "bg-wedja-border/50"; // off-hours default
-                  if (h.is_peak) {
-                    barColor = "bg-red-500";
-                  } else if (h.is_operating) {
-                    barColor = "bg-amber-500/80";
-                  } else if (h.consumption_kwh > 0) {
-                    barColor = "bg-amber-500/30";
-                  }
-
-                  return (
-                    <div
-                      key={h.hour}
-                      className="flex-1 flex flex-col items-center justify-end h-full"
-                    >
-                      <div
-                        className={`w-full rounded-t-sm transition-all duration-300 min-h-[1px] ${barColor}`}
-                        style={{ height: `${pct}%` }}
-                        title={`${h.hour}:00 — ${h.consumption_kwh.toLocaleString()} kWh (${formatCurrency(h.cost_egp)})`}
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={hourly} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+                  <XAxis
+                    dataKey="hour"
+                    tick={{ fontSize: 10, fill: '#6B7280' }}
+                    tickFormatter={(h: number) => `${h}`}
+                  />
+                  <YAxis tick={{ fontSize: 10, fill: '#6B7280' }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#111827', border: '1px solid #1F2937', borderRadius: '8px' }}
+                    labelStyle={{ color: '#F9FAFB' }}
+                    itemStyle={{ color: '#F59E0B' }}
+                    labelFormatter={(h: any) => `${h}:00`}
+                    formatter={(value: any, _name: any, props: any) => {
+                      const item = props.payload;
+                      return [`${Number(value).toLocaleString()} kWh (${formatCurrency(item.cost_egp)})`, 'Consumption'];
+                    }}
+                  />
+                  <Bar dataKey="consumption_kwh" radius={[2, 2, 0, 0]}>
+                    {hourly.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={entry.is_peak ? '#EF4444' : entry.is_operating ? '#F59E0B' : '#374151'}
                       />
-                      {h.hour % 3 === 0 && (
-                        <span className="text-[9px] text-text-muted mt-1">
-                          {h.hour}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
 
               {/* Legend */}
               <div className="flex items-center gap-4 mt-3 justify-center">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/80" />
+                  <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#F59E0B' }} />
                   <span className="text-[10px] text-text-muted">Operating</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/30" />
+                  <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#374151' }} />
                   <span className="text-[10px] text-text-muted">Off-hours</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm bg-red-500" />
+                  <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#EF4444' }} />
                   <span className="text-[10px] text-text-muted">Peak</span>
                 </div>
               </div>
@@ -543,41 +547,47 @@ export default function EnergyPage() {
               </h2>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-[1px] h-40">
-                {trend.map((d, i) => {
-                  const pct =
-                    trendMax > 0
-                      ? (d.consumption_kwh / trendMax) * 100
-                      : 0;
-                  const dateObj = new Date(d.date);
-                  const isWeekend = [5, 6].includes(dateObj.getDay());
-
-                  return (
-                    <div
-                      key={d.date}
-                      className="flex-1 flex flex-col items-center justify-end h-full"
-                    >
-                      <div
-                        className={`w-full rounded-t-[1px] transition-all duration-300 min-h-[1px] ${
-                          isWeekend ? "bg-amber-500" : "bg-amber-500/60"
-                        }`}
-                        style={{ height: `${pct}%` }}
-                        title={`${d.date}: ${formatNumber(d.consumption_kwh)} kWh (${formatCurrency(d.cost_egp)})`}
-                      />
-                      {(i === 0 ||
-                        i === Math.floor(trend.length / 2) ||
-                        i === trend.length - 1) && (
-                        <span className="text-[8px] text-text-muted mt-1 whitespace-nowrap">
-                          {dateObj.toLocaleDateString("en-GB", {
-                            day: "2-digit",
-                            month: "short",
-                          })}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart data={trend} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
+                  <defs>
+                    <linearGradient id="energyAmberGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 9, fill: '#6B7280' }}
+                    tickFormatter={(d: string) => {
+                      const dateObj = new Date(d);
+                      return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+                    }}
+                    interval={Math.max(Math.floor(trend.length / 6), 0)}
+                  />
+                  <YAxis tick={{ fontSize: 10, fill: '#6B7280' }} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#111827', border: '1px solid #1F2937', borderRadius: '8px' }}
+                    labelStyle={{ color: '#F9FAFB' }}
+                    itemStyle={{ color: '#F59E0B' }}
+                    labelFormatter={(d: any) => {
+                      const dateObj = new Date(d);
+                      return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                    }}
+                    formatter={(value: any, _name: any, props: any) => {
+                      const item = props.payload;
+                      return [`${Number(value).toLocaleString()} kWh (${formatCurrency(item.cost_egp)})`, 'Consumption'];
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="consumption_kwh"
+                    stroke="#F59E0B"
+                    fill="url(#energyAmberGradient)"
+                    strokeWidth={2}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
               <div className="flex items-center gap-4 mt-3 justify-center">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2.5 h-2.5 rounded-sm bg-amber-500" />

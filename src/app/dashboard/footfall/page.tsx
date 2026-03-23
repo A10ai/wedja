@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatNumber, formatPercentage, formatCurrency, cn } from "@/lib/utils";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from "recharts";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -139,6 +140,13 @@ function zoneTypeLabel(type: string): string {
     service: "Services",
   };
   return map[type] || type;
+}
+
+function formatTrendDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  const day = d.getDate();
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${day} ${months[d.getMonth()]}`;
 }
 
 // ── Page Component ────────────────────────────────────────────
@@ -297,6 +305,26 @@ export default function FootfallPage() {
       : 0;
   const currentHour = new Date().getHours();
 
+  // Recharts data transforms
+  const hourlyChartData = hourly.map((h) => ({
+    ...h,
+    label: formatHour(h.hour),
+  }));
+
+  const trendChartData = trend.map((d) => ({
+    ...d,
+    label: formatTrendDate(d.date),
+  }));
+
+  // Dark tooltip style
+  const darkTooltipStyle = {
+    backgroundColor: '#111827',
+    border: '1px solid #1F2937',
+    borderRadius: '8px',
+    color: '#F9FAFB',
+    fontSize: '12px',
+  };
+
   // Top 10 stores
   const topStores = [...units].sort((a, b) => b.count_in - a.count_in).slice(0, 10);
 
@@ -392,7 +420,7 @@ export default function FootfallPage() {
         />
       </div>
 
-      {/* B. Hourly Trend Chart */}
+      {/* B. Hourly Trend Chart — Recharts BarChart */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -401,65 +429,33 @@ export default function FootfallPage() {
               Hourly Footfall
             </h2>
           </div>
-          <div className="flex items-center gap-3 text-xs text-text-muted">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500/30" />
-              Off-hours
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
-              Mall hours
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-wedja-accent" />
-              Peak
-            </span>
-          </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-end gap-[3px] h-48">
-            {hourly.map((h) => {
-              const pct = hourlyMax > 0 ? (h.count / hourlyMax) * 100 : 0;
-              const isMallHour = h.hour >= 10 && h.hour <= 23;
-              const isPeak =
-                h.count > 0 && h.count >= hourlyMax * 0.85;
-              const isCurrent = h.hour === currentHour;
-
-              return (
-                <div
-                  key={h.hour}
-                  className="flex-1 flex flex-col items-center gap-1 group relative"
-                >
-                  {/* Tooltip */}
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-wedja-card border border-wedja-border rounded px-2 py-1 text-xs text-text-primary whitespace-nowrap z-10 shadow-lg">
-                    {formatHour(h.hour)}: {formatNumber(h.count)}
-                  </div>
-                  <div
-                    className={cn(
-                      "w-full rounded-t transition-all duration-300",
-                      isPeak
-                        ? "bg-wedja-accent"
-                        : isMallHour
-                        ? "bg-amber-500/70"
-                        : "bg-amber-500/20",
-                      isCurrent && "ring-2 ring-wedja-accent ring-offset-1 ring-offset-wedja-card"
-                    )}
-                    style={{ height: `${Math.max(pct, 2)}%` }}
-                  />
-                  <span
-                    className={cn(
-                      "text-[9px] tabular-nums",
-                      isCurrent
-                        ? "text-wedja-accent font-bold"
-                        : "text-text-muted"
-                    )}
-                  >
-                    {h.hour}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={hourlyChartData} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fill: '#6B7280', fontSize: 10 }}
+                tickLine={false}
+                axisLine={{ stroke: '#1F2937' }}
+                interval={1}
+              />
+              <YAxis
+                tick={{ fill: '#6B7280', fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v: number) => formatNumber(v)}
+              />
+              <Tooltip
+                contentStyle={darkTooltipStyle}
+                labelStyle={{ color: '#9CA3AF', marginBottom: 4 }}
+                formatter={(value: any) => [formatNumber(Number(value)), "Visitors"]}
+                cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }}
+              />
+              <Bar dataKey="count" fill="#F59E0B" radius={[3, 3, 0, 0]} maxBarSize={28} />
+            </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
 
@@ -721,7 +717,7 @@ export default function FootfallPage() {
 
       {/* F. Daily Trend (30 days) + G. Peak Patterns side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Daily Trend */}
+        {/* Daily Trend — Recharts AreaChart */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -735,61 +731,43 @@ export default function FootfallPage() {
             </span>
           </CardHeader>
           <CardContent>
-            <div className="flex items-end gap-[2px] h-40 relative">
-              {/* Average line */}
-              {trend.length > 0 && (
-                <div
-                  className="absolute left-0 right-0 border-t border-dashed border-amber-500/40 z-10"
-                  style={{
-                    bottom: `${(trendAvg / trendMax) * 100}%`,
-                  }}
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={trendChartData} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
+                <defs>
+                  <linearGradient id="footfallTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: '#6B7280', fontSize: 9 }}
+                  tickLine={false}
+                  axisLine={{ stroke: '#1F2937' }}
+                  interval={Math.max(Math.floor(trendChartData.length / 8) - 1, 0)}
                 />
-              )}
-              {trend.map((d) => {
-                const pct =
-                  trendMax > 0 ? (d.total_in / trendMax) * 100 : 0;
-                const isWeekend = d.day_of_week === 5 || d.day_of_week === 6;
-                const dateLabel = d.date.slice(5); // MM-DD
-
-                return (
-                  <div
-                    key={d.date}
-                    className="flex-1 flex flex-col items-center gap-1 group relative"
-                  >
-                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block bg-wedja-card border border-wedja-border rounded px-2 py-1 text-xs text-text-primary whitespace-nowrap z-20 shadow-lg">
-                      {d.date}: {formatNumber(d.total_in)}
-                      {isWeekend ? " (Weekend)" : ""}
-                    </div>
-                    <div
-                      className={cn(
-                        "w-full rounded-t transition-all duration-300",
-                        isWeekend ? "bg-wedja-accent" : "bg-amber-500/60"
-                      )}
-                      style={{ height: `${Math.max(pct, 2)}%` }}
-                    />
-                    {trend.length <= 15 && (
-                      <span className="text-[8px] text-text-muted -rotate-45 origin-top-left whitespace-nowrap">
-                        {dateLabel}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex items-center justify-center gap-4 mt-3 text-xs text-text-muted">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-amber-500/60" />
-                Weekday
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-wedja-accent" />
-                Weekend
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-6 border-t border-dashed border-amber-500/40" />
-                Average
-              </span>
-            </div>
+                <YAxis
+                  tick={{ fill: '#6B7280', fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: number) => formatNumber(v)}
+                />
+                <Tooltip
+                  contentStyle={darkTooltipStyle}
+                  labelStyle={{ color: '#9CA3AF', marginBottom: 4 }}
+                  formatter={(value: any) => [formatNumber(Number(value)), "Visitors In"]}
+                  cursor={{ stroke: '#F59E0B', strokeWidth: 1, strokeDasharray: '4 4' }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="total_in"
+                  stroke="#F59E0B"
+                  strokeWidth={2}
+                  fill="url(#footfallTrendGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
 

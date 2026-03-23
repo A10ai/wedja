@@ -123,7 +123,7 @@ export interface BrainCycleResult {
 
 // ── In-memory config (resets on deploy) ─────────────────────
 
-let brainConfig: BrainConfig = {
+const brainConfig: BrainConfig = {
   mode: "supervised",
   enabled: true,
   interval_minutes: 30,

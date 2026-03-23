@@ -12,6 +12,15 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
 interface RentTransaction {
   id: string;
@@ -138,11 +147,6 @@ export default function RevenuePage() {
     return months;
   }, [transactions]);
 
-  const maxMonthly = Math.max(
-    ...monthlyData.map((m) => Math.max(m.collected, m.due)),
-    1
-  );
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -253,54 +257,38 @@ export default function RevenuePage() {
         </Card>
       </div>
 
-      {/* Monthly Revenue Bar Chart (CSS-based) */}
+      {/* Monthly Revenue Bar Chart (Recharts) */}
       <Card>
         <CardHeader>
           <h2 className="text-sm font-semibold text-text-primary">
             Monthly Revenue Trend
           </h2>
-          <div className="flex items-center gap-4 text-xs">
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+              <XAxis dataKey="label" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+              <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} tickFormatter={(v) => formatCurrency(v)} />
+              <Tooltip
+                contentStyle={{ backgroundColor: '#111827', border: '1px solid #1F2937', borderRadius: '8px' }}
+                labelStyle={{ color: '#9CA3AF' }}
+                itemStyle={{ color: '#F9FAFB' }}
+                formatter={(value: any) => formatCurrency(Number(value))}
+              />
+              <Bar dataKey="due" fill="#374151" name="Due" />
+              <Bar dataKey="collected" fill="#F59E0B" name="Collected" />
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex items-center justify-center gap-4 text-xs mt-3">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-wedja-accent" />
+              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#F59E0B' }} />
               Collected
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm bg-wedja-border" />
+              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#374151' }} />
               Due
             </span>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-end gap-3 h-48">
-            {monthlyData.map((month) => (
-              <div key={month.label} className="flex-1 flex flex-col items-center gap-1">
-                <div className="w-full flex items-end gap-1 h-36">
-                  {/* Due bar (background) */}
-                  <div className="flex-1 relative">
-                    <div
-                      className="w-full bg-wedja-border/50 rounded-t"
-                      style={{
-                        height: `${(month.due / maxMonthly) * 100}%`,
-                        minHeight: month.due > 0 ? "4px" : "0",
-                      }}
-                    />
-                  </div>
-                  {/* Collected bar */}
-                  <div className="flex-1 relative">
-                    <div
-                      className="w-full bg-wedja-accent rounded-t"
-                      style={{
-                        height: `${(month.collected / maxMonthly) * 100}%`,
-                        minHeight: month.collected > 0 ? "4px" : "0",
-                      }}
-                    />
-                  </div>
-                </div>
-                <span className="text-[10px] text-text-muted whitespace-nowrap">
-                  {month.label}
-                </span>
-              </div>
-            ))}
           </div>
         </CardContent>
       </Card>
