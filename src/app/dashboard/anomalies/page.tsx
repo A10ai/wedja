@@ -861,9 +861,9 @@ function AnomalyByTypeChart({ anomalies }: { anomalies: Anomaly[] }) {
                   color: "#F9FAFB",
                 }}
                 formatter={(value: any) => [`${value}`, "Count"]}
-                cursor={{ fill: "rgba(245, 158, 11, 0.08)" }}
+                cursor={{ fill: "rgba(79, 70, 229, 0.08)" }}
               />
-              <Bar dataKey="count" fill="#F59E0B" radius={[0, 4, 4, 0]} barSize={16} />
+              <Bar dataKey="count" fill="#4F46E5" radius={[0, 4, 4, 0]} barSize={16} />
             </BarChart>
           </ResponsiveContainer>
         </div>

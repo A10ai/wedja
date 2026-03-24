@@ -220,7 +220,7 @@ export default function EnergyPage() {
                 <span className="text-xs text-text-muted font-medium">
                   Today&apos;s Consumption
                 </span>
-                <Zap size={16} className="text-amber-500" />
+                <Zap size={16} className="text-indigo-500" />
               </div>
               <p className="text-xl font-bold font-mono text-text-primary">
                 {formatNumber(overview.total_consumption_kwh_today)}{" "}
@@ -238,7 +238,7 @@ export default function EnergyPage() {
                 <span className="text-xs text-text-muted font-medium">
                   Today&apos;s Cost
                 </span>
-                <Activity size={16} className="text-amber-500" />
+                <Activity size={16} className="text-indigo-500" />
               </div>
               <p className="text-xl font-bold font-mono text-wedja-accent">
                 {formatCurrency(overview.total_cost_egp_today)}
@@ -255,7 +255,7 @@ export default function EnergyPage() {
                 <span className="text-xs text-text-muted font-medium">
                   Monthly Total
                 </span>
-                <BarChart3 size={16} className="text-amber-500" />
+                <BarChart3 size={16} className="text-indigo-500" />
               </div>
               <p className="text-xl font-bold font-mono text-text-primary">
                 {formatCurrency(overview.cost_this_month_egp)}
@@ -320,7 +320,7 @@ export default function EnergyPage() {
                   <Tooltip
                     contentStyle={{ backgroundColor: '#111827', border: '1px solid #1F2937', borderRadius: '8px' }}
                     labelStyle={{ color: '#F9FAFB' }}
-                    itemStyle={{ color: '#F59E0B' }}
+                    itemStyle={{ color: '#4F46E5' }}
                     labelFormatter={(h: any) => `${h}:00`}
                     formatter={(value: any, _name: any, props: any) => {
                       const item = props.payload;
@@ -331,7 +331,7 @@ export default function EnergyPage() {
                     {hourly.map((entry, index) => (
                       <Cell
                         key={`cell-${index}`}
-                        fill={entry.is_peak ? '#EF4444' : entry.is_operating ? '#F59E0B' : '#374151'}
+                        fill={entry.is_peak ? '#EF4444' : entry.is_operating ? '#4F46E5' : '#374151'}
                       />
                     ))}
                   </Bar>
@@ -341,7 +341,7 @@ export default function EnergyPage() {
               {/* Legend */}
               <div className="flex items-center gap-4 mt-3 justify-center">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#F59E0B' }} />
+                  <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: '#4F46E5' }} />
                   <span className="text-[10px] text-text-muted">Operating</span>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -550,9 +550,9 @@ export default function EnergyPage() {
               <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={trend} margin={{ top: 5, right: 5, left: -10, bottom: 5 }}>
                   <defs>
-                    <linearGradient id="energyAmberGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                    <linearGradient id="energyIndigoGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
@@ -569,7 +569,7 @@ export default function EnergyPage() {
                   <Tooltip
                     contentStyle={{ backgroundColor: '#111827', border: '1px solid #1F2937', borderRadius: '8px' }}
                     labelStyle={{ color: '#F9FAFB' }}
-                    itemStyle={{ color: '#F59E0B' }}
+                    itemStyle={{ color: '#4F46E5' }}
                     labelFormatter={(d: any) => {
                       const dateObj = new Date(d);
                       return dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -582,19 +582,19 @@ export default function EnergyPage() {
                   <Area
                     type="monotone"
                     dataKey="consumption_kwh"
-                    stroke="#F59E0B"
-                    fill="url(#energyAmberGradient)"
+                    stroke="#4F46E5"
+                    fill="url(#energyIndigoGradient)"
                     strokeWidth={2}
                   />
                 </AreaChart>
               </ResponsiveContainer>
               <div className="flex items-center gap-4 mt-3 justify-center">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
+                  <div className="w-2.5 h-2.5 rounded-sm bg-indigo-500" />
                   <span className="text-[10px] text-text-muted">Weekend</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2.5 h-2.5 rounded-sm bg-amber-500/60" />
+                  <div className="w-2.5 h-2.5 rounded-sm bg-indigo-500/60" />
                   <span className="text-[10px] text-text-muted">Weekday</span>
                 </div>
               </div>

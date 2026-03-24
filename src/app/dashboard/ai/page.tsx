@@ -607,8 +607,8 @@ export default function AICentrePage() {
                 <Radar
                   name="Score"
                   dataKey="score"
-                  stroke="#F59E0B"
-                  fill="#F59E0B"
+                  stroke="#4F46E5"
+                  fill="#4F46E5"
                   fillOpacity={0.2}
                   strokeWidth={2}
                 />
@@ -619,7 +619,7 @@ export default function AICentrePage() {
                     borderRadius: "8px",
                   }}
                   labelStyle={{ color: "#F9FAFB", fontSize: 12 }}
-                  itemStyle={{ color: "#F59E0B", fontSize: 11 }}
+                  itemStyle={{ color: "#4F46E5", fontSize: 11 }}
                   formatter={(value: any) => [`${value}%`, "Score"]}
                 />
               </RadarChart>
@@ -732,7 +732,7 @@ export default function AICentrePage() {
               }
 
               const barColors = [
-                "#F59E0B", "#EF4444", "#10B981", "#3B82F6",
+                "#4F46E5", "#EF4444", "#10B981", "#3B82F6",
                 "#8B5CF6", "#EC4899", "#06B6D4", "#F97316",
               ];
 
@@ -767,7 +767,7 @@ export default function AICentrePage() {
                         borderRadius: "8px",
                       }}
                       labelStyle={{ color: "#F9FAFB", fontSize: 12 }}
-                      itemStyle={{ color: "#F59E0B", fontSize: 11 }}
+                      itemStyle={{ color: "#4F46E5", fontSize: 11 }}
                       formatter={(value: any) => [formatCurrency(value), "Impact"]}
                     />
                     <Bar dataKey="impact" radius={[0, 4, 4, 0]}>
@@ -1019,7 +1019,7 @@ export default function AICentrePage() {
           { label: "Anomaly Detection", sub: "AI watchdog alerts", href: "/dashboard/anomalies", icon: AlertOctagon, color: "bg-red-500/10 text-red-500" },
           { label: "Revenue Verification", sub: "Review discrepancies", href: "/dashboard/discrepancies", icon: AlertTriangle, color: "bg-orange-500/10 text-orange-500" },
           { label: "Expiring Leases", sub: "Contract renewals", href: "/dashboard/contracts", icon: FileText, color: "bg-purple-500/10 text-purple-500" },
-          { label: "Underperformers", sub: "Tenant analytics", href: "/dashboard/tenant-analytics", icon: BarChart3, color: "bg-amber-500/10 text-amber-500" },
+          { label: "Underperformers", sub: "Tenant analytics", href: "/dashboard/tenant-analytics", icon: BarChart3, color: "bg-indigo-500/10 text-indigo-500" },
           { label: "Social Ideas", sub: "Content calendar", href: "/dashboard/social", icon: Megaphone, color: "bg-pink-500/10 text-pink-500" },
           { label: "CCTV Overview", sub: "Cameras & security", href: "/dashboard/cctv", icon: Video, color: "bg-violet-500/10 text-violet-500" },
           { label: "Energy Savings", sub: "Optimization ideas", href: "/dashboard/energy", icon: Zap, color: "bg-yellow-500/10 text-yellow-500" },

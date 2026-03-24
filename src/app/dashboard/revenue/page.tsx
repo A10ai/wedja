@@ -277,12 +277,12 @@ export default function RevenuePage() {
                 formatter={(value: any) => formatCurrency(Number(value))}
               />
               <Bar dataKey="due" fill="#374151" name="Due" />
-              <Bar dataKey="collected" fill="#F59E0B" name="Collected" />
+              <Bar dataKey="collected" fill="#4F46E5" name="Collected" />
             </BarChart>
           </ResponsiveContainer>
           <div className="flex items-center justify-center gap-4 text-xs mt-3">
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#F59E0B' }} />
+              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: '#4F46E5' }} />
               Collected
             </span>
             <span className="flex items-center gap-1.5">

@@ -523,11 +523,11 @@ export default function ContractsPage() {
                             `${value} lease${value !== 1 ? "s" : ""}`,
                             "Expiring",
                           ]}
-                          cursor={{ fill: "rgba(245,158,11,0.08)" }}
+                          cursor={{ fill: "rgba(79,70,229,0.08)" }}
                         />
                         <Bar
                           dataKey="count"
-                          fill="#F59E0B"
+                          fill="#4F46E5"
                           radius={[6, 6, 0, 0]}
                           maxBarSize={48}
                         />

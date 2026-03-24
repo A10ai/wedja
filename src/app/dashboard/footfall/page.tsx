@@ -451,9 +451,9 @@ export default function FootfallPage() {
                 contentStyle={darkTooltipStyle}
                 labelStyle={{ color: '#9CA3AF', marginBottom: 4 }}
                 formatter={(value: any) => [formatNumber(Number(value)), "Visitors"]}
-                cursor={{ fill: 'rgba(245, 158, 11, 0.08)' }}
+                cursor={{ fill: 'rgba(79, 70, 229, 0.08)' }}
               />
-              <Bar dataKey="count" fill="#F59E0B" radius={[3, 3, 0, 0]} maxBarSize={28} />
+              <Bar dataKey="count" fill="#4F46E5" radius={[3, 3, 0, 0]} maxBarSize={28} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -735,8 +735,8 @@ export default function FootfallPage() {
               <AreaChart data={trendChartData} margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
                 <defs>
                   <linearGradient id="footfallTrendGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#4F46E5" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
@@ -757,12 +757,12 @@ export default function FootfallPage() {
                   contentStyle={darkTooltipStyle}
                   labelStyle={{ color: '#9CA3AF', marginBottom: 4 }}
                   formatter={(value: any) => [formatNumber(Number(value)), "Visitors In"]}
-                  cursor={{ stroke: '#F59E0B', strokeWidth: 1, strokeDasharray: '4 4' }}
+                  cursor={{ stroke: '#4F46E5', strokeWidth: 1, strokeDasharray: '4 4' }}
                 />
                 <Area
                   type="monotone"
                   dataKey="total_in"
-                  stroke="#F59E0B"
+                  stroke="#4F46E5"
                   strokeWidth={2}
                   fill="url(#footfallTrendGradient)"
                 />
@@ -812,7 +812,7 @@ export default function FootfallPage() {
                       </div>
                       <div className="h-2 bg-wedja-border/30 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-amber-500/60 rounded-full"
+                          className="h-full bg-indigo-500/60 rounded-full"
                           style={{
                             width: `${
                               Math.max(peaks.weekday_avg, peaks.weekend_avg) > 0

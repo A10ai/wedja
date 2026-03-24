@@ -759,14 +759,14 @@ export default function DiscrepanciesPage() {
                         `EGP ${Number(value).toLocaleString()}`,
                         "Variance",
                       ]}
-                      cursor={{ fill: "rgba(245,158,11,0.08)" }}
+                      cursor={{ fill: "rgba(79,70,229,0.08)" }}
                     />
                     <Bar dataKey="variance" radius={[0, 4, 4, 0]}>
                       {topTenantsByVariance.map((entry, idx) => (
                         <Cell
                           key={idx}
                           fill={
-                            CONFIDENCE_BAR_COLORS[entry.confidence] || "#F59E0B"
+                            CONFIDENCE_BAR_COLORS[entry.confidence] || "#4F46E5"
                           }
                         />
                       ))}

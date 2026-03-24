@@ -436,8 +436,8 @@ export default function DashboardPage() {
                 <AreaChart data={monthlyRevenueData} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorCollected" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#4F46E5" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorDue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#6B7280" stopOpacity={0.3} />
@@ -476,7 +476,7 @@ export default function DashboardPage() {
                     type="monotone"
                     dataKey="collected"
                     name="Collected"
-                    stroke="#F59E0B"
+                    stroke="#4F46E5"
                     fillOpacity={1}
                     fill="url(#colorCollected)"
                     strokeWidth={2}
@@ -531,7 +531,7 @@ export default function DashboardPage() {
                   <Bar
                     dataKey="visitors"
                     name="Visitors"
-                    fill="#F59E0B"
+                    fill="#4F46E5"
                     radius={[4, 4, 0, 0]}
                     maxBarSize={48}
                   />

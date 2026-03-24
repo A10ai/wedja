@@ -391,7 +391,7 @@ function RentTypePieChart({ overview }: { overview: Overview }) {
     [overview]
   );
 
-  const COLORS = ["#10B981", "#F59E0B"];
+  const COLORS = ["#10B981", "#4F46E5"];
 
   return (
     <Card>
@@ -656,7 +656,7 @@ function MonthlyTrendChart({ trend }: { trend: TrendMonth[] }) {
               }
               wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }}
             />
-            <Bar dataKey="base" stackId="rent" fill="#F59E0B" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="base" stackId="rent" fill="#4F46E5" radius={[0, 0, 0, 0]} />
             <Bar dataKey="premium" stackId="rent" fill="#10B981" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>

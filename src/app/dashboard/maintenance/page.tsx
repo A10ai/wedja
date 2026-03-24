@@ -378,7 +378,7 @@ export default function MaintenancePage() {
                     }}
                     formatter={(value: any) => [`${value} tickets`, ""]}
                   />
-                  <Bar dataKey="count" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="count" fill="#4F46E5" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

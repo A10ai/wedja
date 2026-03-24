@@ -508,7 +508,7 @@ export default function MarketingPage() {
                 <span className="text-xs text-text-muted font-medium">
                   Active Events
                 </span>
-                <Calendar size={16} className="text-amber-500" />
+                <Calendar size={16} className="text-indigo-500" />
               </div>
               <p className="text-xl font-bold font-mono text-text-primary">
                 {overview.active_events.count}
@@ -525,7 +525,7 @@ export default function MarketingPage() {
                 <span className="text-xs text-text-muted font-medium">
                   Active Campaigns
                 </span>
-                <Target size={16} className="text-amber-500" />
+                <Target size={16} className="text-indigo-500" />
               </div>
               <p className="text-xl font-bold font-mono text-text-primary">
                 {overview.active_campaigns.count}
@@ -542,7 +542,7 @@ export default function MarketingPage() {
                 <span className="text-xs text-text-muted font-medium">
                   Marketing Spend
                 </span>
-                <DollarSign size={16} className="text-amber-500" />
+                <DollarSign size={16} className="text-indigo-500" />
               </div>
               <p className="text-xl font-bold font-mono text-wedja-accent">
                 {formatCurrency(overview.total_marketing_spend_this_month)}
@@ -576,7 +576,7 @@ export default function MarketingPage() {
                 <span className="text-xs text-text-muted font-medium">
                   Upcoming Events
                 </span>
-                <Clock size={16} className="text-amber-500" />
+                <Clock size={16} className="text-indigo-500" />
               </div>
               <p className="text-xl font-bold font-mono text-text-primary">
                 {overview.upcoming_events.count}
@@ -1136,7 +1136,7 @@ export default function MarketingPage() {
                       ]}
                     />
                     <Legend wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }} />
-                    <Bar dataKey="budget" name="Budget" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="budget" name="Budget" fill="#4F46E5" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="spend" name="Spend" fill="#3B82F6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1219,7 +1219,7 @@ export default function MarketingPage() {
                       ]}
                     />
                     <Legend wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }} />
-                    <Bar dataKey="expected" name="Expected" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="expected" name="Expected" fill="#4F46E5" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="actual" name="Actual" fill="#10B981" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1468,7 +1468,7 @@ export default function MarketingPage() {
                       <td className="px-4 py-2.5 text-text-secondary text-xs whitespace-nowrap">
                         {formatDate(p.start_date)} — {formatDate(p.end_date)}
                       </td>
-                      <td className="px-4 py-2.5 text-center font-mono text-amber-500">
+                      <td className="px-4 py-2.5 text-center font-mono text-indigo-500">
                         {p.discount_pct ? `${p.discount_pct}%` : "-"}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-emerald-500">

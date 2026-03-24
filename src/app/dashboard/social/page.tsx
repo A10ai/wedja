@@ -1056,7 +1056,7 @@ export default function SocialMediaPage() {
                       'Engagement',
                     ]}
                   />
-                  <Bar dataKey="engagement" fill="#F59E0B" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="engagement" fill="#4F46E5" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

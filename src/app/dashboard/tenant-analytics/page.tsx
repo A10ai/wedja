@@ -41,7 +41,7 @@ const DARK_TOOLTIP = {
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
-  fashion: '#F59E0B',
+  fashion: '#4F46E5',
   food: '#EF4444',
   entertainment: '#3B82F6',
   electronics: '#8B5CF6',
@@ -49,7 +49,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   grocery: '#14B8A6',
 };
 
-const PIE_FALLBACK_COLORS = ['#F59E0B', '#10B981', '#EF4444', '#3B82F6', '#8B5CF6', '#14B8A6', '#EC4899', '#F97316'];
+const PIE_FALLBACK_COLORS = ['#4F46E5', '#10B981', '#EF4444', '#3B82F6', '#8B5CF6', '#14B8A6', '#EC4899', '#F97316'];
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -635,12 +635,12 @@ export default function TenantAnalyticsPage() {
                   <Tooltip
                     contentStyle={DARK_TOOLTIP}
                     labelStyle={{ color: '#F9FAFB', fontWeight: 600 }}
-                    itemStyle={{ color: '#F59E0B' }}
+                    itemStyle={{ color: '#4F46E5' }}
                     formatter={(value: any) => [`EGP ${Number(value).toLocaleString()}`, 'Revenue/sqm']}
                   />
                   <Bar dataKey="revenue_per_sqm" radius={[0, 4, 4, 0]} barSize={22}>
                     {top10.map((entry, idx) => (
-                      <Cell key={idx} fill={CATEGORY_COLORS[entry.category] || '#F59E0B'} fillOpacity={0.85} />
+                      <Cell key={idx} fill={CATEGORY_COLORS[entry.category] || '#4F46E5'} fillOpacity={0.85} />
                     ))}
                   </Bar>
                 </BarChart>
