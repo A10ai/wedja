@@ -708,3 +708,4 @@ export async function getPeakPatterns(
     peak_hour_avg: peakHourAvg,
   };
 }
+
