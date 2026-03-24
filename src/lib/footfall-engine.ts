@@ -133,10 +133,29 @@ export async function getFootfallOverview(
     .eq("property_id", propertyId)
     .eq("date", today);
 
-  const total_visitors_today = (todayData || []).reduce(
+  let total_visitors_today = (todayData || []).reduce(
     (sum: number, r: { total_in: number }) => sum + (r.total_in || 0),
     0
   );
+
+  // Fallback: sum live readings from footfall_readings (CV service data)
+  if (total_visitors_today === 0) {
+    try {
+      const todayStart = today + "T00:00:00Z";
+      const { data: liveReadings } = await supabase
+        .from("footfall_readings")
+        .select("count_in")
+        .gte("timestamp", todayStart);
+      if (liveReadings && liveReadings.length > 0) {
+        total_visitors_today = liveReadings.reduce(
+          (sum: number, r: { count_in: number }) => sum + (r.count_in || 0),
+          0
+        );
+      }
+    } catch {
+      // Live readings optional
+    }
+  }
 
   // Yesterday
   const { data: yesterdayData } = await supabase
