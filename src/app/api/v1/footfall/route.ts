@@ -10,7 +10,7 @@ import {
   getPeakPatterns,
 } from "@/lib/footfall-engine";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // v2
 
 const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
 
