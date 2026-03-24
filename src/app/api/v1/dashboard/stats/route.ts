@@ -91,11 +91,30 @@ export async function GET() {
     );
     const activeTenants = uniqueTenantIds.size;
 
-    // Footfall today
-    const footfallToday = (footfallResult.data || []).reduce(
+    // Footfall today — check footfall_daily first, fallback to footfall_readings
+    let footfallToday = (footfallResult.data || []).reduce(
       (sum, f) => sum + (f.total_in || 0),
       0
     );
+
+    // If no daily summary, sum live readings from footfall_readings
+    if (footfallToday === 0) {
+      try {
+        const todayStart = new Date().toISOString().split("T")[0] + "T00:00:00Z";
+        const { data: liveReadings } = await supabase
+          .from("footfall_readings")
+          .select("count_in")
+          .gte("timestamp", todayStart);
+        if (liveReadings && liveReadings.length > 0) {
+          footfallToday = liveReadings.reduce(
+            (sum, r) => sum + (r.count_in || 0),
+            0
+          );
+        }
+      } catch {
+        // Live readings optional
+      }
+    }
 
     return NextResponse.json({
       total_revenue_egp: totalRevenue,
