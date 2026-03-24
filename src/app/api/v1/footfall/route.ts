@@ -29,19 +29,32 @@ export async function GET(req: NextRequest) {
     switch (type) {
       case "overview": {
         const todayStr = date || new Date().toISOString().split("T")[0];
-        // Run engine overview and direct live count in parallel
-        const [overview, liveResult] = await Promise.all([
-          getFootfallOverview(supabase, PROPERTY_ID, date),
-          supabase
-            .from("footfall_readings")
-            .select("count_in", { count: "exact" })
-            .gte("timestamp", todayStr + "T00:00:00Z")
-            .lte("timestamp", todayStr + "T23:59:59Z"),
-        ]);
-        const liveTotal = (liveResult.data || []).reduce((s: number, r: any) => s + (r.count_in || 0), 0);
-        const result = { ...overview };
-        result.total_visitors_today = Math.max(result.total_visitors_today, liveTotal);
-        return NextResponse.json(result, {
+        // Get engine overview
+        const overview = await getFootfallOverview(supabase, PROPERTY_ID, date);
+        // Direct fetch to Supabase REST (bypass SDK caching)
+        let liveTotal = 0;
+        try {
+          const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+          const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+          const liveRes = await fetch(
+            `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z`,
+            {
+              headers: {
+                apikey: sbKey,
+                Authorization: `Bearer ${sbKey}`,
+              },
+              cache: "no-store",
+            }
+          );
+          const liveData = await liveRes.json();
+          if (Array.isArray(liveData)) {
+            liveTotal = liveData.reduce((s: number, r: any) => s + (r.count_in || 0), 0);
+          }
+        } catch { /* */ }
+        return NextResponse.json({
+          ...overview,
+          total_visitors_today: Math.max(overview.total_visitors_today, liveTotal),
+        }, {
           headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
         });
       }
