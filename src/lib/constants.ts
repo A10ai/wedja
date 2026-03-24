@@ -1,5 +1,6 @@
 import {
   Eye,
+  Newspaper,
   LayoutDashboard,
   Building2,
   Store,
@@ -43,6 +44,7 @@ export const SIDEBAR_NAV: NavGroup[] = [
   {
     label: "Overview",
     items: [
+      { label: "Daily Briefing", href: "/dashboard/briefing", icon: Newspaper },
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
       { label: "Live Map", href: "/dashboard/heatmap", icon: Map },
       { label: "Property", href: "/dashboard/property", icon: Building2 },
