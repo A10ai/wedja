@@ -138,23 +138,25 @@ export async function getFootfallOverview(
     0
   );
 
-  // Fallback: sum live readings from footfall_readings (CV service data)
-  if (total_visitors_today === 0) {
-    try {
-      const todayStart = today + "T00:00:00Z";
-      const { data: liveReadings } = await supabase
-        .from("footfall_readings")
-        .select("count_in")
-        .gte("timestamp", todayStart);
-      if (liveReadings && liveReadings.length > 0) {
-        total_visitors_today = liveReadings.reduce(
-          (sum: number, r: { count_in: number }) => sum + (r.count_in || 0),
-          0
-        );
-      }
-    } catch {
-      // Live readings optional
+  // Add live readings from footfall_readings (CV service pushes here)
+  try {
+    const todayStart = today + "T00:00:00Z";
+    const todayEnd = today + "T23:59:59Z";
+    const { data: liveReadings } = await supabase
+      .from("footfall_readings")
+      .select("count_in")
+      .gte("timestamp", todayStart)
+      .lte("timestamp", todayEnd);
+    if (liveReadings && liveReadings.length > 0) {
+      const liveTotal = liveReadings.reduce(
+        (sum: number, r: { count_in: number }) => sum + (r.count_in || 0),
+        0
+      );
+      // Use whichever is higher: daily summary or live count
+      total_visitors_today = Math.max(total_visitors_today, liveTotal);
     }
+  } catch {
+    // Live readings optional
   }
 
   // Yesterday
