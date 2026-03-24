@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   DollarSign,
@@ -17,7 +17,9 @@ import {
   ShieldAlert,
   Sparkles,
   Megaphone,
+  Radio,
 } from "lucide-react";
+import { useRealtimeSubscription } from "@/hooks/use-realtime";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatNumber, formatPercentage } from "@/lib/utils";
@@ -153,21 +155,31 @@ export default function DashboardPage() {
   const [socialData, setSocialData] = useState<SocialData | null>(null);
   const [footfallTrend, setFootfallTrend] = useState<FootfallTrend[]>([]);
 
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const res = await fetch("/api/v1/dashboard/stats");
-        if (!res.ok) throw new Error("Failed to fetch stats");
-        const data = await res.json();
-        setStats(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
-      }
+  const fetchAll = useCallback(async () => {
+    try {
+      const res = await fetch("/api/v1/dashboard/stats");
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      const data = await res.json();
+      setStats(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
-    fetchStats();
   }, []);
+
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
+
+  // Realtime: re-fetch when key tables change
+  const REALTIME_TABLES = useMemo(() => [
+    "rent_transactions", "maintenance_tickets", "anomalies",
+    "notifications", "footfall_readings", "discrepancies",
+  ], []);
+
+  const { connected: realtimeConnected, lastUpdate: realtimeLastUpdate } =
+    useRealtimeSubscription(REALTIME_TABLES, fetchAll, 3000);
 
   // Fetch cross-data: percentage rent, anomalies, AI insights, social, footfall trend
   useEffect(() => {
@@ -357,11 +369,25 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
-        <p className="text-sm text-text-muted mt-1">
-          Senzo Mall, Hurghada &mdash; Property overview and key metrics
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-text-primary">Dashboard</h1>
+          <p className="text-sm text-text-muted mt-1">
+            Senzo Mall, Hurghada &mdash; Property overview and key metrics
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className={`w-2 h-2 rounded-full ${realtimeConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+          <span className="text-[10px] text-text-muted flex items-center gap-1">
+            <Radio size={10} />
+            {realtimeConnected ? "Live" : "Connecting..."}
+          </span>
+          {realtimeLastUpdate && (
+            <span className="text-[10px] text-text-muted">
+              &middot; Updated {realtimeLastUpdate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Stat cards */}
