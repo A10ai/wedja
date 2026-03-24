@@ -258,7 +258,148 @@ async function importExpenses(
   return { imported, errors };
 }
 
-const VALID_TYPES = ["tenants", "leases", "sales", "rent", "expenses"];
+// ── JDE Revenue Import ─────────────────────────────────────
+
+function normalizeForMatch(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+async function importJDERevenue(
+  supabase: ReturnType<typeof createAdminClient>,
+  buffer: Buffer
+) {
+  const workbook = XLSX.read(buffer);
+  const errors: string[] = [];
+  let imported = 0;
+  let matched = 0;
+  let unmatched = 0;
+  let total_parsed = 0;
+
+  // Find the "ALL Category" sheet or last sheet
+  const allSheet = workbook.SheetNames.find((s) => s.toLowerCase().includes("all category"))
+    || workbook.SheetNames[workbook.SheetNames.length - 1];
+  const ws = workbook.Sheets[allSheet];
+  const rawData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+
+  if (rawData.length < 4) {
+    return { imported: 0, errors: ["File too short"], total_parsed: 0, matched: 0, unmatched: 0 };
+  }
+
+  // Find header row (row with "Customer Number" or "Customer Name")
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(10, rawData.length); i++) {
+    const row = rawData[i].map((c: any) => String(c).toLowerCase());
+    if (row.some((c: string) => c.includes("customer"))) {
+      headerIdx = i;
+      break;
+    }
+  }
+  if (headerIdx < 0) {
+    return { imported: 0, errors: ["Could not find header row"], total_parsed: 0, matched: 0, unmatched: 0 };
+  }
+
+  // Detect month columns (columns 3-14 typically have dates like "2025-01-01" or month values)
+  const headers = rawData[headerIdx];
+  const monthCols: { col: number; month: number; year: number }[] = [];
+  for (let c = 2; c < headers.length - 2; c++) {
+    const val = String(headers[c]);
+    // Try parsing as date
+    const dateMatch = val.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      monthCols.push({ col: c, month: parseInt(dateMatch[2]), year: parseInt(dateMatch[1]) });
+    }
+  }
+
+  if (monthCols.length === 0) {
+    return { imported: 0, errors: ["Could not detect month columns"], total_parsed: 0, matched: 0, unmatched: 0 };
+  }
+
+  // Fetch tenants and leases
+  const { data: tenants } = await supabase.from("tenants").select("id, brand_name, name");
+  const { data: leases } = await supabase.from("leases").select("id, tenant_id").eq("status", "active");
+
+  if (!tenants || !leases) {
+    return { imported: 0, errors: ["Failed to fetch tenants/leases"], total_parsed: 0, matched: 0, unmatched: 0 };
+  }
+
+  // Build lookup maps
+  const tenantByNorm: Record<string, { id: string; brand_name: string }> = {};
+  for (const t of tenants) {
+    const norm = normalizeForMatch(t.brand_name || t.name || "");
+    if (norm) tenantByNorm[norm] = { id: t.id, brand_name: t.brand_name || t.name };
+  }
+  const leaseByTenant: Record<string, string> = {};
+  for (const l of leases) {
+    leaseByTenant[l.tenant_id] = l.id;
+  }
+
+  // Match function
+  function findTenant(jdeName: string): { id: string; brand_name: string } | null {
+    const norm = normalizeForMatch(jdeName);
+    if (!norm) return null;
+    // Exact
+    if (tenantByNorm[norm]) return tenantByNorm[norm];
+    // Contains
+    for (const [key, val] of Object.entries(tenantByNorm)) {
+      if (key.includes(norm) || norm.includes(key)) return val;
+    }
+    // First word (min 4 chars)
+    const firstWord = norm.slice(0, Math.max(4, norm.indexOf(" ") > 0 ? norm.indexOf(" ") : norm.length));
+    for (const [key, val] of Object.entries(tenantByNorm)) {
+      if (key.startsWith(firstWord) || firstWord.startsWith(key.slice(0, 4))) return val;
+    }
+    return null;
+  }
+
+  // Process data rows
+  for (let r = headerIdx + 1; r < rawData.length; r++) {
+    const row = rawData[r];
+    const custName = String(row[1] || "").trim();
+    if (!custName || custName.toLowerCase().includes("total")) continue;
+    total_parsed++;
+
+    const tenant = findTenant(custName);
+    if (!tenant) {
+      unmatched++;
+      continue;
+    }
+    matched++;
+
+    const leaseId = leaseByTenant[tenant.id];
+    if (!leaseId) {
+      errors.push(`No lease for tenant: ${custName} (${tenant.brand_name})`);
+      continue;
+    }
+
+    // Insert monthly transactions
+    for (const mc of monthCols) {
+      const amount = parseFloat(String(row[mc.col] || "0").replace(/,/g, ""));
+      if (!amount || amount <= 0) continue;
+
+      const { error } = await supabase.from("rent_transactions").insert({
+        lease_id: leaseId,
+        period_month: mc.month,
+        period_year: mc.year,
+        min_rent_due: 0,
+        percentage_rent_due: 0,
+        amount_due: amount,
+        amount_paid: amount,
+        status: "paid",
+        payment_method: "jde_import",
+      });
+
+      if (error) {
+        errors.push(`Row ${r + 1} ${mc.month}/${mc.year}: ${error.message}`);
+      } else {
+        imported++;
+      }
+    }
+  }
+
+  return { imported, errors: errors.slice(0, 50), total_parsed, matched, unmatched };
+}
+
+const VALID_TYPES = ["tenants", "leases", "sales", "rent", "expenses", "jde_revenue"];
 
 export async function GET() {
   return NextResponse.json({
@@ -293,6 +434,12 @@ export async function GET() {
         required: ["unit_id", "tenant_id", "start_date", "end_date"],
         optional: ["min_rent_monthly_egp", "percentage_rate", "status"],
       },
+      {
+        id: "jde_revenue",
+        name: "JDE Revenue Analysis",
+        required: ["Auto-detected from JDE Excel format"],
+        optional: ["Matches tenants by name, imports monthly revenue by category"],
+      },
     ],
   });
 }
@@ -325,6 +472,23 @@ export async function POST(req: NextRequest) {
         { error: "Unsupported file format. Must be .csv, .xlsx, or .xls" },
         { status: 400 }
       );
+    }
+
+    // Special handling for JDE Revenue format
+    if (type === "jde_revenue") {
+      if (!isExcel) {
+        return NextResponse.json({ error: "JDE Revenue requires Excel (.xlsx) format" }, { status: 400 });
+      }
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const result = await importJDERevenue(supabase, buffer);
+      return NextResponse.json({
+        imported: result.imported,
+        errors: result.errors,
+        total_rows: result.total_parsed,
+        matched: result.matched,
+        unmatched: result.unmatched,
+      });
     }
 
     let rows: Record<string, string>[];
