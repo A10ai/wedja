@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   AlertOctagon,
   Loader2,
@@ -28,6 +28,18 @@ import {
   Ban,
   ArrowRight,
 } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -690,6 +702,176 @@ function CorrelationGraph({ anomalies }: { anomalies: Anomaly[] }) {
   );
 }
 
+// ── Severity Donut Chart ─────────────────────────────────────
+
+const SEVERITY_COLORS: Record<string, string> = {
+  critical: "#EF4444",
+  high: "#F97316",
+  warning: "#F59E0B",
+  medium: "#3B82F6",
+  low: "#6B7280",
+};
+
+function SeverityDonutChart({ anomalies }: { anomalies: Anomaly[] }) {
+  const data = useMemo(() => {
+    const counts: Record<string, number> = {};
+    anomalies.forEach((a) => {
+      counts[a.severity] = (counts[a.severity] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value, key: name }))
+      .sort((a, b) => (severityOrder[a.key] ?? 99) - (severityOrder[b.key] ?? 99));
+  }, [anomalies]);
+
+  if (data.length === 0) return null;
+
+  const total = data.reduce((s, d) => s + d.value, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+          <AlertTriangle size={16} className="text-red-400" />
+          Anomalies by Severity
+        </h2>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[220px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={55}
+                outerRadius={85}
+                paddingAngle={3}
+                dataKey="value"
+                stroke="none"
+              >
+                {data.map((entry) => (
+                  <Cell
+                    key={entry.key}
+                    fill={SEVERITY_COLORS[entry.key] || "#6B7280"}
+                  />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#111827",
+                  border: "1px solid #1F2937",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "#F9FAFB",
+                }}
+                formatter={(value: any) => [`${value} anomalies`, ""]}
+              />
+              <text
+                x="50%"
+                y="48%"
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="fill-text-primary text-2xl font-bold font-mono"
+                style={{ fontSize: "24px", fontWeight: 700 }}
+              >
+                {total}
+              </text>
+              <text
+                x="50%"
+                y="60%"
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="fill-text-muted"
+                style={{ fontSize: "10px" }}
+              >
+                total
+              </text>
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex flex-wrap justify-center gap-3 mt-2">
+          {data.map((entry) => (
+            <div key={entry.key} className="flex items-center gap-1.5 text-[10px] text-text-secondary">
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: SEVERITY_COLORS[entry.key] || "#6B7280" }}
+              />
+              {entry.name}: {entry.value}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Anomalies by Type Bar Chart ──────────────────────────────
+
+function AnomalyByTypeChart({ anomalies }: { anomalies: Anomaly[] }) {
+  const data = useMemo(() => {
+    const counts: Record<string, number> = {};
+    anomalies.forEach((a) => {
+      counts[a.anomaly_type] = (counts[a.anomaly_type] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([type, count]) => ({
+        type,
+        label: typeConfig[type]?.label || type,
+        count,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [anomalies]);
+
+  if (data.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+          <Activity size={16} className="text-wedja-accent" />
+          Anomalies by Type
+        </h2>
+      </CardHeader>
+      <CardContent>
+        <div className="h-[220px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} layout="vertical" margin={{ left: 0, right: 12, top: 4, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" horizontal={false} />
+              <XAxis
+                type="number"
+                allowDecimals={false}
+                tick={{ fill: "#6B7280", fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey="label"
+                width={90}
+                tick={{ fill: "#9CA3AF", fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#111827",
+                  border: "1px solid #1F2937",
+                  borderRadius: "8px",
+                  fontSize: "12px",
+                  color: "#F9FAFB",
+                }}
+                formatter={(value: any) => [`${value}`, "Count"]}
+                cursor={{ fill: "rgba(245, 158, 11, 0.08)" }}
+              />
+              <Bar dataKey="count" fill="#F59E0B" radius={[0, 4, 4, 0]} barSize={16} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Page ───────────────────────────────────────────────
 
 export default function AnomaliesPage() {
@@ -1160,6 +1342,12 @@ export default function AnomaliesPage() {
 
           {/* Correlation Graph */}
           <CorrelationGraph anomalies={activeAnomalies} />
+
+          {/* Severity Donut Chart */}
+          <SeverityDonutChart anomalies={activeAnomalies} />
+
+          {/* Anomalies by Type Bar Chart */}
+          <AnomalyByTypeChart anomalies={activeAnomalies} />
 
           {/* Most anomalous zone */}
           {stats?.most_anomalous_zone && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Camera,
   Users,
@@ -26,6 +26,17 @@ import {
   UserCheck,
   Zap,
 } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -538,42 +549,55 @@ function ParkingGauge({ occupied, total, pct }: { occupied: number; total: numbe
   );
 }
 
-// ── Pie Chart (simple CSS) ────────────────────────────────────
+// ── Pie Chart (Recharts Donut) ────────────────────────────────
 
 function SimplePie({ data }: { data: { label: string; value: number; color: string }[] }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return null;
 
-  let cumulative = 0;
-  const segments = data.map((d) => {
-    const pct = (d.value / total) * 100;
-    const start = cumulative;
-    cumulative += pct;
-    return { ...d, pct, start };
-  });
-
-  const gradientParts = segments.map(
-    (s) => `${s.color} ${s.start}% ${s.start + s.pct}%`
-  );
-
   return (
     <div className="flex items-center gap-6">
-      <div
-        className="w-28 h-28 rounded-full flex-shrink-0"
-        style={{
-          background: `conic-gradient(${gradientParts.join(", ")})`,
-        }}
-        role="img"
-        aria-label="Demographic distribution pie chart"
-      />
+      <div className="w-28 h-28 flex-shrink-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="label"
+              cx="50%"
+              cy="50%"
+              innerRadius={30}
+              outerRadius={50}
+              strokeWidth={0}
+            >
+              {data.map((d, i) => (
+                <Cell key={i} fill={d.color} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#1F2937",
+                border: "1px solid #374151",
+                borderRadius: "8px",
+                color: "#F9FAFB",
+                fontSize: "12px",
+              }}
+              formatter={(value: any) => [formatNumber(value), ""]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
       <div className="space-y-1.5">
-        {segments.map((s, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
-            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
-            <span className="text-text-secondary capitalize">{s.label}</span>
-            <span className="font-mono text-text-primary ml-auto">{s.pct.toFixed(1)}%</span>
-          </div>
-        ))}
+        {data.map((d, i) => {
+          const pct = (d.value / total) * 100;
+          return (
+            <div key={i} className="flex items-center gap-2 text-xs">
+              <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: d.color }} />
+              <span className="text-text-secondary capitalize">{d.label}</span>
+              <span className="font-mono text-text-primary ml-auto">{pct.toFixed(1)}%</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -649,6 +673,32 @@ export default function CCTVAnalyticsPage() {
   const [parkingData, setParkingData] = useState<ParkingData | null>(null);
   const [securityData, setSecurityData] = useState<SecurityData | null>(null);
   const [conversionData, setConversionData] = useState<StoreConversionData | null>(null);
+
+  // ── Recharts computed data ──────────────────────────────────
+
+  const cameraStatusData = useMemo(() => {
+    if (!overview) return [];
+    const active = overview.cameras_online;
+    const offline = Math.max(0, overview.cameras_total - overview.cameras_online - Math.floor(overview.cameras_total * 0.05));
+    const maintenance = overview.cameras_total - active - offline;
+    return [
+      { name: "Active", value: active, color: "#10B981" },
+      { name: "Offline", value: offline, color: "#EF4444" },
+      { name: "Maintenance", value: Math.max(0, maintenance), color: "#F59E0B" },
+    ].filter((d) => d.value > 0);
+  }, [overview]);
+
+  const topConversionChartData = useMemo(() => {
+    if (!conversionData) return [];
+    return [...conversionData.stores]
+      .sort((a, b) => b.conversion_rate - a.conversion_rate)
+      .slice(0, 10)
+      .map((s) => ({
+        name: s.tenant_name.length > 14 ? s.tenant_name.slice(0, 12) + "..." : s.tenant_name,
+        rate: parseFloat(s.conversion_rate.toFixed(1)),
+        fullName: s.tenant_name,
+      }));
+  }, [conversionData]);
 
   const fetchData = useCallback(async (tab: TabKey) => {
     setLoading(true);
@@ -811,6 +861,66 @@ export default function CCTVAnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Camera Status Donut */}
+        {cameraStatusData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <span className="text-sm font-semibold text-text-primary">Camera Status</span>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-8">
+                <div className="w-40 h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={cameraStatusData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={65}
+                        strokeWidth={0}
+                      >
+                        {cameraStatusData.map((d, i) => (
+                          <Cell key={i} fill={d.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#1F2937",
+                          border: "1px solid #374151",
+                          borderRadius: "8px",
+                          color: "#F9FAFB",
+                          fontSize: "12px",
+                        }}
+                        formatter={(value: any, name: any) => [`${value} cameras`, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-2">
+                  {cameraStatusData.map((d, i) => (
+                    <div key={i} className="flex items-center gap-2.5">
+                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: d.color }} />
+                      <span className="text-sm text-text-secondary">{d.name}</span>
+                      <span className="font-mono text-sm font-bold text-text-primary ml-auto pl-4">{d.value}</span>
+                    </div>
+                  ))}
+                  <div className="border-t border-wedja-border pt-2 mt-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm text-text-muted">Total</span>
+                      <span className="font-mono text-sm font-bold text-text-primary ml-auto pl-4">
+                        {overview.cameras_total}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Quick access grid */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -1497,6 +1607,63 @@ export default function CCTVAnalyticsPage() {
             sub={conversionData.top_converters[0]?.tenant_name}
           />
         </div>
+
+        {/* Top Stores Conversion Bar Chart */}
+        {topConversionChartData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <span className="text-sm font-semibold text-text-primary">Top 10 Stores by Conversion Rate</span>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={topConversionChartData}
+                    margin={{ top: 8, right: 16, left: 0, bottom: 48 }}
+                  >
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      angle={-35}
+                      textAnchor="end"
+                      interval={0}
+                      axisLine={{ stroke: "#374151" }}
+                      tickLine={{ stroke: "#374151" }}
+                    />
+                    <YAxis
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      axisLine={{ stroke: "#374151" }}
+                      tickLine={{ stroke: "#374151" }}
+                      tickFormatter={(v: any) => `${v}%`}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#1F2937",
+                        border: "1px solid #374151",
+                        borderRadius: "8px",
+                        color: "#F9FAFB",
+                        fontSize: "12px",
+                      }}
+                      formatter={(value: any, _name: any, props: any) => [
+                        `${value}%`,
+                        props.payload.fullName,
+                      ]}
+                      labelFormatter={() => ""}
+                    />
+                    <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
+                      {topConversionChartData.map((entry, i) => (
+                        <Cell
+                          key={i}
+                          fill={entry.rate > 30 ? "#10B981" : entry.rate > 15 ? "#3B82F6" : "#EF4444"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

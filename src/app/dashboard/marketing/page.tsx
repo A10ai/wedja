@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Megaphone,
   Loader2,
@@ -20,6 +20,18 @@ import {
   DollarSign,
   BarChart3,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -205,6 +217,37 @@ function typeLabel(t: string): string {
   return t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const DARK_TOOLTIP = {
+  contentStyle: {
+    backgroundColor: "#111827",
+    border: "1px solid #1F2937",
+    borderRadius: "8px",
+  },
+  labelStyle: { color: "#9CA3AF" },
+  itemStyle: { color: "#F9FAFB" },
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  active: "#10B981",
+  draft: "#3B82F6",
+  planned: "#3B82F6",
+  completed: "#6B7280",
+  paused: "#EF4444",
+  cancelled: "#EF4444",
+};
+
+const CAMPAIGN_TYPE_COLORS: Record<string, string> = {
+  social_media: "#3B82F6",
+  email: "#10B981",
+  sms: "#F59E0B",
+  billboard: "#8B5CF6",
+  radio: "#EC4899",
+  influencer: "#F97316",
+  partnership: "#14B8A6",
+  loyalty: "#6366F1",
+  seasonal: "#EAB308",
+};
+
 // ── Form Modal Component ─────────────────────────────────────
 
 function FormModal({
@@ -260,6 +303,55 @@ export default function MarketingPage() {
   const [showCampaignForm, setShowCampaignForm] = useState(false);
   const [expandedSeason, setExpandedSeason] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // ── Chart Data (computed) ──────────────────────────────────
+  const campaignBarData = useMemo(() => {
+    if (!campaignData?.campaigns.length) return [];
+    return campaignData.campaigns
+      .filter((c) => c.budget_egp && c.budget_egp > 0)
+      .map((c) => ({
+        name: c.name.length > 18 ? c.name.slice(0, 18) + "..." : c.name,
+        budget: c.budget_egp || 0,
+        spend: c.spend_egp,
+        roi: c.roi_pct ?? 0,
+      }));
+  }, [campaignData]);
+
+  const campaignsByStatus = useMemo(() => {
+    if (!campaignData?.campaigns.length) return [];
+    const counts: Record<string, number> = {};
+    campaignData.campaigns.forEach((c) => {
+      counts[c.status] = (counts[c.status] || 0) + 1;
+    });
+    return Object.entries(counts).map(([status, count]) => ({
+      name: status.charAt(0).toUpperCase() + status.slice(1),
+      value: count,
+      status,
+    }));
+  }, [campaignData]);
+
+  const campaignsByType = useMemo(() => {
+    if (!campaignData?.campaigns.length) return [];
+    const counts: Record<string, number> = {};
+    campaignData.campaigns.forEach((c) => {
+      counts[c.campaign_type] = (counts[c.campaign_type] || 0) + 1;
+    });
+    return Object.entries(counts).map(([type, count]) => ({
+      name: typeLabel(type),
+      value: count,
+      type,
+    }));
+  }, [campaignData]);
+
+  const eventPerformanceBarData = useMemo(() => {
+    if (!performance.events.length) return [];
+    return performance.events.map((e) => ({
+      name: e.title.length > 16 ? e.title.slice(0, 16) + "..." : e.title,
+      expected: e.expected_boost,
+      actual: e.actual_boost ?? 0,
+      roi: e.roi_pct ?? 0,
+    }));
+  }, [performance]);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -1001,6 +1093,183 @@ export default function MarketingPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* ── D2. Campaign & Event Charts ────────────────────────── */}
+      {(campaignBarData.length > 0 || campaignsByType.length > 0 || eventPerformanceBarData.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Campaign Budget vs Spend */}
+          {campaignBarData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                  <DollarSign size={16} className="text-wedja-accent" />
+                  Campaign Budget vs Spend
+                </h2>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={campaignBarData} barGap={4}>
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      axisLine={{ stroke: "#1F2937" }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      axisLine={{ stroke: "#1F2937" }}
+                      tickLine={false}
+                      tickFormatter={(v: any) =>
+                        v >= 1000000
+                          ? `${(v / 1000000).toFixed(1)}M`
+                          : v >= 1000
+                          ? `${(v / 1000).toFixed(0)}K`
+                          : `${v}`
+                      }
+                    />
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(value: any, name: any) => [
+                        formatCurrency(value),
+                        name === "budget" ? "Budget" : "Spend",
+                      ]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }} />
+                    <Bar dataKey="budget" name="Budget" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="spend" name="Spend" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Campaigns by Type — Donut */}
+          {campaignsByType.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                  <Target size={16} className="text-wedja-accent" />
+                  Campaigns by Type
+                </h2>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={campaignsByType}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={70}
+                      outerRadius={110}
+                      paddingAngle={4}
+                      dataKey="value"
+                      nameKey="name"
+                      label={({ name, percent }: any) =>
+                        `${name}: ${(percent * 100).toFixed(0)}%`
+                      }
+                    >
+                      {campaignsByType.map((entry, idx) => (
+                        <Cell
+                          key={idx}
+                          fill={CAMPAIGN_TYPE_COLORS[entry.type] || "#6B7280"}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(value: any) => [`${value} campaign${value !== 1 ? "s" : ""}`, ""]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Event Performance: Expected vs Actual Boost */}
+          {eventPerformanceBarData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                  <BarChart3 size={16} className="text-wedja-accent" />
+                  Event Footfall Boost: Expected vs Actual
+                </h2>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={eventPerformanceBarData} barGap={4}>
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      axisLine={{ stroke: "#1F2937" }}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      axisLine={{ stroke: "#1F2937" }}
+                      tickLine={false}
+                      tickFormatter={(v: any) => `${v}%`}
+                    />
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(value: any, name: any) => [
+                        `${value}%`,
+                        name === "expected" ? "Expected" : "Actual",
+                      ]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }} />
+                    <Bar dataKey="expected" name="Expected" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="actual" name="Actual" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Campaigns by Status — Donut */}
+          {campaignsByStatus.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                  <Megaphone size={16} className="text-wedja-accent" />
+                  Campaigns by Status
+                </h2>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={campaignsByStatus}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={70}
+                      outerRadius={110}
+                      paddingAngle={4}
+                      dataKey="value"
+                      nameKey="name"
+                      label={({ name, percent }: any) =>
+                        `${name}: ${(percent * 100).toFixed(0)}%`
+                      }
+                    >
+                      {campaignsByStatus.map((entry, idx) => (
+                        <Cell
+                          key={idx}
+                          fill={STATUS_COLORS[entry.status] || "#6B7280"}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(value: any) => [`${value} campaign${value !== 1 ? "s" : ""}`, ""]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* ── E. Event Performance (Completed) ───────────────────── */}

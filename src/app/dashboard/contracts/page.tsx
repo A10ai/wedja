@@ -30,6 +30,18 @@ import {
   formatNumber,
   formatPercentage,
 } from "@/lib/utils";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 
 import type {
   ContractOverview,
@@ -189,6 +201,49 @@ export default function ContractsPage() {
 
   const criticalAlerts = alerts.filter((a) => a.severity === "critical").length;
   const expiringCount90 = expiring.filter((l) => l.days_until_expiry <= 90).length;
+
+  // ── Chart Data ──────────────────────────────────────────────
+
+  const STATUS_COLORS: Record<string, string> = {
+    Active: "#10B981",
+    Expired: "#EF4444",
+    Pending: "#F59E0B",
+    Terminated: "#6B7280",
+  };
+
+  const statusPieData = useMemo(() => {
+    if (!overview) return [];
+    const terminated =
+      overview.total_leases -
+      overview.active_leases -
+      overview.expired_leases -
+      overview.pending_leases;
+    return [
+      { name: "Active", value: overview.active_leases },
+      { name: "Expired", value: overview.expired_leases },
+      { name: "Pending", value: overview.pending_leases },
+      { name: "Terminated", value: Math.max(terminated, 0) },
+    ].filter((d) => d.value > 0);
+  }, [overview]);
+
+  const expiryTimelineData = useMemo(() => {
+    const now = new Date();
+    const months: { label: string; count: number }[] = [];
+    for (let i = 0; i < 6; i++) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() + i + 1, 0);
+      const label = monthDate.toLocaleString("default", {
+        month: "short",
+        year: "2-digit",
+      });
+      const count = expiring.filter((l) => {
+        const d = new Date(l.expiry_date);
+        return d >= monthDate && d <= monthEnd;
+      }).length;
+      months.push({ label, count });
+    }
+    return months;
+  }, [expiring]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -355,6 +410,129 @@ export default function ContractsPage() {
                       {formatCurrency(portfolio.vacancy_cost_monthly)}
                     </p>
                     <p className="text-xs text-text-muted">Vacancy Cost /mo</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Charts Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Status Donut */}
+                {statusPieData.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <h2 className="text-sm font-semibold text-text-primary">
+                        Contracts by Status
+                      </h2>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <PieChart>
+                          <Pie
+                            data={statusPieData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={100}
+                            paddingAngle={3}
+                            dataKey="value"
+                            nameKey="name"
+                            stroke="none"
+                          >
+                            {statusPieData.map((entry) => (
+                              <Cell
+                                key={entry.name}
+                                fill={STATUS_COLORS[entry.name] || "#6B7280"}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: "#111827",
+                              border: "1px solid #1F2937",
+                              borderRadius: "0.75rem",
+                              color: "#F9FAFB",
+                              fontSize: "0.75rem",
+                            }}
+                            formatter={(value: any, name: any) => [
+                              `${value} leases`,
+                              name,
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="flex items-center justify-center gap-4 mt-2">
+                        {statusPieData.map((entry) => (
+                          <span
+                            key={entry.name}
+                            className="flex items-center gap-1.5 text-xs text-text-secondary"
+                          >
+                            <span
+                              className="w-2.5 h-2.5 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  STATUS_COLORS[entry.name] || "#6B7280",
+                              }}
+                            />
+                            {entry.name} ({entry.value})
+                          </span>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Lease Expiry Timeline */}
+                <Card>
+                  <CardHeader>
+                    <h2 className="text-sm font-semibold text-text-primary">
+                      Lease Expiry Timeline — Next 6 Months
+                    </h2>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart
+                        data={expiryTimelineData}
+                        margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="#1F2937"
+                          vertical={false}
+                        />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                          axisLine={{ stroke: "#1F2937" }}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          allowDecimals={false}
+                          tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#111827",
+                            border: "1px solid #1F2937",
+                            borderRadius: "0.75rem",
+                            color: "#F9FAFB",
+                            fontSize: "0.75rem",
+                          }}
+                          formatter={(value: any) => [
+                            `${value} lease${value !== 1 ? "s" : ""}`,
+                            "Expiring",
+                          ]}
+                          cursor={{ fill: "rgba(245,158,11,0.08)" }}
+                        />
+                        <Bar
+                          dataKey="count"
+                          fill="#F59E0B"
+                          radius={[6, 6, 0, 0]}
+                          maxBarSize={48}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </CardContent>
                 </Card>
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Share2,
   Loader2,
@@ -25,6 +25,10 @@ import {
   Globe,
   Zap,
 } from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area, CartesianGrid, Legend,
+} from "recharts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -165,6 +169,25 @@ function platformColor(platform: string): string {
     default: return "bg-gray-500 text-white";
   }
 }
+
+function platformHex(platform: string): string {
+  switch (platform) {
+    case "instagram": return "#E1306C";
+    case "facebook": return "#2563EB";
+    case "tiktok": return "#22D3EE";
+    case "x": return "#9CA3AF";
+    case "youtube": return "#DC2626";
+    case "snapchat": return "#FACC15";
+    case "linkedin": return "#1D4ED8";
+    default: return "#6B7280";
+  }
+}
+
+const DARK_TOOLTIP = {
+  contentStyle: { backgroundColor: '#111827', border: '1px solid #1F2937', borderRadius: '8px' },
+  labelStyle: { color: '#9CA3AF' },
+  itemStyle: { color: '#F9FAFB' },
+};
 
 function platformBorderColor(platform: string): string {
   switch (platform) {
@@ -411,6 +434,66 @@ export default function SocialMediaPage() {
     return calendar.filter((c) => c.date === dateStr);
   }
 
+  // ── Chart Data (useMemo) ─────────────────────────────────
+
+  const followersByPlatform = useMemo(() => {
+    if (!overview) return [];
+    return overview.platforms.map((p) => ({
+      platform: p.account.platform.charAt(0).toUpperCase() + p.account.platform.slice(1),
+      followers: p.account.followers,
+      fill: platformHex(p.account.platform),
+    }));
+  }, [overview]);
+
+  const followerDistribution = useMemo(() => {
+    if (!overview) return [];
+    return overview.platforms.map((p) => ({
+      name: p.account.platform.charAt(0).toUpperCase() + p.account.platform.slice(1),
+      value: p.account.followers,
+      fill: platformHex(p.account.platform),
+    }));
+  }, [overview]);
+
+  const engagementTrend = useMemo(() => {
+    if (!overview || !overview.follower_growth_trend || overview.follower_growth_trend.length === 0) return [];
+    const grouped: Record<string, Record<string, number>> = {};
+    overview.follower_growth_trend.forEach((d) => {
+      if (!grouped[d.date]) grouped[d.date] = {};
+      grouped[d.date][d.platform] = d.count;
+    });
+    const platforms = Array.from(new Set(overview.follower_growth_trend.map((d) => d.platform)));
+    return Object.entries(grouped)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, counts]) => {
+        const entry: Record<string, any> = { date: date.slice(5) }; // MM-DD
+        platforms.forEach((p) => { entry[p] = counts[p] || 0; });
+        return entry;
+      });
+  }, [overview]);
+
+  const engagementTrendPlatforms = useMemo(() => {
+    if (!overview || !overview.follower_growth_trend) return [];
+    return Array.from(new Set(overview.follower_growth_trend.map((d) => d.platform)));
+  }, [overview]);
+
+  const contentTypeChartData = useMemo(() => {
+    if (!analytics) return [];
+    return analytics.by_content_type.map((ct) => ({
+      name: ct.content_type.charAt(0).toUpperCase() + ct.content_type.slice(1),
+      engagement: ct.avg_engagement,
+      count: ct.count,
+    }));
+  }, [analytics]);
+
+  const categoryChartData = useMemo(() => {
+    if (!analytics) return [];
+    return analytics.by_category.map((cat) => ({
+      name: categoryLabel(cat.category),
+      engagement: cat.avg_engagement,
+      count: cat.count,
+    }));
+  }, [analytics]);
+
   // ── Loading State ─────────────────────────────────────────
 
   if (loading) {
@@ -562,46 +645,114 @@ export default function SocialMediaPage() {
             </Card>
           </div>
 
-          {/* Follower Growth Chart (text-based) */}
-          <Card>
-            <CardHeader>
-              <h3 className="text-sm font-semibold text-text-primary">Follower Growth (30 Days)</h3>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {overview.platforms.map((p) => {
-                  const maxFollowers = Math.max(
-                    ...overview.platforms.map((pl) => pl.account.followers)
-                  );
-                  const pct = (p.account.followers / maxFollowers) * 100;
-                  return (
-                    <div key={p.account.id} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="flex items-center gap-2">
-                          <span className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold ${platformColor(p.account.platform)}`}>
-                            {platformIcon(p.account.platform)}
-                          </span>
-                          <span className="text-text-primary font-medium capitalize">
-                            {p.account.platform}
-                          </span>
-                        </span>
-                        <span className="text-text-secondary font-mono text-xs">
-                          {formatNumber(p.account.followers)}
-                          <span className="text-emerald-500 ml-2">+{formatNumber(p.follower_growth_30d)}</span>
-                        </span>
-                      </div>
-                      <div className="w-full h-2 bg-wedja-border/50 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-wedja-accent rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Followers by Platform — BarChart */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <h3 className="text-sm font-semibold text-text-primary">Followers by Platform</h3>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={followersByPlatform} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                    <XAxis dataKey="platform" tick={{ fill: '#9CA3AF', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: any) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(value: any) => [formatNumber(value), 'Followers']}
+                    />
+                    <Bar dataKey="followers" radius={[6, 6, 0, 0]}>
+                      {followersByPlatform.map((entry, index) => (
+                        <Cell key={index} fill={entry.fill} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Follower Distribution — PieChart Donut */}
+            <Card>
+              <CardHeader>
+                <h3 className="text-sm font-semibold text-text-primary">Follower Distribution</h3>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={followerDistribution}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={3}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {followerDistribution.map((entry, index) => (
+                        <Cell key={index} fill={entry.fill} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(value: any, name: any) => [formatNumber(value), name]}
+                    />
+                    <Legend
+                      verticalAlign="bottom"
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(value: any) => <span style={{ color: '#9CA3AF', fontSize: 12 }}>{value}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Follower Growth Trend — AreaChart */}
+          {engagementTrend.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h3 className="text-sm font-semibold text-text-primary">Follower Growth Trend (30 Days)</h3>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={280}>
+                  <AreaChart data={engagementTrend} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                    <defs>
+                      {engagementTrendPlatforms.map((p) => (
+                        <linearGradient key={p} id={`grad-${p}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={platformHex(p)} stopOpacity={0.3} />
+                          <stop offset="100%" stopColor={platformHex(p)} stopOpacity={0.02} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+                    <XAxis dataKey="date" tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v: any) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+                    <Tooltip
+                      {...DARK_TOOLTIP}
+                      formatter={(value: any, name: any) => [formatNumber(value), name.charAt(0).toUpperCase() + name.slice(1)]}
+                    />
+                    <Legend
+                      verticalAlign="top"
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(value: any) => <span style={{ color: '#9CA3AF', fontSize: 12 }}>{value.charAt(0).toUpperCase() + value.slice(1)}</span>}
+                    />
+                    {engagementTrendPlatforms.map((p) => (
+                      <Area
+                        key={p}
+                        type="monotone"
+                        dataKey={p}
+                        stroke={platformHex(p)}
+                        strokeWidth={2}
+                        fill={`url(#grad-${p})`}
+                      />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
@@ -886,7 +1037,7 @@ export default function SocialMediaPage() {
             Analytics (Last 60 Days)
           </h2>
 
-          {/* Content Type Performance */}
+          {/* Content Type Performance — BarChart */}
           <Card>
             <CardHeader>
               <h3 className="text-sm font-semibold text-text-primary">
@@ -894,37 +1045,24 @@ export default function SocialMediaPage() {
               </h3>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {analytics.by_content_type.map((ct) => {
-                  const maxEng = Math.max(
-                    ...analytics.by_content_type.map((c) => c.avg_engagement)
-                  );
-                  const pct = (ct.avg_engagement / maxEng) * 100;
-                  return (
-                    <div key={ct.content_type} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-text-primary font-medium capitalize">
-                          {ct.content_type}
-                        </span>
-                        <span className="text-text-secondary font-mono text-xs">
-                          {ct.avg_engagement}% avg
-                          <span className="text-text-muted ml-2">({ct.count} posts)</span>
-                        </span>
-                      </div>
-                      <div className="w-full h-3 bg-wedja-border/50 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-wedja-accent rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={contentTypeChartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+                  <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} unit="%" />
+                  <Tooltip
+                    {...DARK_TOOLTIP}
+                    formatter={(value: any, _name: any, props: any) => [
+                      `${value}% avg (${props.payload.count} posts)`,
+                      'Engagement',
+                    ]}
+                  />
+                  <Bar dataKey="engagement" fill="#F59E0B" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          {/* Category Performance */}
+          {/* Category Performance — BarChart */}
           <Card>
             <CardHeader>
               <h3 className="text-sm font-semibold text-text-primary">
@@ -932,33 +1070,20 @@ export default function SocialMediaPage() {
               </h3>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {analytics.by_category.map((cat) => {
-                  const maxEng = Math.max(
-                    ...analytics.by_category.map((c) => c.avg_engagement)
-                  );
-                  const pct = (cat.avg_engagement / maxEng) * 100;
-                  return (
-                    <div key={cat.category} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-text-primary font-medium">
-                          {categoryLabel(cat.category)}
-                        </span>
-                        <span className="text-text-secondary font-mono text-xs">
-                          {cat.avg_engagement}% avg
-                          <span className="text-text-muted ml-2">({cat.count} posts)</span>
-                        </span>
-                      </div>
-                      <div className="w-full h-3 bg-wedja-border/50 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={categoryChartData} layout="vertical" margin={{ top: 8, right: 8, bottom: 0, left: 80 }}>
+                  <XAxis type="number" tick={{ fill: '#6B7280', fontSize: 11 }} axisLine={false} tickLine={false} unit="%" />
+                  <YAxis type="category" dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 12 }} axisLine={false} tickLine={false} width={75} />
+                  <Tooltip
+                    {...DARK_TOOLTIP}
+                    formatter={(value: any, _name: any, props: any) => [
+                      `${value}% avg (${props.payload.count} posts)`,
+                      'Engagement',
+                    ]}
+                  />
+                  <Bar dataKey="engagement" fill="#10B981" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
 

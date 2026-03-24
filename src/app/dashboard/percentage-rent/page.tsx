@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   TrendingUp,
   Loader2,
@@ -12,9 +12,29 @@ import {
   ArrowRight,
   Info,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatPercentage } from "@/lib/utils";
+
+const DARK_TOOLTIP = {
+  contentStyle: {
+    backgroundColor: "#111827",
+    border: "1px solid #1F2937",
+    borderRadius: "8px",
+  },
+};
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -224,9 +244,12 @@ export default function PercentageRentPage() {
         </div>
       )}
 
-      {/* ── C. Rent Composition Chart ────────────────────────── */}
-      {composition.length > 0 && (
-        <RentCompositionChart items={composition.slice(0, 30)} />
+      {/* ── C. Rent Type Split (Donut) + Top Premiums (Bar) ── */}
+      {overview && composition.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RentTypePieChart overview={overview} />
+          <TopPremiumBarChart items={composition} />
+        </div>
       )}
 
       {/* ── D. Inflation Hedge Analysis ──────────────────────── */}
@@ -359,70 +382,111 @@ function StatCard({
   );
 }
 
-function RentCompositionChart({ items }: { items: CompositionItem[] }) {
-  const maxRent = Math.max(...items.map((i) => i.total_rent), 1);
+function RentTypePieChart({ overview }: { overview: Overview }) {
+  const data = useMemo(
+    () => [
+      { name: "Percentage Rent", value: overview.tenants_paying_percentage.count },
+      { name: "Base Only", value: overview.tenants_paying_minimum_only.count },
+    ],
+    [overview]
+  );
+
+  const COLORS = ["#10B981", "#F59E0B"];
+
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+          <Users size={16} className="text-wedja-accent" />
+          Rent Type Split
+        </h2>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={70}
+              outerRadius={110}
+              paddingAngle={4}
+              dataKey="value"
+              nameKey="name"
+              label={({ name, percent }: any) =>
+                `${name}: ${(percent * 100).toFixed(0)}%`
+              }
+            >
+              {data.map((_, idx) => (
+                <Cell key={idx} fill={COLORS[idx]} />
+              ))}
+            </Pie>
+            <Tooltip
+              {...DARK_TOOLTIP}
+              formatter={(value: any) => [`${value} tenants`, ""]}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TopPremiumBarChart({ items }: { items: CompositionItem[] }) {
+  const chartData = useMemo(
+    () =>
+      items
+        .filter((i) => i.percentage_premium > 0)
+        .sort((a, b) => b.percentage_premium - a.percentage_premium)
+        .slice(0, 10)
+        .map((i) => ({
+          name: i.brand_name,
+          premium: i.percentage_premium,
+        })),
+    [items]
+  );
 
   return (
     <Card>
       <CardHeader>
         <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
           <BarChart3 size={16} className="text-wedja-accent" />
-          Rent Composition — Top 30 Tenants
+          Top 10 Tenants by % Rent Premium
         </h2>
       </CardHeader>
-      <CardContent className="space-y-1.5">
-        {items.map((item) => {
-          const baseW = maxRent > 0 ? (item.base_rent / maxRent) * 100 : 0;
-          const pctW = maxRent > 0 ? (item.percentage_premium / maxRent) * 100 : 0;
-
-          return (
-            <div key={item.tenant_id} className="flex items-center gap-3">
-              <div className="w-32 lg:w-44 shrink-0 text-right">
-                <span className="text-xs text-text-primary font-medium truncate block">
-                  {item.brand_name}
-                </span>
-              </div>
-              <div className="flex-1 flex items-center h-5 bg-wedja-border/20 rounded overflow-hidden">
-                <div
-                  className="h-full bg-slate-500/70 transition-all duration-500"
-                  style={{ width: `${baseW}%` }}
-                  title={`Base: ${formatCurrency(item.base_rent)}`}
-                />
-                {item.percentage_premium > 0 && (
-                  <div
-                    className="h-full bg-emerald-500/80 transition-all duration-500"
-                    style={{ width: `${pctW}%` }}
-                    title={`% Premium: ${formatCurrency(item.percentage_premium)}`}
-                  />
-                )}
-              </div>
-              <div className="w-24 shrink-0 text-right">
-                <span className="text-xs font-mono text-text-primary">
-                  {formatCurrency(item.total_rent)}
-                </span>
-              </div>
-              {item.rent_type === "minimum" && (
-                <Badge variant="warning" className="text-[10px] shrink-0">MIN</Badge>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Legend */}
-        <div className="flex items-center gap-4 mt-4 pt-3 border-t border-wedja-border/50 justify-center">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-slate-500/70" />
-            <span className="text-xs text-text-muted">Base Rent</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-emerald-500/80" />
-            <span className="text-xs text-text-muted">Percentage Premium</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Badge variant="warning" className="text-[10px]">MIN</Badge>
-            <span className="text-xs text-text-muted">Paying minimum only</span>
-          </div>
-        </div>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart
+            data={chartData}
+            layout="vertical"
+            margin={{ left: 10, right: 20, top: 5, bottom: 5 }}
+          >
+            <XAxis
+              type="number"
+              tickFormatter={(v: any) => formatCurrency(v)}
+              tick={{ fill: "#9CA3AF", fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={120}
+              tick={{ fill: "#F9FAFB", fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              {...DARK_TOOLTIP}
+              formatter={(value: any) => [formatCurrency(value), "Premium"]}
+              labelStyle={{ color: "#F9FAFB" }}
+            />
+            <Bar dataKey="premium" fill="#10B981" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );
@@ -545,7 +609,15 @@ function InflationHedgeCard({ inflation }: { inflation: InflationHedge }) {
 }
 
 function MonthlyTrendChart({ trend }: { trend: TrendMonth[] }) {
-  const maxVal = Math.max(...trend.map((t) => t.total_collected), 1);
+  const chartData = useMemo(
+    () =>
+      trend.map((m) => ({
+        label: m.label,
+        base: m.base_rent_total,
+        premium: m.percentage_rent_total,
+      })),
+    [trend]
+  );
 
   return (
     <Card>
@@ -556,56 +628,38 @@ function MonthlyTrendChart({ trend }: { trend: TrendMonth[] }) {
         </h2>
       </CardHeader>
       <CardContent>
-        <div className="flex items-end gap-2 sm:gap-4 h-56">
-          {trend.map((m) => {
-            const baseH = maxVal > 0 ? (m.base_rent_total / maxVal) * 100 : 0;
-            const pctH = maxVal > 0 ? (m.percentage_rent_total / maxVal) * 100 : 0;
-            const pctPremiumPct = m.base_rent_total > 0
-              ? ((m.percentage_rent_total / m.base_rent_total) * 100).toFixed(0)
-              : "0";
-
-            return (
-              <div
-                key={`${m.year}-${m.month}`}
-                className="flex-1 flex flex-col items-center gap-1"
-              >
-                <span className="text-[10px] font-mono text-status-success">
-                  +{pctPremiumPct}%
-                </span>
-
-                <div className="flex flex-col items-center w-full h-40 justify-end">
-                  {/* Stacked bar: base on bottom, pct premium on top */}
-                  <div
-                    className="w-full max-w-8 bg-emerald-500/80 rounded-t-sm transition-all duration-500"
-                    style={{ height: `${pctH}%`, minHeight: pctH > 0 ? "2px" : "0px" }}
-                    title={`% Premium: ${formatCurrency(m.percentage_rent_total)}`}
-                  />
-                  <div
-                    className="w-full max-w-8 bg-slate-500/70 transition-all duration-500"
-                    style={{ height: `${baseH}%`, minHeight: "2px" }}
-                    title={`Base Rent: ${formatCurrency(m.base_rent_total)}`}
-                  />
-                </div>
-
-                <span className="text-[10px] text-text-muted whitespace-nowrap">
-                  {m.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Legend */}
-        <div className="flex items-center gap-4 mt-4 justify-center">
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-slate-500/70" />
-            <span className="text-xs text-text-muted">Base Rent</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded-sm bg-emerald-500/80" />
-            <span className="text-xs text-text-muted">Percentage Premium</span>
-          </div>
-        </div>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <XAxis
+              dataKey="label"
+              tick={{ fill: "#9CA3AF", fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tickFormatter={(v: any) => formatCurrency(v)}
+              tick={{ fill: "#9CA3AF", fontSize: 11 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              {...DARK_TOOLTIP}
+              formatter={(value: any, name: any) => [
+                formatCurrency(value),
+                name === "base" ? "Base Rent" : "% Premium",
+              ]}
+              labelStyle={{ color: "#F9FAFB" }}
+            />
+            <Legend
+              formatter={(value: any) =>
+                value === "base" ? "Base Rent" : "% Premium"
+              }
+              wrapperStyle={{ fontSize: "12px", color: "#9CA3AF" }}
+            />
+            <Bar dataKey="base" stackId="rent" fill="#F59E0B" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="premium" stackId="rent" fill="#10B981" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,32 @@ import {
   Zap,
 } from "lucide-react";
 import { cn, formatCurrency, formatNumber } from "@/lib/utils";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+  Cell,
+  Legend,
+} from "recharts";
+
+// ── Shared tooltip style ─────────────────────────────────────
+
+const DARK_TOOLTIP = {
+  contentStyle: {
+    backgroundColor: "#111827",
+    border: "1px solid #1F2937",
+    borderRadius: "8px",
+  },
+  labelStyle: { color: "#9CA3AF" },
+  itemStyle: { color: "#F9FAFB" },
+};
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -248,7 +274,24 @@ export default function PredictionsPage() {
 
 function FootfallPanel({ data }: { data: ForecastResult }) {
   const { model, predictions } = data;
-  const maxVal = Math.max(...predictions.map((p) => p.confidence_high));
+
+  const chartData = useMemo(
+    () =>
+      predictions.map((p) => {
+        const d = new Date(p.date + "T00:00:00");
+        const dow = d.getDay();
+        return {
+          date: d.toLocaleDateString("en-US", { day: "numeric", month: "short" }),
+          predicted: Math.round(p.predicted_value),
+          confidenceLow: Math.round(p.confidence_low),
+          confidenceHigh: Math.round(p.confidence_high),
+          // For the area band we need a range array
+          confidenceRange: [Math.round(p.confidence_low), Math.round(p.confidence_high)],
+          isWeekend: dow === 5 || dow === 6,
+        };
+      }),
+    [predictions]
+  );
 
   return (
     <Card>
@@ -300,59 +343,80 @@ function FootfallPanel({ data }: { data: ForecastResult }) {
           </span>
         </div>
 
-        {/* Bar chart with confidence bands */}
+        {/* Recharts AreaChart with confidence bands */}
         <div className="space-y-1">
           <p className="text-xs text-text-muted font-medium uppercase tracking-wider">
             Daily Predicted Visitors
           </p>
-          <div className="h-48 flex items-end gap-px overflow-x-auto">
-            {predictions.map((p, i) => {
-              const barHeight = maxVal > 0 ? (p.predicted_value / maxVal) * 100 : 0;
-              const lowHeight = maxVal > 0 ? (p.confidence_low / maxVal) * 100 : 0;
-              const highHeight = maxVal > 0 ? (p.confidence_high / maxVal) * 100 : 0;
-              const dayLabel = new Date(p.date + "T00:00:00").toLocaleDateString("en-US", {
-                day: "numeric",
-                month: "short",
-              });
-              const dow = new Date(p.date + "T00:00:00").getDay();
-              const isWeekend = dow === 5 || dow === 6;
-
-              return (
-                <div
-                  key={p.date}
-                  className="flex-1 min-w-[8px] flex flex-col items-center justify-end relative group"
-                  title={`${dayLabel}: ${formatNumber(p.predicted_value)} (${formatNumber(p.confidence_low)}-${formatNumber(p.confidence_high)})`}
-                >
-                  {/* Confidence band */}
-                  <div
-                    className="absolute bottom-0 w-full bg-indigo-500/5 rounded-t"
-                    style={{ height: `${highHeight}%` }}
-                  />
-                  {/* Predicted bar */}
-                  <div
-                    className={cn(
-                      "relative w-full rounded-t transition-all",
-                      isWeekend
-                        ? "bg-indigo-500"
-                        : "bg-indigo-500/60"
-                    )}
-                    style={{ height: `${barHeight}%` }}
-                  />
-                  {/* Tooltip on hover */}
-                  <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-wedja-elevated border border-wedja-border rounded-lg px-2 py-1 text-xs text-text-primary whitespace-nowrap shadow-lg">
-                    {dayLabel}: {formatNumber(p.predicted_value)}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="footfallGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="confidenceGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366F1" stopOpacity={0.1} />
+                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fill: "#6B7280", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "#1F2937" }}
+                  interval={Math.ceil(chartData.length / 7) - 1}
+                />
+                <YAxis
+                  tick={{ fill: "#6B7280", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: any) => formatNumber(v)}
+                />
+                <Tooltip
+                  {...DARK_TOOLTIP}
+                  formatter={(value: any, name: any) => {
+                    if (name === "confidenceHigh") return [formatNumber(value), "Confidence High"];
+                    if (name === "confidenceLow") return [formatNumber(value), "Confidence Low"];
+                    return [formatNumber(value), "Predicted"];
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="confidenceHigh"
+                  stroke="none"
+                  fill="url(#confidenceGradient)"
+                  fillOpacity={1}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="confidenceLow"
+                  stroke="none"
+                  fill="#111827"
+                  fillOpacity={0}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="predicted"
+                  stroke="#6366F1"
+                  strokeWidth={2}
+                  fill="url(#footfallGradient)"
+                  fillOpacity={1}
+                  dot={false}
+                  activeDot={{ r: 4, fill: "#6366F1", stroke: "#111827", strokeWidth: 2 }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-          <div className="flex justify-between text-[10px] text-text-muted pt-1">
-            <span>{formatDateShort(predictions[0]?.date)}</span>
+          <div className="flex justify-center gap-4 text-[10px] text-text-muted pt-1">
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-sm bg-indigo-500 inline-block" /> Weekend
-              <span className="w-2 h-2 rounded-sm bg-indigo-500/60 inline-block ml-2" /> Weekday
+              <span className="w-3 h-0.5 bg-indigo-500 inline-block rounded" /> Predicted
             </span>
-            <span>{formatDateShort(predictions[predictions.length - 1]?.date)}</span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-indigo-500/10 inline-block rounded" /> Confidence Band
+            </span>
           </div>
         </div>
       </CardContent>
@@ -367,7 +431,24 @@ function RevenuePanel({ data }: { data: ForecastResult }) {
   const totalLow = predictions.reduce((s, p) => s + p.confidence_low, 0);
   const totalHigh = predictions.reduce((s, p) => s + p.confidence_high, 0);
   const totalPredicted = predictions.reduce((s, p) => s + p.predicted_value, 0);
-  const maxVal = Math.max(...predictions.map((p) => p.confidence_high));
+
+  const chartData = useMemo(
+    () =>
+      predictions.map((p) => {
+        const d = new Date(p.date + "T00:00:00");
+        return {
+          month: d.toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
+          predicted: Math.round(p.predicted_value),
+          confidenceLow: Math.round(p.confidence_low),
+          confidenceHigh: Math.round(p.confidence_high),
+          // Error bar range relative to predicted
+          errorLow: Math.round(p.predicted_value - p.confidence_low),
+          errorHigh: Math.round(p.confidence_high - p.predicted_value),
+          factors: p.factors,
+        };
+      }),
+    [predictions]
+  );
 
   return (
     <Card>
@@ -431,57 +512,64 @@ function RevenuePanel({ data }: { data: ForecastResult }) {
           </span>
         </div>
 
-        {/* Monthly bars */}
-        <div className="space-y-2">
-          {predictions.map((p) => {
-            const barWidth = maxVal > 0 ? (p.predicted_value / maxVal) * 100 : 0;
-            const lowWidth = maxVal > 0 ? (p.confidence_low / maxVal) * 100 : 0;
-            const highWidth = maxVal > 0 ? (p.confidence_high / maxVal) * 100 : 0;
-            const monthLabel = new Date(p.date + "T00:00:00").toLocaleDateString(
-              "en-US",
-              { month: "short", year: "numeric" }
-            );
-
-            return (
-              <div key={p.date} className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-text-secondary">{monthLabel}</span>
-                  <span className="text-text-primary font-mono">
-                    {formatCurrency(p.predicted_value)}
-                  </span>
+        {/* Recharts BarChart for monthly revenue */}
+        <div className="space-y-1">
+          <p className="text-xs text-text-muted font-medium uppercase tracking-wider">
+            Monthly Predicted Revenue
+          </p>
+          <div className="h-56">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fill: "#6B7280", fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={{ stroke: "#1F2937" }}
+                />
+                <YAxis
+                  tick={{ fill: "#6B7280", fontSize: 10 }}
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(v: any) => {
+                    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+                    if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+                    return String(v);
+                  }}
+                />
+                <Tooltip
+                  {...DARK_TOOLTIP}
+                  formatter={(value: any, name: any) => {
+                    if (name === "confidenceHigh") return [formatCurrency(value), "Conf. High"];
+                    if (name === "confidenceLow") return [formatCurrency(value), "Conf. Low"];
+                    return [formatCurrency(value), "Predicted"];
+                  }}
+                />
+                {/* Confidence high as a background bar */}
+                <Bar dataKey="confidenceHigh" fill="#6366F1" fillOpacity={0.1} radius={[4, 4, 0, 0]} />
+                {/* Predicted as the main bar */}
+                <Bar dataKey="predicted" fill="#6366F1" fillOpacity={0.7} radius={[4, 4, 0, 0]} />
+                {/* Confidence low as an overlay reference */}
+                <Bar dataKey="confidenceLow" fill="#818CF8" fillOpacity={0.15} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {chartData.map((d, i) =>
+              d.factors.length > 0 ? (
+                <div key={i} className="flex flex-wrap gap-1">
+                  {d.factors.slice(0, 2).map((f: string, fi: number) => (
+                    <span
+                      key={fi}
+                      className="text-[10px] text-text-muted bg-wedja-border/30 rounded px-1.5 py-0.5"
+                    >
+                      {f}
+                    </span>
+                  ))}
                 </div>
-                <div className="h-5 bg-wedja-bg rounded-full overflow-hidden relative">
-                  {/* Confidence band */}
-                  <div
-                    className="absolute top-0 left-0 h-full bg-indigo-500/10 rounded-full"
-                    style={{ width: `${highWidth}%` }}
-                  />
-                  {/* Predicted */}
-                  <div
-                    className="absolute top-0 left-0 h-full bg-indigo-500/70 rounded-full transition-all"
-                    style={{ width: `${barWidth}%` }}
-                  />
-                  {/* Low mark */}
-                  <div
-                    className="absolute top-0 h-full w-px bg-indigo-300"
-                    style={{ left: `${lowWidth}%` }}
-                  />
-                </div>
-                {p.factors.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {p.factors.slice(0, 2).map((f, i) => (
-                      <span
-                        key={i}
-                        className="text-[10px] text-text-muted bg-wedja-border/30 rounded px-1.5 py-0.5"
-                      >
-                        {f}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              ) : null
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -491,7 +579,15 @@ function RevenuePanel({ data }: { data: ForecastResult }) {
 // ── Day-of-Week Coefficients Chart ──────────────────────────
 
 function DowCoefficientsChart({ coefficients }: { coefficients: number[] }) {
-  const maxAbs = Math.max(...coefficients.map(Math.abs), 1);
+  const chartData = useMemo(
+    () =>
+      coefficients.map((coeff, i) => ({
+        day: DOW_LABELS[i],
+        value: Math.round(coeff),
+        fill: coeff >= 0 ? "#6366F1" : "#EF4444",
+      })),
+    [coefficients]
+  );
 
   return (
     <Card>
@@ -508,48 +604,37 @@ function DowCoefficientsChart({ coefficients }: { coefficients: number[] }) {
         <p className="text-xs text-text-muted mb-3">
           Visitors above/below trend by day (learned from data)
         </p>
-        <div className="space-y-2">
-          {coefficients.map((coeff, i) => {
-            const isPositive = coeff >= 0;
-            const barWidth = (Math.abs(coeff) / maxAbs) * 50;
-
-            return (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-xs text-text-secondary w-8 text-right font-mono">
-                  {DOW_LABELS[i]}
-                </span>
-                <div className="flex-1 h-5 flex items-center">
-                  {/* Center line */}
-                  <div className="w-1/2 flex justify-end">
-                    {!isPositive && (
-                      <div
-                        className="h-4 bg-red-500/40 rounded-l"
-                        style={{ width: `${barWidth}%` }}
-                      />
-                    )}
-                  </div>
-                  <div className="w-px h-5 bg-wedja-border" />
-                  <div className="w-1/2">
-                    {isPositive && (
-                      <div
-                        className="h-4 bg-indigo-500/60 rounded-r"
-                        style={{ width: `${barWidth}%` }}
-                      />
-                    )}
-                  </div>
-                </div>
-                <span
-                  className={cn(
-                    "text-xs font-mono w-16 text-right",
-                    isPositive ? "text-indigo-400" : "text-red-400"
-                  )}
-                >
-                  {isPositive ? "+" : ""}
-                  {Math.round(coeff)}
-                </span>
-              </div>
-            );
-          })}
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+              <XAxis
+                dataKey="day"
+                tick={{ fill: "#6B7280", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "#1F2937" }}
+              />
+              <YAxis
+                tick={{ fill: "#6B7280", fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v: any) => (v > 0 ? `+${v}` : String(v))}
+              />
+              <Tooltip
+                {...DARK_TOOLTIP}
+                formatter={(value: any) => [
+                  `${value > 0 ? "+" : ""}${formatNumber(value)} visitors`,
+                  "Effect",
+                ]}
+              />
+              <ReferenceLine y={0} stroke="#374151" strokeDasharray="3 3" />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell key={index} fill={entry.fill} fillOpacity={0.7} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </CardContent>
     </Card>
@@ -563,7 +648,15 @@ function MonthlyCoefficientsChart({
 }: {
   coefficients: number[];
 }) {
-  const maxAbs = Math.max(...coefficients.map(Math.abs), 1);
+  const chartData = useMemo(
+    () =>
+      coefficients.map((coeff, i) => ({
+        month: MONTH_LABELS[i],
+        value: Math.round(coeff),
+        fill: coeff >= 0 ? "#6366F1" : "#EF4444",
+      })),
+    [coefficients]
+  );
 
   return (
     <Card>
@@ -580,39 +673,42 @@ function MonthlyCoefficientsChart({
         <p className="text-xs text-text-muted mb-3">
           Revenue above/below trend by month (learned from data)
         </p>
-        <div className="grid grid-cols-6 gap-1">
-          {coefficients.map((coeff, i) => {
-            const isPositive = coeff >= 0;
-            const intensity = Math.abs(coeff) / maxAbs;
-
-            return (
-              <div
-                key={i}
-                className="flex flex-col items-center gap-1"
-                title={`${MONTH_LABELS[i]}: ${isPositive ? "+" : ""}${formatCurrency(Math.round(coeff))}`}
-              >
-                <div
-                  className={cn(
-                    "w-full h-10 rounded flex items-center justify-center text-[10px] font-mono",
-                    isPositive
-                      ? "bg-indigo-500/10 text-indigo-400"
-                      : "bg-red-500/10 text-red-400"
-                  )}
-                  style={{
-                    opacity: 0.3 + intensity * 0.7,
-                  }}
-                >
-                  {isPositive ? "+" : ""}
-                  {Math.abs(coeff) >= 1000
-                    ? `${(coeff / 1000).toFixed(0)}K`
-                    : Math.round(coeff)}
-                </div>
-                <span className="text-[10px] text-text-muted">
-                  {MONTH_LABELS[i]}
-                </span>
-              </div>
-            );
-          })}
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+              <XAxis
+                dataKey="month"
+                tick={{ fill: "#6B7280", fontSize: 10 }}
+                tickLine={false}
+                axisLine={{ stroke: "#1F2937" }}
+              />
+              <YAxis
+                tick={{ fill: "#6B7280", fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(v: any) => {
+                  const abs = Math.abs(v);
+                  const prefix = v >= 0 ? "+" : "-";
+                  if (abs >= 1000) return `${prefix}${(abs / 1000).toFixed(0)}K`;
+                  return `${prefix}${abs}`;
+                }}
+              />
+              <Tooltip
+                {...DARK_TOOLTIP}
+                formatter={(value: any) => [
+                  `${value >= 0 ? "+" : ""}${formatCurrency(value)}`,
+                  "Effect",
+                ]}
+              />
+              <ReferenceLine y={0} stroke="#374151" strokeDasharray="3 3" />
+              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                {chartData.map((entry, index) => (
+                  <Cell key={index} fill={entry.fill} fillOpacity={0.7} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </CardContent>
     </Card>
@@ -628,6 +724,30 @@ function ModelComparisonPanel({
 }) {
   const { footfall, revenue } = performance;
 
+  const accuracyChartData = useMemo(() => {
+    const items = [];
+    if (footfall.training_samples > 0) {
+      items.push({
+        name: "Footfall MAE",
+        mlModel: Math.round(footfall.mae),
+        baseline: Math.round(footfall.baseline_mae),
+      });
+      items.push({
+        name: "Footfall MAPE",
+        mlModel: parseFloat(footfall.mape.toFixed(1)),
+        baseline: parseFloat(footfall.baseline_mape.toFixed(1)),
+      });
+    }
+    if (revenue.training_samples > 0) {
+      items.push({
+        name: "Revenue MAPE",
+        mlModel: parseFloat(revenue.mape.toFixed(1)),
+        baseline: parseFloat(revenue.baseline_mape.toFixed(1)),
+      });
+    }
+    return items;
+  }, [footfall, revenue]);
+
   return (
     <Card>
       <CardHeader>
@@ -639,7 +759,49 @@ function ModelComparisonPanel({
         </div>
         <Badge variant="info">Validation</Badge>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6">
+        {/* Accuracy comparison bar chart */}
+        {accuracyChartData.length > 0 && (
+          <div>
+            <p className="text-xs text-text-muted font-medium uppercase tracking-wider mb-3">
+              ML Model vs Baseline Accuracy (lower is better)
+            </p>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={accuracyChartData} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: "#6B7280", fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={{ stroke: "#1F2937" }}
+                  />
+                  <YAxis
+                    tick={{ fill: "#6B7280", fontSize: 10 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    {...DARK_TOOLTIP}
+                    formatter={(value: any, name: any) => [
+                      value,
+                      name === "mlModel" ? "ML Model" : "Baseline (Mean)",
+                    ]}
+                  />
+                  <Legend
+                    formatter={(value: any) =>
+                      value === "mlModel" ? "ML Model" : "Baseline (Mean)"
+                    }
+                    wrapperStyle={{ fontSize: 11, color: "#9CA3AF" }}
+                  />
+                  <Bar dataKey="mlModel" fill="#6366F1" fillOpacity={0.8} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="baseline" fill="#374151" fillOpacity={0.6} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Footfall backtest */}
           <BacktestCard result={footfall} label="Footfall Model" />
@@ -776,10 +938,4 @@ function ModelStat({
       </div>
     </div>
   );
-}
-
-function formatDateShort(dateStr?: string): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-US", { day: "numeric", month: "short" });
 }
