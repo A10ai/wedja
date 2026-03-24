@@ -126,38 +126,29 @@ export async function getFootfallOverview(
   const lastWeekDay = lastWeekSameDayStr(today);
   const thirtyDaysAgo = daysAgoStr(today, 30);
 
-  // Fetch today's total from footfall_daily (property-level, no unit filter)
-  const { data: todayData } = await supabase
-    .from("footfall_daily")
-    .select("total_in")
-    .eq("property_id", propertyId)
-    .eq("date", today);
+  // Fetch today's total from both footfall_daily AND live footfall_readings
+  const [dailyResult, liveResult] = await Promise.all([
+    supabase
+      .from("footfall_daily")
+      .select("total_in")
+      .eq("property_id", propertyId)
+      .eq("date", today),
+    supabase
+      .from("footfall_readings")
+      .select("count_in")
+      .gte("timestamp", today + "T00:00:00Z")
+      .lte("timestamp", today + "T23:59:59Z"),
+  ]);
 
-  let total_visitors_today = (todayData || []).reduce(
+  const dailyTotal = (dailyResult.data || []).reduce(
     (sum: number, r: { total_in: number }) => sum + (r.total_in || 0),
     0
   );
-
-  // Add live readings from footfall_readings (CV service pushes here)
-  try {
-    const todayStart = today + "T00:00:00Z";
-    const todayEnd = today + "T23:59:59Z";
-    const { data: liveReadings } = await supabase
-      .from("footfall_readings")
-      .select("count_in")
-      .gte("timestamp", todayStart)
-      .lte("timestamp", todayEnd);
-    if (liveReadings && liveReadings.length > 0) {
-      const liveTotal = liveReadings.reduce(
-        (sum: number, r: { count_in: number }) => sum + (r.count_in || 0),
-        0
-      );
-      // Use whichever is higher: daily summary or live count
-      total_visitors_today = Math.max(total_visitors_today, liveTotal);
-    }
-  } catch {
-    // Live readings optional
-  }
+  const liveTotal = (liveResult.data || []).reduce(
+    (sum: number, r: { count_in: number }) => sum + (r.count_in || 0),
+    0
+  );
+  const total_visitors_today = Math.max(dailyTotal, liveTotal);
 
   // Yesterday
   const { data: yesterdayData } = await supabase
