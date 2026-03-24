@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Wrench,
   Loader2,
@@ -9,6 +9,18 @@ import {
   ChevronDown,
   Clock,
 } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -205,6 +217,40 @@ export default function MaintenancePage() {
     completed: tickets.filter((t) => t.status === "completed").length,
   };
 
+  const STATUS_COLORS: Record<string, string> = {
+    open: "#F59E0B",
+    assigned: "#3B82F6",
+    in_progress: "#8B5CF6",
+    completed: "#10B981",
+    on_hold: "#6B7280",
+    cancelled: "#EF4444",
+  };
+
+  const statusChartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tickets.forEach((t) => {
+      counts[t.status] = (counts[t.status] || 0) + 1;
+    });
+    return Object.entries(counts).map(([status, count]) => ({
+      name: status.replace(/_/g, " "),
+      value: count,
+      color: STATUS_COLORS[status] || "#6B7280",
+    }));
+  }, [tickets]);
+
+  const categoryChartData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tickets.forEach((t) => {
+      counts[t.category] = (counts[t.category] || 0) + 1;
+    });
+    return CATEGORIES.filter((c) => c !== "all")
+      .map((cat) => ({
+        name: cat,
+        count: counts[cat] || 0,
+      }))
+      .filter((d) => d.count > 0);
+  }, [tickets]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -248,6 +294,97 @@ export default function MaintenancePage() {
           </Card>
         ))}
       </div>
+
+      {/* Charts */}
+      {tickets.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Status Donut */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-text-primary">
+                Tickets by Status
+              </h2>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={statusChartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={3}
+                    dataKey="value"
+                    nameKey="name"
+                  >
+                    {statusChartData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#111827",
+                      border: "1px solid #1F2937",
+                      borderRadius: 8,
+                      color: "#F9FAFB",
+                    }}
+                    formatter={(value: any) => [`${value} tickets`, ""]}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap justify-center gap-3 mt-2">
+                {statusChartData.map((entry, idx) => (
+                  <div key={idx} className="flex items-center gap-1.5 text-xs text-text-secondary">
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: entry.color }}
+                    />
+                    {entry.name} ({entry.value})
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Category Bar Chart */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-text-primary">
+                Tickets by Category
+              </h2>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart
+                  data={categoryChartData}
+                  layout="vertical"
+                  margin={{ top: 0, right: 20, bottom: 0, left: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fill: "#9CA3AF", fontSize: 12 }} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fill: "#9CA3AF", fontSize: 12 }}
+                    width={80}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#111827",
+                      border: "1px solid #1F2937",
+                      borderRadius: 8,
+                      color: "#F9FAFB",
+                    }}
+                    formatter={(value: any) => [`${value} tickets`, ""]}
+                  />
+                  <Bar dataKey="count" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">

@@ -16,10 +16,40 @@ import {
   Target,
   X,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatNumber, formatPercentage } from "@/lib/utils";
+
+// ── Chart constants ─────────────────────────────────────────
+const DARK_TOOLTIP = {
+  backgroundColor: '#111827',
+  border: '1px solid #1F2937',
+  borderRadius: '8px',
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  fashion: '#F59E0B',
+  food: '#EF4444',
+  entertainment: '#3B82F6',
+  electronics: '#8B5CF6',
+  services: '#10B981',
+  grocery: '#14B8A6',
+};
+
+const PIE_FALLBACK_COLORS = ['#F59E0B', '#10B981', '#EF4444', '#3B82F6', '#8B5CF6', '#14B8A6', '#EC4899', '#F97316'];
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -568,6 +598,58 @@ export default function TenantAnalyticsPage() {
         </CardContent>
       </Card>
 
+      {/* Top 10 Tenants by Revenue/sqm — Horizontal Bar Chart */}
+      {rankings.length > 0 && (() => {
+        const top10 = [...rankings]
+          .sort((a, b) => b.reported_sales_per_sqm - a.reported_sales_per_sqm)
+          .slice(0, 10)
+          .reverse()
+          .map((t) => ({
+            name: t.brand_name.length > 18 ? t.brand_name.slice(0, 16) + "..." : t.brand_name,
+            revenue_per_sqm: Math.round(t.reported_sales_per_sqm),
+            category: t.category,
+          }));
+        return (
+          <Card>
+            <CardHeader>
+              <h2 className="text-sm font-semibold text-text-primary">Top 10 Tenants by Revenue / sqm</h2>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={360}>
+                <BarChart data={top10} layout="vertical" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
+                  <XAxis
+                    type="number"
+                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v: any) => `${(v / 1000).toFixed(0)}k`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    width={130}
+                    tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    contentStyle={DARK_TOOLTIP}
+                    labelStyle={{ color: '#F9FAFB', fontWeight: 600 }}
+                    itemStyle={{ color: '#F59E0B' }}
+                    formatter={(value: any) => [`EGP ${Number(value).toLocaleString()}`, 'Revenue/sqm']}
+                  />
+                  <Bar dataKey="revenue_per_sqm" radius={[0, 4, 4, 0]} barSize={22}>
+                    {top10.map((entry, idx) => (
+                      <Cell key={idx} fill={CATEGORY_COLORS[entry.category] || '#F59E0B'} fillOpacity={0.85} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Scorecard Modal / Expanded Panel */}
       {(scorecard || scorecardLoading) && (
         <Card className="border-wedja-accent/40 border-2">
@@ -773,52 +855,96 @@ export default function TenantAnalyticsPage() {
             <h2 className="text-sm font-semibold text-text-primary">Tenant Mix Analysis</h2>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Bars side by side: Area % vs Revenue % */}
+            {/* Donut charts: Area % vs Revenue % */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Area allocation */}
+              {/* Area allocation donut */}
               <div>
                 <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">% of Area by Category</p>
-                <div className="space-y-2">
-                  {tenantMix.categories.map((cat) => (
-                    <div key={`area-${cat.category}`} className="flex items-center gap-2">
-                      <span className="text-[10px] text-text-secondary w-20 truncate capitalize">{cat.category}</span>
-                      <div className="flex-1 h-4 bg-wedja-border/30 rounded overflow-hidden">
-                        <div
-                          className="h-full bg-wedja-accent/70 rounded"
-                          style={{ width: `${cat.area_pct}%` }}
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={tenantMix.categories.map((cat) => ({
+                        name: cat.category.charAt(0).toUpperCase() + cat.category.slice(1),
+                        value: Math.round(cat.area_pct * 10) / 10,
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {tenantMix.categories.map((cat, idx) => (
+                        <Cell
+                          key={cat.category}
+                          fill={CATEGORY_COLORS[cat.category] || PIE_FALLBACK_COLORS[idx % PIE_FALLBACK_COLORS.length]}
                         />
-                      </div>
-                      <span className="text-[10px] font-mono text-text-primary w-12 text-right">{formatPercentage(cat.area_pct)}</span>
-                    </div>
-                  ))}
-                </div>
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={DARK_TOOLTIP}
+                      labelStyle={{ color: '#F9FAFB' }}
+                      formatter={(value: any) => [`${value}%`, 'Area']}
+                    />
+                    <Legend
+                      verticalAlign="bottom"
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(value: any) => <span style={{ color: '#9CA3AF', fontSize: 11 }}>{value}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              {/* Revenue allocation */}
+              {/* Revenue allocation donut */}
               <div>
                 <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">% of Revenue by Category</p>
-                <div className="space-y-2">
-                  {tenantMix.categories.map((cat) => {
-                    const badge = getMismatchBadge(cat.mismatch_direction);
-                    return (
-                      <div key={`rev-${cat.category}`} className="flex items-center gap-2">
-                        <span className="text-[10px] text-text-secondary w-20 truncate capitalize">{cat.category}</span>
-                        <div className="flex-1 h-4 bg-wedja-border/30 rounded overflow-hidden">
-                          <div
-                            className={`h-full rounded ${
-                              cat.mismatch_direction === "under_spaced" ? "bg-emerald-500/70" :
-                              cat.mismatch_direction === "over_spaced" ? "bg-red-500/70" :
-                              "bg-wedja-accent/70"
-                            }`}
-                            style={{ width: `${cat.revenue_pct}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] font-mono text-text-primary w-12 text-right">{formatPercentage(cat.revenue_pct)}</span>
-                        {cat.mismatch_magnitude > 5 && (
-                          <Badge variant={badge.variant} className="text-[9px] hidden sm:inline-flex">{badge.label}</Badge>
-                        )}
-                      </div>
-                    );
-                  })}
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
+                    <Pie
+                      data={tenantMix.categories.map((cat) => ({
+                        name: cat.category.charAt(0).toUpperCase() + cat.category.slice(1),
+                        value: Math.round(cat.revenue_pct * 10) / 10,
+                        mismatch: cat.mismatch_direction,
+                      }))}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {tenantMix.categories.map((cat, idx) => (
+                        <Cell
+                          key={cat.category}
+                          fill={CATEGORY_COLORS[cat.category] || PIE_FALLBACK_COLORS[idx % PIE_FALLBACK_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={DARK_TOOLTIP}
+                      labelStyle={{ color: '#F9FAFB' }}
+                      formatter={(value: any) => [`${value}%`, 'Revenue']}
+                    />
+                    <Legend
+                      verticalAlign="bottom"
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(value: any) => <span style={{ color: '#9CA3AF', fontSize: 11 }}>{value}</span>}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Mismatch badges below the chart */}
+                <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                  {tenantMix.categories
+                    .filter((cat) => cat.mismatch_magnitude > 5)
+                    .map((cat) => {
+                      const badge = getMismatchBadge(cat.mismatch_direction);
+                      return (
+                        <Badge key={cat.category} variant={badge.variant} className="text-[9px]">
+                          {cat.category}: {badge.label}
+                        </Badge>
+                      );
+                    })}
                 </div>
               </div>
             </div>

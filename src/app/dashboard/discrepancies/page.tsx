@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   AlertTriangle,
   Loader2,
@@ -20,6 +20,18 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, formatNumber, formatPercentage } from "@/lib/utils";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -325,6 +337,66 @@ export default function DiscrepanciesPage() {
   };
 
   const hasDiscrepancies = (summary?.total_discrepancies || 0) > 0;
+
+  // ── Chart Data ───────────────────────────────────────────
+  const topTenantsByVariance = useMemo(() => {
+    if (!discrepancies.length) return [];
+    const sorted = [...discrepancies]
+      .filter((d) => d.variance_egp > 0)
+      .sort((a, b) => b.variance_egp - a.variance_egp)
+      .slice(0, 10);
+    return sorted.map((d) => ({
+      name:
+        d.tenant_name ||
+        d.tenants?.brand_name ||
+        d.brand_name ||
+        d.tenant_id.slice(0, 8),
+      variance: Math.round(d.variance_egp),
+      confidence: getConfidenceLevel(d.confidence),
+    }));
+  }, [discrepancies]);
+
+  const confidenceChartData = useMemo(() => {
+    if (!summary) return [];
+    const { high, medium, low } = summary.by_confidence;
+    return [
+      { name: "High", value: high, color: "#EF4444" },
+      { name: "Medium", value: medium, color: "#F59E0B" },
+      { name: "Low", value: low, color: "#3B82F6" },
+    ].filter((d) => d.value > 0);
+  }, [summary]);
+
+  const statusChartData = useMemo(() => {
+    if (!summary) return [];
+    const STATUS_CHART_COLORS: Record<string, string> = {
+      Flagged: "#EF4444",
+      Investigating: "#F59E0B",
+      Resolved: "#10B981",
+      Dismissed: "#6B7280",
+    };
+    return [
+      { name: "Flagged", value: summary.by_status.flagged },
+      { name: "Investigating", value: summary.by_status.investigating },
+      { name: "Resolved", value: summary.by_status.resolved },
+      { name: "Dismissed", value: summary.by_status.dismissed },
+    ]
+      .filter((d) => d.value > 0)
+      .map((d) => ({ ...d, color: STATUS_CHART_COLORS[d.name] }));
+  }, [summary]);
+
+  const CONFIDENCE_BAR_COLORS: Record<string, string> = {
+    high: "#EF4444",
+    medium: "#F59E0B",
+    low: "#3B82F6",
+  };
+
+  const darkTooltipStyle = {
+    backgroundColor: "#111827",
+    border: "1px solid #1F2937",
+    borderRadius: "8px",
+    color: "#F9FAFB",
+    fontSize: "12px",
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -642,6 +714,171 @@ export default function DiscrepanciesPage() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Charts — Variance by Tenant + Confidence / Status Donuts */}
+      {!loading && hasDiscrepancies && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Bar Chart — Top Flagged Tenants by Variance */}
+          {topTenantsByVariance.length > 0 && (
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <BarChart3 size={16} className="text-wedja-accent" />
+                  <h2 className="text-sm font-semibold text-text-primary">
+                    Top Flagged Tenants by Variance (EGP)
+                  </h2>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart
+                    data={topTenantsByVariance}
+                    layout="vertical"
+                    margin={{ top: 0, right: 20, bottom: 0, left: 0 }}
+                  >
+                    <XAxis
+                      type="number"
+                      tickFormatter={(v: any) => `${(v / 1000).toFixed(0)}k`}
+                      tick={{ fill: "#6B7280", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={100}
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={darkTooltipStyle}
+                      formatter={(value: any) => [
+                        `EGP ${Number(value).toLocaleString()}`,
+                        "Variance",
+                      ]}
+                      cursor={{ fill: "rgba(245,158,11,0.08)" }}
+                    />
+                    <Bar dataKey="variance" radius={[0, 4, 4, 0]}>
+                      {topTenantsByVariance.map((entry, idx) => (
+                        <Cell
+                          key={idx}
+                          fill={
+                            CONFIDENCE_BAR_COLORS[entry.confidence] || "#F59E0B"
+                          }
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="flex items-center justify-center gap-4 mt-2 text-[11px] text-text-muted">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "#EF4444" }} />
+                    High
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "#F59E0B" }} />
+                    Medium
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "#3B82F6" }} />
+                    Low
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Donut Charts — Confidence + Status */}
+          <div className="space-y-4">
+            {confidenceChartData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-sm font-semibold text-text-primary">
+                    By Confidence Level
+                  </h2>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={confidenceChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={70}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {confidenceChartData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={darkTooltipStyle}
+                        formatter={(value: any, name: any) => [value, name]}
+                      />
+                      <Legend
+                        iconType="circle"
+                        iconSize={8}
+                        formatter={(value: any) => (
+                          <span className="text-[11px] text-text-secondary">
+                            {value}
+                          </span>
+                        )}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+
+            {statusChartData.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-sm font-semibold text-text-primary">
+                    By Status
+                  </h2>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={statusChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={45}
+                        outerRadius={70}
+                        paddingAngle={3}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {statusChartData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={darkTooltipStyle}
+                        formatter={(value: any, name: any) => [value, name]}
+                      />
+                      <Legend
+                        iconType="circle"
+                        iconSize={8}
+                        formatter={(value: any) => (
+                          <span className="text-[11px] text-text-secondary">
+                            {value}
+                          </span>
+                        )}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       )}
 

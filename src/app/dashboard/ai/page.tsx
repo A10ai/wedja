@@ -40,6 +40,23 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatNumber, formatPercentage } from "@/lib/utils";
+import {
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  ResponsiveContainer,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -555,6 +572,215 @@ export default function AICentrePage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* ── Charts Row: Radar + Severity Donut + Impact by Module ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Radar Chart — Health Dimensions */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <Shield size={16} className="text-wedja-accent" />
+              Health Radar
+            </h2>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <RadarChart
+                data={dimensionEntries.map(({ label, dim }) => ({
+                  dimension: label,
+                  score: dim.max > 0 ? Math.round((dim.score / dim.max) * 100) : 0,
+                  fullMark: 100,
+                }))}
+              >
+                <PolarGrid stroke="#1F2937" />
+                <PolarAngleAxis
+                  dataKey="dimension"
+                  tick={{ fill: "#6B7280", fontSize: 10 }}
+                />
+                <PolarRadiusAxis
+                  angle={90}
+                  domain={[0, 100]}
+                  tick={{ fill: "#6B7280", fontSize: 9 }}
+                  axisLine={false}
+                />
+                <Radar
+                  name="Score"
+                  dataKey="score"
+                  stroke="#F59E0B"
+                  fill="#F59E0B"
+                  fillOpacity={0.2}
+                  strokeWidth={2}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#111827",
+                    border: "1px solid #1F2937",
+                    borderRadius: "8px",
+                  }}
+                  labelStyle={{ color: "#F9FAFB", fontSize: 12 }}
+                  itemStyle={{ color: "#F59E0B", fontSize: 11 }}
+                  formatter={(value: any) => [`${value}%`, "Score"]}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Pie Chart — Insight Severity Breakdown */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <Eye size={16} className="text-wedja-accent" />
+              Insights by Severity
+            </h2>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const severityData = [
+                { name: "Critical", value: criticalInsights.length, color: "#EF4444" },
+                { name: "Warning", value: warningInsights.length, color: "#F59E0B" },
+                { name: "Opportunity", value: opportunityInsights.length, color: "#10B981" },
+                { name: "Info", value: infoInsights.length, color: "#3B82F6" },
+              ].filter((d) => d.value > 0);
+
+              if (severityData.length === 0) {
+                return (
+                  <div className="flex items-center justify-center h-[280px] text-text-muted text-sm">
+                    No active insights
+                  </div>
+                );
+              }
+
+              return (
+                <ResponsiveContainer width="100%" height={280}>
+                  <PieChart>
+                    <Pie
+                      data={severityData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={3}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {severityData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#111827",
+                        border: "1px solid #1F2937",
+                        borderRadius: "8px",
+                      }}
+                      labelStyle={{ color: "#F9FAFB", fontSize: 12 }}
+                      itemStyle={{ color: "#9CA3AF", fontSize: 11 }}
+                      formatter={(value: any, name: any) => [`${value} insights`, name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              );
+            })()}
+            {/* Legend */}
+            <div className="flex flex-wrap justify-center gap-3 mt-2">
+              {[
+                { label: "Critical", count: criticalInsights.length, color: "#EF4444" },
+                { label: "Warning", count: warningInsights.length, color: "#F59E0B" },
+                { label: "Opportunity", count: opportunityInsights.length, color: "#10B981" },
+                { label: "Info", count: infoInsights.length, color: "#3B82F6" },
+              ]
+                .filter((d) => d.count > 0)
+                .map((d) => (
+                  <div key={d.label} className="flex items-center gap-1.5 text-[10px] text-text-muted">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
+                    {d.label} ({d.count})
+                  </div>
+                ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bar Chart — Impact by Module */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+              <Target size={16} className="text-wedja-accent" />
+              Impact by Module (EGP)
+            </h2>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const moduleImpact: Record<string, number> = {};
+              insights.forEach((insight) => {
+                insight.source_modules.forEach((mod) => {
+                  moduleImpact[mod] = (moduleImpact[mod] || 0) + insight.impact_egp;
+                });
+              });
+              const barData = Object.entries(moduleImpact)
+                .map(([module, impact]) => ({ module, impact }))
+                .sort((a, b) => b.impact - a.impact)
+                .slice(0, 8);
+
+              if (barData.length === 0) {
+                return (
+                  <div className="flex items-center justify-center h-[280px] text-text-muted text-sm">
+                    No impact data
+                  </div>
+                );
+              }
+
+              const barColors = [
+                "#F59E0B", "#EF4444", "#10B981", "#3B82F6",
+                "#8B5CF6", "#EC4899", "#06B6D4", "#F97316",
+              ];
+
+              return (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" horizontal={false} />
+                    <XAxis
+                      type="number"
+                      tick={{ fill: "#6B7280", fontSize: 10 }}
+                      tickFormatter={(value: any) =>
+                        value >= 1000000
+                          ? `${(value / 1000000).toFixed(1)}M`
+                          : value >= 1000
+                          ? `${(value / 1000).toFixed(0)}K`
+                          : `${value}`
+                      }
+                      axisLine={{ stroke: "#1F2937" }}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="module"
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      width={80}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#111827",
+                        border: "1px solid #1F2937",
+                        borderRadius: "8px",
+                      }}
+                      labelStyle={{ color: "#F9FAFB", fontSize: 12 }}
+                      itemStyle={{ color: "#F59E0B", fontSize: 11 }}
+                      formatter={(value: any) => [formatCurrency(value), "Impact"]}
+                    />
+                    <Bar dataKey="impact" radius={[0, 4, 4, 0]}>
+                      {barData.map((_entry, index) => (
+                        <Cell key={`bar-${index}`} fill={barColors[index % barColors.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              );
+            })()}
+          </CardContent>
+        </Card>
       </div>
 
       {/* ── C. Cross-Data Insights Feed ── */}
