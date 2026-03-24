@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Loader2, Brain, Activity, DollarSign, Users, Wrench, Zap, Settings, Server } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
 
 interface AuditEntry {
   id: string;
@@ -56,6 +59,21 @@ export default function AuditPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  /* ── Derive daily event counts for the chart ── */
+  const dailyCounts = useMemo(() => {
+    const map: Record<string, number> = {};
+    entries.forEach((e) => {
+      const day = e.created_at?.slice(0, 10); // "YYYY-MM-DD"
+      if (day) map[day] = (map[day] || 0) + 1;
+    });
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({
+        date: new Date(date).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+        events: count,
+      }));
+  }, [entries]);
+
   if (loading) return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-wedja-accent" /></div>;
 
   return (
@@ -74,6 +92,27 @@ export default function AuditPage() {
         <Card><CardContent><p className="text-xs text-text-muted">AI Decisions</p><p className="text-2xl font-mono font-bold text-wedja-accent mt-1">{stats?.ai_decisions || 0}</p></CardContent></Card>
         <Card><CardContent><p className="text-xs text-text-muted">Categories</p><p className="text-2xl font-mono font-bold text-text-primary mt-1">{Object.keys(stats?.by_category || {}).length}</p></CardContent></Card>
       </div>
+
+      {dailyCounts.length > 1 && (
+        <Card>
+          <CardHeader><h3 className="text-sm font-semibold text-text-primary">Events Over Time</h3></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={dailyCounts} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis dataKey="date" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: 8, color: "#F9FAFB" }}
+                  labelStyle={{ color: "#9CA3AF", fontSize: 12 }}
+                  formatter={(value: any) => [value, "Events"]}
+                />
+                <Bar dataKey="events" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex flex-wrap gap-1.5">
         {["all", "ai_brain", "ai_decision", "automation", "system", "lease", "rent", "tenant", "maintenance", "energy"].map(cat => (

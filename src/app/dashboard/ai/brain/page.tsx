@@ -22,6 +22,17 @@ import {
   BarChart3,
   AlertTriangle,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import { cn } from "@/lib/utils";
 
 // ── Types ───────────────────────────────────────────────────
@@ -478,6 +489,137 @@ export default function BrainPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Charts */}
+      {decisions.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Decisions by Category */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Decisions by Category
+              </h3>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const catCounts: Record<string, number> = {};
+                decisions.forEach((d) => {
+                  catCounts[d.category] = (catCounts[d.category] || 0) + 1;
+                });
+                const chartData = Object.entries(catCounts).map(([cat, count]) => ({
+                  name: getCategoryConfig(cat).label,
+                  count,
+                }));
+                return (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#6B7280", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#111827",
+                          border: "1px solid #1F2937",
+                          borderRadius: "8px",
+                        }}
+                        labelStyle={{ color: "#F9FAFB" }}
+                        itemStyle={{ color: "#A5B4FC" }}
+                        formatter={(value: any) => [value, "Decisions"]}
+                      />
+                      <Bar dataKey="count" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
+          {/* Confidence Distribution Donut */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Confidence Distribution
+              </h3>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                let high = 0, medium = 0, low = 0;
+                decisions.forEach((d) => {
+                  if (d.confidence >= 75) high++;
+                  else if (d.confidence >= 50) medium++;
+                  else low++;
+                });
+                const donutData = [
+                  { name: "High (75%+)", value: high },
+                  { name: "Medium (50-74%)", value: medium },
+                  { name: "Low (<50%)", value: low },
+                ].filter((d) => d.value > 0);
+                const COLORS = ["#4F46E5", "#F59E0B", "#EF4444"];
+                return (
+                  <>
+                    <ResponsiveContainer width="100%" height={230}>
+                      <PieChart>
+                        <Pie
+                          data={donutData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={85}
+                          paddingAngle={4}
+                          dataKey="value"
+                          stroke="none"
+                        >
+                          {donutData.map((_, idx) => (
+                            <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "#111827",
+                            border: "1px solid #1F2937",
+                            borderRadius: "8px",
+                          }}
+                          itemStyle={{ color: "#A5B4FC" }}
+                          formatter={(value: any, name: any) => [value, name]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="flex items-center justify-center gap-4 -mt-2">
+                      {high > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#4F46E5" }} />
+                          <span className="text-xs text-text-secondary">High ({high})</span>
+                        </div>
+                      )}
+                      {medium > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#F59E0B" }} />
+                          <span className="text-xs text-text-secondary">Medium ({medium})</span>
+                        </div>
+                      )}
+                      {low > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#EF4444" }} />
+                          <span className="text-xs text-text-secondary">Low ({low})</span>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Run Brain Cycle */}
       <Card>

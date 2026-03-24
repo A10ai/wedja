@@ -19,6 +19,16 @@ import {
   Users,
   Eye,
 } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -331,6 +341,157 @@ export default function LearningPage() {
           detail="Human corrections"
         />
       </div>
+
+      {/* ── Charts ─────────────────────────────────────────── */}
+      {(history.length > 0 || patterns.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Learning Progress Area Chart */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Learning Progress
+              </h3>
+            </CardHeader>
+            <CardContent>
+              {history.length > 0 ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart
+                    data={[...history].reverse().map((c) => ({
+                      date: formatDate(c.cycle_date),
+                      params: c.params_updated,
+                      patterns: c.patterns_found,
+                    }))}
+                    margin={{ top: 8, right: 8, bottom: 8, left: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="learnGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#4F46E5" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#4F46E5" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="patternGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "#6B7280", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#111827",
+                        border: "1px solid #1F2937",
+                        borderRadius: "8px",
+                      }}
+                      labelStyle={{ color: "#F9FAFB" }}
+                      formatter={(value: any, name: any) => [
+                        value,
+                        name === "params" ? "Params Updated" : "Patterns Found",
+                      ]}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="params"
+                      stroke="#4F46E5"
+                      strokeWidth={2}
+                      fill="url(#learnGrad)"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="patterns"
+                      stroke="#10B981"
+                      strokeWidth={2}
+                      fill="url(#patternGrad)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[260px] text-sm text-text-muted">
+                  No learning cycles yet.
+                </div>
+              )}
+              {history.length > 0 && (
+                <div className="flex items-center justify-center gap-6 mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#4F46E5" }} />
+                    <span className="text-xs text-text-secondary">Params Updated</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#10B981" }} />
+                    <span className="text-xs text-text-secondary">Patterns Found</span>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Patterns Discovered by Type */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Patterns by Type
+              </h3>
+            </CardHeader>
+            <CardContent>
+              {patterns.length > 0 ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart
+                    data={(() => {
+                      const typeCounts: Record<string, number> = {};
+                      patterns.forEach((p) => {
+                        const cfg = patternTypeConfig[p.pattern_type];
+                        const label = cfg ? cfg.label : p.pattern_type;
+                        typeCounts[label] = (typeCounts[label] || 0) + 1;
+                      });
+                      return Object.entries(typeCounts).map(([type, count]) => ({
+                        name: type,
+                        count,
+                      }));
+                    })()}
+                    margin={{ top: 8, right: 8, bottom: 8, left: 0 }}
+                  >
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fill: "#6B7280", fontSize: 11 }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#111827",
+                        border: "1px solid #1F2937",
+                        borderRadius: "8px",
+                      }}
+                      labelStyle={{ color: "#F9FAFB" }}
+                      itemStyle={{ color: "#A5B4FC" }}
+                      formatter={(value: any) => [value, "Patterns"]}
+                    />
+                    <Bar dataKey="count" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[260px] text-sm text-text-muted">
+                  No patterns discovered yet.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* ── C. Calibrated Parameters ───────────────────────── */}
       <Card>

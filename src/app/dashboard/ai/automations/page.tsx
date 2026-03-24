@@ -19,6 +19,17 @@ import {
   AlertTriangle,
   TrendingUp,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import { cn } from "@/lib/utils";
 
 // ── Types ───────────────────────────────────────────────────
@@ -484,6 +495,118 @@ export default function AutomationsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Charts */}
+      {automations.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Execution Count by Type */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Actions by Automation Type
+              </h3>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart
+                  data={automations.map((a) => ({
+                    name: a.name.replace("AI ", "").replace("Smart ", ""),
+                    actions: a.actions_taken,
+                  }))}
+                  margin={{ top: 8, right: 8, bottom: 8, left: 0 }}
+                >
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0}
+                    angle={-25}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis
+                    tick={{ fill: "#6B7280", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#111827",
+                      border: "1px solid #1F2937",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "#F9FAFB" }}
+                    itemStyle={{ color: "#A5B4FC" }}
+                    formatter={(value: any) => [value, "Actions"]}
+                  />
+                  <Bar dataKey="actions" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Enabled / Disabled Donut */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Automation Status
+              </h3>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const enabledN = automations.filter((a) => a.enabled).length;
+                const disabledN = automations.length - enabledN;
+                const donutData = [
+                  { name: "Enabled", value: enabledN },
+                  { name: "Disabled", value: disabledN },
+                ];
+                const COLORS = ["#4F46E5", "#374151"];
+                return (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie
+                        data={donutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={4}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {donutData.map((_, idx) => (
+                          <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#111827",
+                          border: "1px solid #1F2937",
+                          borderRadius: "8px",
+                        }}
+                        itemStyle={{ color: "#A5B4FC" }}
+                        formatter={(value: any, name: any) => [value, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+              <div className="flex items-center justify-center gap-6 -mt-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-indigo-600" />
+                  <span className="text-xs text-text-secondary">Enabled ({enabledCount})</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-gray-700" />
+                  <span className="text-xs text-text-secondary">Disabled ({automations.length - enabledCount})</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Automation Cards Grid */}
       <div>

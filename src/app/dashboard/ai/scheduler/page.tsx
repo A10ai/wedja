@@ -4,6 +4,17 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Timer, Play, Pause, Loader2, Activity, Zap, AlertTriangle, Users, DollarSign, CheckCircle } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 import { cn } from "@/lib/utils";
 
 interface SchedulerStatus {
@@ -33,6 +44,7 @@ export default function SchedulerPage() {
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [lastResult, setLastResult] = useState<CycleResult | null>(null);
+  const [cycleHistory, setCycleHistory] = useState<CycleResult[]>([]);
   const [interval, setIntervalVal] = useState(15);
 
   const fetchStatus = useCallback(async () => {
@@ -40,6 +52,7 @@ export default function SchedulerPage() {
       const res = await fetch("/api/v1/ai/scheduler");
       const json = await res.json();
       setStatus(json.data);
+      setCycleHistory(json.data?.cycle_history || []);
       setIntervalVal(json.data?.interval_minutes || 15);
     } catch { /* — */ }
     finally { setLoading(false); }
@@ -91,6 +104,146 @@ export default function SchedulerPage() {
         <Card><CardContent><p className="text-xs text-text-muted">Interval</p><p className="text-lg font-bold text-text-primary mt-1">{status?.interval_minutes || 15} min</p></CardContent></Card>
         <Card><CardContent><p className="text-xs text-text-muted">Total Cycles</p><p className="text-lg font-bold font-mono text-text-primary mt-1">{status?.total_cycles || 0}</p></CardContent></Card>
         <Card><CardContent><p className="text-xs text-text-muted">Last Run</p><p className="text-sm font-medium text-text-primary mt-1">{status?.last_run ? new Date(status.last_run).toLocaleTimeString() : "Never"}</p></CardContent></Card>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Cycle History Trend */}
+        <Card>
+          <CardHeader>
+            <h3 className="text-sm font-semibold text-text-primary">
+              Cycle History
+            </h3>
+          </CardHeader>
+          <CardContent>
+            {cycleHistory.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart
+                  data={cycleHistory.slice(-20).map((c) => ({
+                    time: new Date(c.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    duration: c.duration_ms || 0,
+                    anomalies: c.active_anomalies || 0,
+                  }))}
+                  margin={{ top: 8, right: 8, bottom: 8, left: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="schedGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4F46E5" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#4F46E5" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="time"
+                    tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: "#6B7280", fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                    allowDecimals={false}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#111827",
+                      border: "1px solid #1F2937",
+                      borderRadius: "8px",
+                    }}
+                    labelStyle={{ color: "#F9FAFB" }}
+                    itemStyle={{ color: "#A5B4FC" }}
+                    formatter={(value: any, name: any) => [
+                      name === "duration" ? `${value}ms` : value,
+                      name === "duration" ? "Duration" : "Anomalies",
+                    ]}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="duration"
+                    stroke="#4F46E5"
+                    strokeWidth={2}
+                    fill="url(#schedGrad)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[260px] text-sm text-text-muted">
+                No cycle history yet. Run a cycle to start tracking.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Execution Status Donut */}
+        <Card>
+          <CardHeader>
+            <h3 className="text-sm font-semibold text-text-primary">
+              Execution Status
+            </h3>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const successCount = cycleHistory.filter((c) => !c.error).length;
+              const errorCount = cycleHistory.filter((c) => c.error).length;
+              const total = successCount + errorCount;
+              if (total === 0) {
+                return (
+                  <div className="flex items-center justify-center h-[260px] text-sm text-text-muted">
+                    No execution data yet.
+                  </div>
+                );
+              }
+              const donutData = [
+                { name: "Success", value: successCount },
+                { name: "Error", value: errorCount },
+              ].filter((d) => d.value > 0);
+              const COLORS = ["#4F46E5", "#EF4444"];
+              return (
+                <>
+                  <ResponsiveContainer width="100%" height={230}>
+                    <PieChart>
+                      <Pie
+                        data={donutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={4}
+                        dataKey="value"
+                        stroke="none"
+                      >
+                        {donutData.map((_, idx) => (
+                          <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#111827",
+                          border: "1px solid #1F2937",
+                          borderRadius: "8px",
+                        }}
+                        itemStyle={{ color: "#A5B4FC" }}
+                        formatter={(value: any, name: any) => [value, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex items-center justify-center gap-6 -mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#4F46E5" }} />
+                      <span className="text-xs text-text-secondary">Success ({successCount})</span>
+                    </div>
+                    {errorCount > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: "#EF4444" }} />
+                        <span className="text-xs text-text-secondary">Error ({errorCount})</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
       </div>
 
       <Card>

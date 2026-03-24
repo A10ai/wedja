@@ -16,6 +16,16 @@ import {
   XCircle,
   Server,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -515,6 +525,127 @@ export default function EventBusPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Charts */}
+      {data && data.events.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Events by Type */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Events by Type
+              </h3>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const typeCounts: Record<string, number> = {};
+                data.events.forEach((e) => {
+                  const cat = e.type.split(".")[0];
+                  typeCounts[cat] = (typeCounts[cat] || 0) + 1;
+                });
+                const chartData = Object.entries(typeCounts)
+                  .map(([type, count]) => ({
+                    name: type.charAt(0).toUpperCase() + type.slice(1),
+                    count,
+                  }))
+                  .sort((a, b) => b.count - a.count);
+                return (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#6B7280", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#111827",
+                          border: "1px solid #1F2937",
+                          borderRadius: "8px",
+                        }}
+                        labelStyle={{ color: "#F9FAFB" }}
+                        itemStyle={{ color: "#A5B4FC" }}
+                        formatter={(value: any) => [value, "Events"]}
+                      />
+                      <Bar dataKey="count" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
+          {/* Event Timeline Area Chart */}
+          <Card>
+            <CardHeader>
+              <h3 className="text-sm font-semibold text-text-primary">
+                Event Timeline
+              </h3>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const hourBuckets: Record<string, number> = {};
+                data.events.forEach((e) => {
+                  const d = new Date(e.created_at);
+                  const key = `${d.getHours().toString().padStart(2, "0")}:00`;
+                  hourBuckets[key] = (hourBuckets[key] || 0) + 1;
+                });
+                const chartData = Object.entries(hourBuckets)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([hour, count]) => ({ hour, events: count }));
+                return (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 0 }}>
+                      <defs>
+                        <linearGradient id="eventsGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#4F46E5" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="#4F46E5" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="hour"
+                        tick={{ fill: "#9CA3AF", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#6B7280", fontSize: 11 }}
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#111827",
+                          border: "1px solid #1F2937",
+                          borderRadius: "8px",
+                        }}
+                        labelStyle={{ color: "#F9FAFB" }}
+                        itemStyle={{ color: "#A5B4FC" }}
+                        formatter={(value: any) => [value, "Events"]}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="events"
+                        stroke="#4F46E5"
+                        strokeWidth={2}
+                        fill="url(#eventsGrad)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                );
+              })()}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Filters + Test Emit */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">

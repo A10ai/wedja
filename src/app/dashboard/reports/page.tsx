@@ -12,6 +12,10 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell,
+} from "recharts";
 
 const REPORT_TYPES = [
   { value: "revenue_verification", label: "Revenue Verification" },
@@ -355,6 +359,36 @@ function RevenueVerificationReport({
             </div>
           </div>
 
+          {/* Revenue Comparison Chart */}
+          {(data.tenants || []).length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Reported vs Estimated Revenue</h3>
+              <ResponsiveContainer width="100%" height={Math.max(220, (data.tenants || []).length * 36)}>
+                <BarChart
+                  data={(data.tenants || []).map((t: any) => ({
+                    name: t.brand_name?.length > 14 ? t.brand_name.slice(0, 14) + "..." : t.brand_name,
+                    Reported: t.reported_revenue_egp || 0,
+                    Estimated: t.estimated_mid_egp || 0,
+                  }))}
+                  layout="vertical"
+                  margin={{ top: 4, right: 12, bottom: 0, left: 80 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                  <XAxis type="number" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false}
+                    tickFormatter={(v: any) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: 8, color: "#F9FAFB" }}
+                    labelStyle={{ color: "#9CA3AF", fontSize: 12 }}
+                    formatter={(value: any, name: any) => [formatCurrency(value), name]}
+                  />
+                  <Bar dataKey="Reported" fill="#4F46E5" radius={[0, 4, 4, 0]} barSize={14} />
+                  <Bar dataKey="Estimated" fill="#818CF8" radius={[0, 4, 4, 0]} barSize={14} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -402,6 +436,8 @@ function RevenueVerificationReport({
 
 function TenantPerformanceReport({ data }: { data: any }) {
   const tenants = data?.tenants || [];
+  const SCORE_COLORS = ["#EF4444", "#F59E0B", "#10B981"];
+  const getScoreColor = (s: number) => s >= 70 ? SCORE_COLORS[2] : s >= 40 ? SCORE_COLORS[1] : SCORE_COLORS[0];
 
   return (
     <Card>
@@ -411,6 +447,37 @@ function TenantPerformanceReport({ data }: { data: any }) {
         </h2>
       </CardHeader>
       <CardContent className="p-0">
+        {/* Performance Score Chart */}
+        {tenants.length > 0 && (
+          <div className="px-4 pb-4">
+            <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Overall Performance Scores</h3>
+            <ResponsiveContainer width="100%" height={Math.max(200, tenants.length * 32)}>
+              <BarChart
+                data={tenants.map((t: any) => ({
+                  name: t.brand_name?.length > 14 ? t.brand_name.slice(0, 14) + "..." : t.brand_name,
+                  score: t.overall_score,
+                }))}
+                layout="vertical"
+                margin={{ top: 4, right: 12, bottom: 0, left: 80 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                <XAxis type="number" domain={[0, 100]} tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: 8, color: "#F9FAFB" }}
+                  labelStyle={{ color: "#9CA3AF", fontSize: 12 }}
+                  formatter={(value: any) => [value.toFixed(0), "Score"]}
+                />
+                <Bar dataKey="score" radius={[0, 4, 4, 0]} barSize={16}>
+                  {tenants.map((t: any, i: number) => (
+                    <Cell key={i} fill={getScoreColor(t.overall_score)} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -506,6 +573,31 @@ function FootfallReport({ data }: { data: any }) {
             <h2 className="text-sm font-semibold text-text-primary">Footfall by Zone</h2>
           </CardHeader>
           <CardContent className="p-0">
+            {/* Zone Footfall Bar Chart */}
+            <div className="px-4 pb-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart
+                  data={zones.map((z: any) => ({
+                    name: z.zone_name?.length > 12 ? z.zone_name.slice(0, 12) + "..." : z.zone_name,
+                    visitors: z.total_in,
+                    dwell: z.avg_dwell_seconds,
+                  }))}
+                  margin={{ top: 4, right: 12, bottom: 0, left: -10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="name" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false}
+                    tickFormatter={(v: any) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: 8, color: "#F9FAFB" }}
+                    labelStyle={{ color: "#9CA3AF", fontSize: 12 }}
+                    formatter={(value: any, name: any) => [value.toLocaleString(), name === "visitors" ? "Visitors" : "Avg Dwell (s)"]}
+                  />
+                  <Bar dataKey="visitors" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -625,6 +717,38 @@ function RentCollectionReport({
         </Card>
       )}
 
+      {/* Rent Collection Chart */}
+      {transactions.length > 0 && (
+        <Card>
+          <CardHeader><h3 className="text-sm font-semibold text-text-primary">Due vs Collected</h3></CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={Math.max(200, transactions.length * 36)}>
+              <BarChart
+                data={transactions.map((t: any) => ({
+                  name: (t.lease?.tenant?.brand_name || "Unknown").slice(0, 14),
+                  Due: t.amount_due || 0,
+                  Paid: t.amount_paid || 0,
+                }))}
+                layout="vertical"
+                margin={{ top: 4, right: 12, bottom: 0, left: 80 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                <XAxis type="number" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false}
+                  tickFormatter={(v: any) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+                <YAxis type="category" dataKey="name" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} width={80} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: 8, color: "#F9FAFB" }}
+                  labelStyle={{ color: "#9CA3AF", fontSize: 12 }}
+                  formatter={(value: any, name: any) => [formatCurrency(value), name]}
+                />
+                <Bar dataKey="Due" fill="#4F46E5" radius={[0, 4, 4, 0]} barSize={14} />
+                <Bar dataKey="Paid" fill="#10B981" radius={[0, 4, 4, 0]} barSize={14} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -689,13 +813,36 @@ function MaintenanceReport({ data }: { data: any }) {
                 <p className="text-xs text-text-muted">Avg Resolution</p>
               </div>
             </div>
-            <div className="flex gap-3 text-xs">
+            <div className="flex gap-3 text-xs mb-4">
               {Object.entries(s.by_priority || {}).map(([key, val]) => (
                 <span key={key} className="text-text-muted">
                   {key}: <span className="text-text-primary font-mono">{val as number}</span>
                 </span>
               ))}
             </div>
+
+            {/* Tickets by Category Chart */}
+            {s.by_category && Object.keys(s.by_category).length > 0 && (
+              <div className="mt-2">
+                <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">By Category</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart
+                    data={Object.entries(s.by_category).map(([cat, count]) => ({ category: cat, tickets: count }))}
+                    margin={{ top: 4, right: 12, bottom: 0, left: -10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="category" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: 8, color: "#F9FAFB" }}
+                      labelStyle={{ color: "#9CA3AF", fontSize: 12 }}
+                      formatter={(value: any) => [value, "Tickets"]}
+                    />
+                    <Bar dataKey="tickets" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -790,6 +937,31 @@ function EnergyReport({ data }: { data: any }) {
             <h2 className="text-sm font-semibold text-text-primary">Energy by Zone</h2>
           </CardHeader>
           <CardContent className="p-0">
+            {/* Energy Consumption Chart */}
+            <div className="px-4 pb-4">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart
+                  data={zones.map((z: any) => ({
+                    name: z.zone_name?.length > 12 ? z.zone_name.slice(0, 12) + "..." : z.zone_name,
+                    kWh: z.consumption_kwh || 0,
+                    cost: z.cost_egp || 0,
+                  }))}
+                  margin={{ top: 4, right: 12, bottom: 0, left: -10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="name" tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: "#9CA3AF", fontSize: 11 }} axisLine={false} tickLine={false}
+                    tickFormatter={(v: any) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : v} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: "#1F2937", border: "1px solid #374151", borderRadius: 8, color: "#F9FAFB" }}
+                    labelStyle={{ color: "#9CA3AF", fontSize: 12 }}
+                    formatter={(value: any, name: any) => [name === "kWh" ? `${value.toLocaleString()} kWh` : formatCurrency(value), name === "kWh" ? "Consumption" : "Cost (EGP)"]}
+                  />
+                  <Bar dataKey="kWh" fill="#4F46E5" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
