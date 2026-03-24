@@ -181,6 +181,14 @@ export default function DashboardPage() {
   const { connected: realtimeConnected, lastUpdate: realtimeLastUpdate } =
     useRealtimeSubscription(REALTIME_TABLES, fetchAll, 3000);
 
+  // Auto-refresh every 30s to pick up live CV footfall data
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAll();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
+
   // Fetch cross-data: percentage rent, anomalies, AI insights, social, footfall trend
   useEffect(() => {
     async function fetchCrossData() {

@@ -226,6 +226,14 @@ export default function FootfallPage() {
     fetchData();
   }, [fetchData]);
 
+  // Auto-refresh every 30s to pick up live CV footfall data
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
   // Fetch cross-data: rent transactions for revenue/visitor, CCTV for conversion
   useEffect(() => {
     async function fetchCrossData() {
