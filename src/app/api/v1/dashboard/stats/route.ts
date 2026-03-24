@@ -91,29 +91,31 @@ export async function GET() {
     );
     const activeTenants = uniqueTenantIds.size;
 
-    // Footfall today — check footfall_daily first, fallback to footfall_readings
+    // Footfall today — check both footfall_daily and live footfall_readings
     let footfallToday = (footfallResult.data || []).reduce(
       (sum, f) => sum + (f.total_in || 0),
       0
     );
 
-    // If no daily summary, sum live readings from footfall_readings
-    if (footfallToday === 0) {
-      try {
-        const todayStart = new Date().toISOString().split("T")[0] + "T00:00:00Z";
-        const { data: liveReadings } = await supabase
-          .from("footfall_readings")
-          .select("count_in")
-          .gte("timestamp", todayStart);
-        if (liveReadings && liveReadings.length > 0) {
-          footfallToday = liveReadings.reduce(
-            (sum, r) => sum + (r.count_in || 0),
-            0
-          );
-        }
-      } catch {
-        // Live readings optional
+    // Always check live readings from CV service
+    try {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStart = todayStr + "T00:00:00Z";
+      const todayEnd = todayStr + "T23:59:59Z";
+      const { data: liveReadings } = await supabase
+        .from("footfall_readings")
+        .select("count_in")
+        .gte("timestamp", todayStart)
+        .lte("timestamp", todayEnd);
+      if (liveReadings && liveReadings.length > 0) {
+        const liveTotal = liveReadings.reduce(
+          (sum, r) => sum + (r.count_in || 0),
+          0
+        );
+        footfallToday = Math.max(footfallToday, liveTotal);
       }
+    } catch {
+      // Live readings optional
     }
 
     return NextResponse.json({
