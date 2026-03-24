@@ -97,21 +97,21 @@ export async function GET() {
       0
     );
 
-    // Always check live readings from CV service
+    // Direct fetch for live CV readings (bypass SDK caching)
     try {
       const todayStr = new Date().toISOString().split("T")[0];
-      const todayStart = todayStr + "T00:00:00Z";
-      const todayEnd = todayStr + "T23:59:59Z";
-      const { data: liveReadings } = await supabase
-        .from("footfall_readings")
-        .select("count_in")
-        .gte("timestamp", todayStart)
-        .lte("timestamp", todayEnd);
-      if (liveReadings && liveReadings.length > 0) {
-        const liveTotal = liveReadings.reduce(
-          (sum, r) => sum + (r.count_in || 0),
-          0
-        );
+      const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+      const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+      const liveRes = await fetch(
+        `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z`,
+        {
+          headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` },
+          cache: "no-store",
+        }
+      );
+      const liveData = await liveRes.json();
+      if (Array.isArray(liveData)) {
+        const liveTotal = liveData.reduce((s: number, r: any) => s + (r.count_in || 0), 0);
         footfallToday = Math.max(footfallToday, liveTotal);
       }
     } catch {
