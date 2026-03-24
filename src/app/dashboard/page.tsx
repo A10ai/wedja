@@ -157,7 +157,7 @@ export default function DashboardPage() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const res = await fetch("/api/v1/dashboard/stats");
+      const res = await fetch(`/api/v1/dashboard/stats?_t=${Date.now()}`);
       if (!res.ok) throw new Error("Failed to fetch stats");
       const data = await res.json();
       setStats(data);

@@ -174,6 +174,7 @@ export default function FootfallPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    const _t = Date.now(); // cache buster
     try {
       const [
         ovRes,
@@ -185,13 +186,13 @@ export default function FootfallPage() {
         peakRes,
         camRes,
       ] = await Promise.all([
-        fetch(`/api/v1/footfall?type=overview&date=${selectedDate}`),
-        fetch(`/api/v1/footfall?type=by_zone&date=${selectedDate}`),
-        fetch(`/api/v1/footfall?type=by_unit&date=${selectedDate}`),
-        fetch(`/api/v1/footfall?type=hourly&date=${selectedDate}`),
-        fetch(`/api/v1/footfall?type=trend&days=30`),
-        fetch(`/api/v1/footfall?type=heatmap&date=${selectedDate}`),
-        fetch(`/api/v1/footfall?type=peaks`),
+        fetch(`/api/v1/footfall?type=overview&date=${selectedDate}&_t=${_t}`),
+        fetch(`/api/v1/footfall?type=by_zone&date=${selectedDate}&_t=${_t}`),
+        fetch(`/api/v1/footfall?type=by_unit&date=${selectedDate}&_t=${_t}`),
+        fetch(`/api/v1/footfall?type=hourly&date=${selectedDate}&_t=${_t}`),
+        fetch(`/api/v1/footfall?type=trend&days=30&_t=${_t}`),
+        fetch(`/api/v1/footfall?type=heatmap&date=${selectedDate}&_t=${_t}`),
+        fetch(`/api/v1/footfall?type=peaks&_t=${_t}`),
         fetch(`/api/v1/cameras`),
       ]);
 
