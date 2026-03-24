@@ -131,6 +131,8 @@ export async function GET() {
       recent_transactions: recentTransactionsResult.data || [],
       discrepancies_found: discrepanciesResult.count || 0,
       footfall_today: footfallToday,
+    }, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     });
   } catch (error) {
     console.error("Dashboard stats error:", error);

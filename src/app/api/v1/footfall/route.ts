@@ -29,7 +29,9 @@ export async function GET(req: NextRequest) {
     switch (type) {
       case "overview": {
         const data = await getFootfallOverview(supabase, PROPERTY_ID, date);
-        return NextResponse.json(data);
+        return NextResponse.json(data, {
+          headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+        });
       }
 
       case "by_zone": {
