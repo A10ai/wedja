@@ -248,7 +248,7 @@ export async function getFootfallOverview(
   });
 
   // If no hourly data, fall back to footfall_daily peak
-  if (peak_count === 0 && todayData && todayData.length > 0) {
+  if (peak_count === 0 && dailyResult.data && dailyResult.data.length > 0) {
     const { data: dailyPeak } = await supabase
       .from("footfall_daily")
       .select("peak_hour, peak_count")
