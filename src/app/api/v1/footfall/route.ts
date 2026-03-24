@@ -28,19 +28,20 @@ export async function GET(req: NextRequest) {
 
     switch (type) {
       case "overview": {
-        const overview = await getFootfallOverview(supabase, PROPERTY_ID, date);
-        // Always override with direct live count (same query as debug endpoint)
         const todayStr = date || new Date().toISOString().split("T")[0];
-        const { data: liveData } = await supabase
-          .from("footfall_readings")
-          .select("count_in")
-          .gte("timestamp", todayStr + "T00:00:00Z")
-          .lte("timestamp", todayStr + "T23:59:59Z");
-        const liveTotal = (liveData || []).reduce((s: number, r: any) => s + (r.count_in || 0), 0);
-        return NextResponse.json({
-          ...overview,
-          total_visitors_today: Math.max(overview.total_visitors_today, liveTotal),
-        }, {
+        // Run engine overview and direct live count in parallel
+        const [overview, liveResult] = await Promise.all([
+          getFootfallOverview(supabase, PROPERTY_ID, date),
+          supabase
+            .from("footfall_readings")
+            .select("count_in", { count: "exact" })
+            .gte("timestamp", todayStr + "T00:00:00Z")
+            .lte("timestamp", todayStr + "T23:59:59Z"),
+        ]);
+        const liveTotal = (liveResult.data || []).reduce((s: number, r: any) => s + (r.count_in || 0), 0);
+        const result = { ...overview };
+        result.total_visitors_today = Math.max(result.total_visitors_today, liveTotal);
+        return NextResponse.json(result, {
           headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
         });
       }
