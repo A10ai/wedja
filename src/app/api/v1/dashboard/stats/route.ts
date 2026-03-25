@@ -97,17 +97,27 @@ export async function GET() {
       0
     );
 
-    // Direct fetch for live CV readings (bypass SDK caching)
+    // Direct fetch for gate camera data (bypass SDK caching)
     try {
       const todayStr = new Date().toISOString().split("T")[0];
       const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+      // Check footfall_daily (gate camera cumulative totals)
+      const dailyRes = await fetch(
+        `${sbUrl}/rest/v1/footfall_daily?select=total_in&property_id=eq.a0000000-0000-0000-0000-000000000001&date=eq.${todayStr}`,
+        { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" }
+      );
+      const dailyData = await dailyRes.json();
+      if (Array.isArray(dailyData)) {
+        const dailyTotal = dailyData.reduce((s: number, r: any) => s + (r.total_in || 0), 0);
+        footfallToday = Math.max(footfallToday, dailyTotal);
+      }
+
+      // Also check footfall_readings (legacy)
       const liveRes = await fetch(
         `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z`,
-        {
-          headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` },
-          cache: "no-store",
-        }
+        { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" }
       );
       const liveData = await liveRes.json();
       if (Array.isArray(liveData)) {

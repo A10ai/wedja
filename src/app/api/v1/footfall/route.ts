@@ -29,31 +29,44 @@ export async function GET(req: NextRequest) {
     switch (type) {
       case "overview": {
         const todayStr = date || new Date().toISOString().split("T")[0];
+        const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+        const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
         // Get engine overview
         const overview = await getFootfallOverview(supabase, PROPERTY_ID, date);
-        // Direct fetch to Supabase REST (bypass SDK caching)
+
+        // Direct fetch: footfall_daily (gate camera cumulative totals)
+        let dailyTotal = 0;
+        try {
+          const dailyRes = await fetch(
+            `${sbUrl}/rest/v1/footfall_daily?select=total_in&property_id=eq.${PROPERTY_ID}&date=eq.${todayStr}`,
+            { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" }
+          );
+          const dailyData = await dailyRes.json();
+          if (Array.isArray(dailyData)) {
+            dailyTotal = dailyData.reduce((s: number, r: any) => s + (r.total_in || 0), 0);
+          }
+        } catch { /* */ }
+
+        // Direct fetch: footfall_readings (legacy/YOLO readings)
         let liveTotal = 0;
         try {
-          const sbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-          const sbKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
           const liveRes = await fetch(
             `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z`,
-            {
-              headers: {
-                apikey: sbKey,
-                Authorization: `Bearer ${sbKey}`,
-              },
-              cache: "no-store",
-            }
+            { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" }
           );
           const liveData = await liveRes.json();
           if (Array.isArray(liveData)) {
             liveTotal = liveData.reduce((s: number, r: any) => s + (r.count_in || 0), 0);
           }
         } catch { /* */ }
+
+        // Use the highest of: engine result, daily summary, or live readings
+        const bestFootfall = Math.max(overview.total_visitors_today, dailyTotal, liveTotal);
+
         return NextResponse.json({
           ...overview,
-          total_visitors_today: Math.max(overview.total_visitors_today, liveTotal),
+          total_visitors_today: bestFootfall,
         }, {
           headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
         });
