@@ -269,7 +269,7 @@ export default function BriefingPage() {
             </div>
             <div className="flex items-end gap-3">
               <span
-                className={`text-4xl font-bold font-mono ${getHealthColor(
+                className={`text-xl font-bold font-mono ${getHealthColor(
                   healthOverall
                 )}`}
               >

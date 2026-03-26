@@ -744,7 +744,7 @@ export default function HeatmapPage() {
                   <div className="px-5 py-4 border-b border-wedja-border">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <p className="text-2xl font-bold text-text-primary font-mono">
+                        <p className="text-lg font-bold text-text-primary font-mono">
                           {formatNumber(deepDive.current_visitors)}
                         </p>
                         <p className="text-xs text-text-muted flex items-center gap-1">

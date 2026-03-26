@@ -290,7 +290,7 @@ export default function ContractsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <Card>
             <CardContent className="py-3 text-center">
-              <p className="text-2xl font-bold text-wedja-accent font-mono">
+              <p className="text-lg font-bold text-wedja-accent font-mono">
                 {overview.active_leases}
               </p>
               <p className="text-xs text-text-muted mt-0.5">Active Leases</p>
@@ -298,7 +298,7 @@ export default function ContractsPage() {
           </Card>
           <Card>
             <CardContent className="py-3 text-center">
-              <p className="text-2xl font-bold text-text-primary font-mono">
+              <p className="text-lg font-bold text-text-primary font-mono">
                 {formatCurrency(overview.total_monthly_min_rent_egp)}
               </p>
               <p className="text-xs text-text-muted mt-0.5">Monthly Rent Roll</p>
@@ -306,7 +306,7 @@ export default function ContractsPage() {
           </Card>
           <Card className="border-wedja-accent/30">
             <CardContent className="py-3 text-center">
-              <p className="text-2xl font-bold text-wedja-accent font-mono">
+              <p className="text-lg font-bold text-wedja-accent font-mono">
                 {portfolio ? `${portfolio.wale_years}y` : "--"}
               </p>
               <p className="text-xs text-text-muted mt-0.5">WALE</p>
@@ -315,7 +315,7 @@ export default function ContractsPage() {
           </Card>
           <Card>
             <CardContent className="py-3 text-center">
-              <p className="text-2xl font-bold text-status-success font-mono">
+              <p className="text-lg font-bold text-status-success font-mono">
                 {formatPercentage(overview.occupancy_rate)}
               </p>
               <p className="text-xs text-text-muted mt-0.5">Occupancy Rate</p>
@@ -323,7 +323,7 @@ export default function ContractsPage() {
           </Card>
           <Card>
             <CardContent className="py-3 text-center">
-              <p className={`text-2xl font-bold font-mono ${expiring.length > 0 ? "text-status-warning" : "text-status-success"}`}>
+              <p className={`text-lg font-bold font-mono ${expiring.length > 0 ? "text-status-warning" : "text-status-success"}`}>
                 {expiring.length}
               </p>
               <p className="text-xs text-text-muted mt-0.5">Expiring Soon</p>
@@ -548,14 +548,14 @@ export default function ContractsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                       <p className="text-xs text-text-muted mb-1">Minimum Rent (Contracted)</p>
-                      <p className="text-2xl font-bold text-text-primary font-mono">
+                      <p className="text-lg font-bold text-text-primary font-mono">
                         {formatCurrency(overview.total_monthly_min_rent_egp)}
                       </p>
                       <p className="text-xs text-text-muted">per month guaranteed</p>
                     </div>
                     <div>
                       <p className="text-xs text-text-muted mb-1">Percentage Rent Potential</p>
-                      <p className="text-2xl font-bold text-wedja-accent font-mono">
+                      <p className="text-lg font-bold text-wedja-accent font-mono">
                         {formatCurrency(overview.total_monthly_percentage_potential_egp)}
                       </p>
                       <p className="text-xs text-text-muted">based on reported sales</p>
@@ -871,25 +871,25 @@ function RentVsSalesSection({ data }: { data: RentVsSalesItem[] }) {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="border-red-500/30">
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-red-500 font-mono">{flagged.length}</p>
+            <p className="text-lg font-bold text-red-500 font-mono">{flagged.length}</p>
             <p className="text-xs text-text-muted mt-1">Underreporting Flags</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-amber-500 font-mono">{payingMinOnly.length}</p>
+            <p className="text-lg font-bold text-amber-500 font-mono">{payingMinOnly.length}</p>
             <p className="text-xs text-text-muted mt-1">Paying Min Rent Only</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-wedja-accent font-mono">{formatCurrency(totalGap)}</p>
+            <p className="text-lg font-bold text-wedja-accent font-mono">{formatCurrency(totalGap)}</p>
             <p className="text-xs text-text-muted mt-1">Reported Rent Gap</p>
           </CardContent>
         </Card>
         <Card className="border-wedja-accent/30">
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-wedja-accent font-mono">{formatCurrency(totalEstimatedGap)}</p>
+            <p className="text-lg font-bold text-wedja-accent font-mono">{formatCurrency(totalEstimatedGap)}</p>
             <p className="text-xs text-text-muted mt-1">Estimated True Gap</p>
             <p className="text-[10px] text-text-muted">from revenue verification</p>
           </CardContent>
@@ -1038,7 +1038,7 @@ function PortfolioSection({ portfolio }: { portfolio: PortfolioAnalytics }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="border-wedja-accent/30">
           <CardContent className="py-6 text-center">
-            <p className="text-4xl font-bold text-wedja-accent font-mono">
+            <p className="text-xl font-bold text-wedja-accent font-mono">
               {portfolio.wale_years}
             </p>
             <p className="text-sm text-text-muted mt-1">WALE (years)</p>
@@ -1047,7 +1047,7 @@ function PortfolioSection({ portfolio }: { portfolio: PortfolioAnalytics }) {
         </Card>
         <Card>
           <CardContent className="py-6 text-center">
-            <p className="text-4xl font-bold text-text-primary font-mono">
+            <p className="text-xl font-bold text-text-primary font-mono">
               {formatCurrency(portfolio.total_contracted_rent)}
             </p>
             <p className="text-sm text-text-muted mt-1">Monthly Contracted</p>
@@ -1055,7 +1055,7 @@ function PortfolioSection({ portfolio }: { portfolio: PortfolioAnalytics }) {
         </Card>
         <Card>
           <CardContent className="py-6 text-center">
-            <p className="text-4xl font-bold text-status-warning font-mono">
+            <p className="text-xl font-bold text-status-warning font-mono">
               {formatCurrency(portfolio.vacancy_cost_monthly)}
             </p>
             <p className="text-sm text-text-muted mt-1">Vacancy Cost /mo</p>
@@ -1177,19 +1177,19 @@ function PerformanceSection({
       <div className="grid grid-cols-3 gap-4">
         <Card>
           <CardContent className="py-3 text-center">
-            <p className="text-2xl font-bold text-status-success font-mono">{goodCount}</p>
+            <p className="text-lg font-bold text-status-success font-mono">{goodCount}</p>
             <p className="text-xs text-text-muted">Good</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-3 text-center">
-            <p className="text-2xl font-bold text-status-warning font-mono">{watchCount}</p>
+            <p className="text-lg font-bold text-status-warning font-mono">{watchCount}</p>
             <p className="text-xs text-text-muted">Watch</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-3 text-center">
-            <p className="text-2xl font-bold text-status-error font-mono">{underCount}</p>
+            <p className="text-lg font-bold text-status-error font-mono">{underCount}</p>
             <p className="text-xs text-text-muted">Underperforming</p>
           </CardContent>
         </Card>
@@ -1326,20 +1326,20 @@ function EscalationsSection({ data }: { data: EscalationItem[] }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-text-primary font-mono">{data.length}</p>
+            <p className="text-lg font-bold text-text-primary font-mono">{data.length}</p>
             <p className="text-xs text-text-muted">Leases with Escalation</p>
           </CardContent>
         </Card>
         <Card className="border-wedja-accent/30">
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-wedja-accent font-mono">{formatCurrency(totalIncrease)}</p>
+            <p className="text-lg font-bold text-wedja-accent font-mono">{formatCurrency(totalIncrease)}</p>
             <p className="text-xs text-text-muted">Total Monthly Increase</p>
             <p className="text-[10px] text-text-muted">at next escalation</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-status-success font-mono">{next6Months.length}</p>
+            <p className="text-lg font-bold text-status-success font-mono">{next6Months.length}</p>
             <p className="text-xs text-text-muted">Escalating within 6 months</p>
           </CardContent>
         </Card>

@@ -465,7 +465,7 @@ export default function DiscrepanciesPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-3xl font-bold text-text-primary font-mono">
+            <p className="text-lg font-bold text-text-primary font-mono">
               {loading ? (
                 <Loader2 size={24} className="animate-spin mx-auto" />
               ) : (
@@ -481,7 +481,7 @@ export default function DiscrepanciesPage() {
 
         <Card className="border-wedja-accent/30">
           <CardContent className="py-4 text-center">
-            <p className="text-3xl font-bold text-wedja-accent font-mono">
+            <p className="text-lg font-bold text-wedja-accent font-mono">
               {loading ? (
                 <Loader2 size={24} className="animate-spin mx-auto" />
               ) : (
@@ -497,7 +497,7 @@ export default function DiscrepanciesPage() {
 
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-3xl font-bold text-red-500 font-mono">
+            <p className="text-lg font-bold text-red-500 font-mono">
               {loading ? (
                 <Loader2 size={24} className="animate-spin mx-auto" />
               ) : (
@@ -513,7 +513,7 @@ export default function DiscrepanciesPage() {
 
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-3xl font-bold text-text-primary font-mono">
+            <p className="text-lg font-bold text-text-primary font-mono">
               {loading ? (
                 <Loader2 size={24} className="animate-spin mx-auto" />
               ) : (
@@ -1218,7 +1218,7 @@ function TenantProfilePanel({
         {/* Average Variance */}
         <div className="flex flex-col items-center justify-center">
           <p
-            className={`text-2xl font-bold font-mono ${p.avg_variance_pct > 15 ? "text-red-500" : p.avg_variance_pct > 5 ? "text-amber-500" : "text-emerald-500"}`}
+            className={`text-lg font-bold font-mono ${p.avg_variance_pct > 15 ? "text-red-500" : p.avg_variance_pct > 5 ? "text-amber-500" : "text-emerald-500"}`}
           >
             {p.avg_variance_pct > 0 ? "+" : ""}
             {formatPercentage(p.avg_variance_pct)}

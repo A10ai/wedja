@@ -771,7 +771,7 @@ function SeverityDonutChart({ anomalies }: { anomalies: Anomaly[] }) {
                 y="48%"
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="fill-text-primary text-2xl font-bold font-mono"
+                className="fill-text-primary text-lg font-bold font-mono"
                 style={{ fontSize: "24px", fontWeight: 700 }}
               >
                 {total}
@@ -1085,7 +1085,7 @@ export default function AnomaliesPage() {
                 Active Anomalies
               </span>
             </div>
-            <p className="text-2xl font-bold font-mono text-text-primary">
+            <p className="text-lg font-bold font-mono text-text-primary">
               {stats?.active_count || 0}
             </p>
             <div className="mt-1.5">
@@ -1121,7 +1121,7 @@ export default function AnomaliesPage() {
               </span>
             </div>
             <p
-              className={`text-2xl font-bold font-mono ${criticalCount > 0 ? "text-red-400" : "text-text-primary"}`}
+              className={`text-lg font-bold font-mono ${criticalCount > 0 ? "text-red-400" : "text-text-primary"}`}
             >
               {criticalCount}
             </p>
@@ -1144,7 +1144,7 @@ export default function AnomaliesPage() {
                 Detection Confidence
               </span>
             </div>
-            <p className="text-2xl font-bold font-mono text-text-primary">
+            <p className="text-lg font-bold font-mono text-text-primary">
               {stats?.avg_detection_confidence
                 ? formatPercentage(stats.avg_detection_confidence * 100, 0)
                 : "N/A"}
@@ -1163,7 +1163,7 @@ export default function AnomaliesPage() {
                 False Alarm Rate
               </span>
             </div>
-            <p className="text-2xl font-bold font-mono text-text-primary">
+            <p className="text-lg font-bold font-mono text-text-primary">
               {stats?.false_alarm_rate != null
                 ? formatPercentage(stats.false_alarm_rate, 1)
                 : "N/A"}

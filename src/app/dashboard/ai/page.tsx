@@ -410,7 +410,7 @@ export default function AICentrePage() {
               <Sparkles size={20} className="text-indigo-400" />
               <div>
                 <p className="text-xs text-indigo-300 font-medium uppercase tracking-wider">Total Financial Opportunity Identified</p>
-                <p className="text-2xl font-bold font-mono text-text-primary">{formatCurrency(totalOpportunity)}<span className="text-sm text-text-muted font-normal">/year</span></p>
+                <p className="text-lg font-bold font-mono text-text-primary">{formatCurrency(totalOpportunity)}<span className="text-sm text-text-muted font-normal">/year</span></p>
               </div>
             </div>
             <div className="text-right text-xs text-text-muted">
@@ -433,7 +433,7 @@ export default function AICentrePage() {
                   <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">Q1 2026 Revenue</span>
                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">Real JDE Data</span>
                 </div>
-                <p className="text-2xl font-bold font-mono text-text-primary">
+                <p className="text-lg font-bold font-mono text-text-primary">
                   {formatCurrency(snapshot.revenue_this_month)}
                   <span className="text-sm text-text-muted font-normal ml-2">collected this month from {snapshot.tenants.total} tenants</span>
                 </p>

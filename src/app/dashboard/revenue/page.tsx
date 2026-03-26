@@ -225,7 +225,7 @@ export default function RevenuePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-status-success font-mono">
+            <p className="text-lg font-bold text-status-success font-mono">
               {formatCurrency(totalCollected)}
             </p>
             <p className="text-xs text-text-muted mt-1">Total Collected</p>
@@ -233,7 +233,7 @@ export default function RevenuePage() {
         </Card>
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-status-warning font-mono">
+            <p className="text-lg font-bold text-status-warning font-mono">
               {formatCurrency(totalOutstanding)}
             </p>
             <p className="text-xs text-text-muted mt-1">Outstanding</p>
@@ -241,7 +241,7 @@ export default function RevenuePage() {
         </Card>
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-status-error font-mono">
+            <p className="text-lg font-bold text-status-error font-mono">
               {formatCurrency(totalOverdue)}
             </p>
             <p className="text-xs text-text-muted mt-1">Overdue</p>
@@ -249,7 +249,7 @@ export default function RevenuePage() {
         </Card>
         <Card>
           <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-emerald-500 font-mono">
+            <p className="text-lg font-bold text-emerald-500 font-mono">
               {percentRentPremium > 0 ? formatCurrency(percentRentPremium) : "N/A"}
             </p>
             <p className="text-xs text-text-muted mt-1">% Rent Premium</p>

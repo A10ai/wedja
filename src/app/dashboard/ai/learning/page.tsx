@@ -976,7 +976,7 @@ function StatCard({
       <CardContent className="py-4">
         <div className="flex items-center justify-between mb-2">
           {icon}
-          <span className="text-2xl font-bold font-mono text-text-primary">
+          <span className="text-lg font-bold font-mono text-text-primary">
             {value}
           </span>
         </div>

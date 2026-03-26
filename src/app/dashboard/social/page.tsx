@@ -613,7 +613,7 @@ export default function SocialMediaPage() {
             <Card>
               <CardContent className="py-4 text-center">
                 <p className="text-xs text-text-muted mb-1">Total Followers</p>
-                <p className="text-2xl font-bold text-text-primary font-mono">
+                <p className="text-lg font-bold text-text-primary font-mono">
                   {formatNumber(overview.total_followers)}
                 </p>
               </CardContent>
@@ -621,7 +621,7 @@ export default function SocialMediaPage() {
             <Card>
               <CardContent className="py-4 text-center">
                 <p className="text-xs text-text-muted mb-1">Reach This Month</p>
-                <p className="text-2xl font-bold text-text-primary font-mono">
+                <p className="text-lg font-bold text-text-primary font-mono">
                   {formatNumber(overview.total_reach_this_month)}
                 </p>
               </CardContent>
