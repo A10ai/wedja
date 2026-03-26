@@ -45,15 +45,16 @@ export async function GET() {
         .select("id", { count: "exact", head: true })
         .in("status", ["open", "assigned", "in_progress"]),
 
-      // Recent transactions (last 10 paid)
+      // Recent transactions (last 6 months for chart + table)
       supabase
         .from("rent_transactions")
         .select(
           "id, period_month, period_year, amount_due, amount_paid, payment_date, status, lease:leases(id, tenant:tenants(brand_name), unit:units(unit_number, name))"
         )
         .not("amount_paid", "eq", 0)
-        .order("payment_date", { ascending: false, nullsFirst: false })
-        .limit(10),
+        .order("period_year", { ascending: false })
+        .order("period_month", { ascending: false })
+        .limit(1000),
 
       // Discrepancies count
       supabase
