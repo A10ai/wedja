@@ -16,15 +16,27 @@ export async function GET() {
     const supabase = createAdminClient();
 
     const [insights, healthScore, briefing, snapshot] = await Promise.all([
-      generateCrossDataInsights(supabase, PROPERTY_ID),
-      calculatePropertyHealthScore(supabase, PROPERTY_ID),
+      generateCrossDataInsights(supabase, PROPERTY_ID).catch(() => []),
+      calculatePropertyHealthScore(supabase, PROPERTY_ID).catch(() => ({
+        overall: 0,
+        dimensions: {},
+        details: {},
+      })),
       generateDailyBriefing(supabase, PROPERTY_ID),
-      getPropertySnapshot(supabase, PROPERTY_ID),
+      getPropertySnapshot(supabase, PROPERTY_ID).catch(() => null),
     ]);
+
+    // Ensure health_score always has overall and dimensions
+    const safeHealthScore = {
+      overall: healthScore?.overall ?? 0,
+      dimensions: healthScore?.dimensions ?? {},
+      details: healthScore?.details ?? {},
+      ...healthScore,
+    };
 
     return NextResponse.json({
       insights,
-      health_score: healthScore,
+      health_score: safeHealthScore,
       briefing,
       snapshot,
     });
