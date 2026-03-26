@@ -48,11 +48,11 @@ export async function GET(req: NextRequest) {
           }
         } catch { /* */ }
 
-        // Direct fetch: latest gate reading (MAX single reading, not sum)
+        // Direct fetch: latest gate reading (most recent = running daily total)
         let liveTotal = 0;
         try {
           const liveRes = await fetch(
-            `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z&order=count_in.desc&limit=1`,
+            `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z&order=timestamp.desc&limit=1`,
             { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" }
           );
           const liveData = await liveRes.json();

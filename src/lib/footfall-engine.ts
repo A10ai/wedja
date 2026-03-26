@@ -138,7 +138,7 @@ export async function getFootfallOverview(
       .select("count_in")
       .gte("timestamp", today + "T00:00:00Z")
       .lte("timestamp", today + "T23:59:59Z")
-      .order("count_in", { ascending: false })
+      .order("timestamp" as any, { ascending: false })
       .limit(1),
   ]);
 
