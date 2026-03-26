@@ -409,7 +409,7 @@ export default function DashboardPage() {
                   <p className="text-xs font-medium text-text-muted uppercase tracking-wider">
                     {stat.label}
                   </p>
-                  <p className="text-2xl font-bold text-text-primary font-mono">
+                  <p className="text-lg font-bold text-text-primary font-mono">
                     {stat.value}
                   </p>
                 </div>
