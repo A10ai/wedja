@@ -126,7 +126,7 @@ export async function getFootfallOverview(
   const lastWeekDay = lastWeekSameDayStr(today);
   const thirtyDaysAgo = daysAgoStr(today, 30);
 
-  // Fetch today's total from both footfall_daily AND live footfall_readings
+  // Fetch today's total from footfall_daily AND MAX gate reading
   const [dailyResult, liveResult] = await Promise.all([
     supabase
       .from("footfall_daily")
@@ -137,17 +137,19 @@ export async function getFootfallOverview(
       .from("footfall_readings")
       .select("count_in")
       .gte("timestamp", today + "T00:00:00Z")
-      .lte("timestamp", today + "T23:59:59Z"),
+      .lte("timestamp", today + "T23:59:59Z")
+      .order("count_in", { ascending: false })
+      .limit(1),
   ]);
 
   const dailyTotal = (dailyResult.data || []).reduce(
     (sum: number, r: { total_in: number }) => sum + (r.total_in || 0),
     0
   );
-  const liveTotal = (liveResult.data || []).reduce(
-    (sum: number, r: { count_in: number }) => sum + (r.count_in || 0),
-    0
-  );
+  // Take the MAX single reading (each reading is a cumulative snapshot, not an increment)
+  const liveTotal = (liveResult.data && liveResult.data.length > 0)
+    ? (liveResult.data[0] as { count_in: number }).count_in || 0
+    : 0;
   const total_visitors_today = Math.max(dailyTotal, liveTotal);
 
   // Yesterday

@@ -114,15 +114,14 @@ export async function GET() {
         footfallToday = Math.max(footfallToday, dailyTotal);
       }
 
-      // Also check footfall_readings (legacy)
+      // Get MAX single gate reading (not sum — each reading is cumulative)
       const liveRes = await fetch(
-        `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z`,
+        `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z&order=count_in.desc&limit=1`,
         { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" }
       );
       const liveData = await liveRes.json();
-      if (Array.isArray(liveData)) {
-        const liveTotal = liveData.reduce((s: number, r: any) => s + (r.count_in || 0), 0);
-        footfallToday = Math.max(footfallToday, liveTotal);
+      if (Array.isArray(liveData) && liveData.length > 0) {
+        footfallToday = Math.max(footfallToday, liveData[0].count_in || 0);
       }
     } catch {
       // Live readings optional

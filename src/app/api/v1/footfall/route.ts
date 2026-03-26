@@ -48,16 +48,16 @@ export async function GET(req: NextRequest) {
           }
         } catch { /* */ }
 
-        // Direct fetch: footfall_readings (legacy/YOLO readings)
+        // Direct fetch: latest gate reading (MAX single reading, not sum)
         let liveTotal = 0;
         try {
           const liveRes = await fetch(
-            `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z`,
+            `${sbUrl}/rest/v1/footfall_readings?select=count_in&timestamp=gte.${todayStr}T00:00:00Z&timestamp=lte.${todayStr}T23:59:59Z&order=count_in.desc&limit=1`,
             { headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}` }, cache: "no-store" }
           );
           const liveData = await liveRes.json();
-          if (Array.isArray(liveData)) {
-            liveTotal = liveData.reduce((s: number, r: any) => s + (r.count_in || 0), 0);
+          if (Array.isArray(liveData) && liveData.length > 0) {
+            liveTotal = liveData[0].count_in || 0;
           }
         } catch { /* */ }
 
