@@ -59,8 +59,10 @@ interface DailyBriefing {
 }
 
 interface HealthScore {
-  overall: number;
-  dimensions: Record<string, number>;
+  overall?: number;
+  total?: number;
+  dimensions?: Record<string, number>;
+  [key: string]: any;
 }
 
 interface BriefingData {
@@ -197,6 +199,18 @@ export default function BriefingPage() {
   const { briefing, health_score } = data;
   const GreetingIcon = getGreetingIcon();
 
+  // Normalize health score — API returns {total, revenue: {score}, ...}
+  const healthOverall = health_score?.overall ?? health_score?.total ?? 0;
+  const healthDimensions: Record<string, number> = health_score?.dimensions ?? {};
+  // If dimensions is empty, extract from health_score object
+  if (Object.keys(healthDimensions).length === 0 && health_score) {
+    for (const [key, val] of Object.entries(health_score)) {
+      if (key !== "total" && key !== "overall" && key !== "dimensions" && key !== "details" && typeof val === "object" && val?.score !== undefined) {
+        healthDimensions[key] = val.score;
+      }
+    }
+  }
+
   // Count alerts across all sections
   const alertCount = Object.values(briefing.sections).reduce(
     (count, section) => count + section.items.filter((i) => i.alert).length,
@@ -243,29 +257,29 @@ export default function BriefingPage() {
               </span>
               <Badge
                 variant={
-                  health_score.overall >= 80
+                  healthOverall >= 80
                     ? "success"
-                    : health_score.overall >= 60
+                    : healthOverall >= 60
                     ? "warning"
                     : "error"
                 }
               >
-                {getHealthLabel(health_score.overall)}
+                {getHealthLabel(healthOverall)}
               </Badge>
             </div>
             <div className="flex items-end gap-3">
               <span
                 className={`text-4xl font-bold font-mono ${getHealthColor(
-                  health_score.overall
+                  healthOverall
                 )}`}
               >
-                {health_score.overall}
+                {healthOverall}
               </span>
               <span className="text-sm text-text-muted mb-1">/ 100</span>
             </div>
             {/* Mini dimension bars */}
             <div className="mt-4 space-y-2">
-              {Object.entries(health_score.dimensions || {})
+              {Object.entries(healthDimensions || {})
                 .slice(0, 5)
                 .map(([key, value]) => (
                   <div key={key} className="flex items-center gap-2">

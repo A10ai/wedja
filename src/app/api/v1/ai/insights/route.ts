@@ -26,18 +26,8 @@ export async function GET() {
       getPropertySnapshot(supabase, PROPERTY_ID).catch(() => null),
     ]);
 
-    // Normalize health_score to { overall, dimensions } format
-    const raw = healthScore || {};
-    const dimensionKeys = Object.keys(raw).filter(k => k !== "total" && typeof raw[k] === "object" && raw[k]?.score !== undefined);
-    const safeHealthScore = {
-      overall: raw.total ?? raw.overall ?? 0,
-      dimensions: Object.fromEntries(
-        dimensionKeys.map(k => [k, raw[k].score ?? 0])
-      ),
-      details: Object.fromEntries(
-        dimensionKeys.map(k => [k, raw[k]])
-      ),
-    };
+    // Pass health score as-is — briefing page handles normalization
+    const safeHealthScore = healthScore || { total: 0 };
 
     return NextResponse.json({
       insights,
