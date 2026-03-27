@@ -175,12 +175,10 @@ interface GatePosition {
 }
 
 const GATE_POSITIONS: GatePosition[] = [
-  { id: "E1", label: "E1", x: 5, y: 55 },
-  { id: "E2", label: "E2", x: 15, y: 25 },
-  { id: "E3", label: "E3", x: 40, y: 5 },
-  { id: "E4", label: "E4", x: 70, y: 45 },
-  { id: "E5", label: "E5", x: 65, y: 85 },
-  { id: "E6", label: "E6", x: 15, y: 85 },
+  { id: "G1", label: "Gate 1", x: 72, y: 12 },   // Between Jacobs & Bianco
+  { id: "G2", label: "Gate 2", x: 18, y: 30 },   // Beside Chilis
+  { id: "G3", label: "Gate 3", x: 48, y: 8 },    // In front of Hard Rock Shop
+  { id: "G4", label: "Gate 4", x: 72, y: 55 },   // At Kidzo
 ];
 
 // ── Data Sources ────────────────────────────────────────────
@@ -500,7 +498,7 @@ export default function HeatmapPage() {
                           className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
                           style={{ backgroundColor: "#22C55E" }}
                         >
-                          {gate.label.replace("E", "")}
+                          {gate.id.replace("G", "")}
                         </div>
                         <span className="text-sm text-text-primary">{gate.label}</span>
                       </div>
