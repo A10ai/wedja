@@ -175,10 +175,10 @@ interface GatePosition {
 }
 
 const GATE_POSITIONS: GatePosition[] = [
-  { id: "G1", label: "Gate 1", x: 72, y: 12 },   // Between Jacobs & Bianco
-  { id: "G2", label: "Gate 2", x: 18, y: 30 },   // Beside Chilis
-  { id: "G3", label: "Gate 3", x: 48, y: 8 },    // In front of Hard Rock Shop
-  { id: "G4", label: "Gate 4", x: 72, y: 55 },   // At Kidzo
+  { id: "G1", label: "Gate 1", x: 2, y: 45 },    // Far left, between Jacobs & Bianco
+  { id: "G2", label: "Gate 2", x: 15, y: 75 },   // Bottom left, below Chilis
+  { id: "G3", label: "Gate 3", x: 55, y: 85 },   // Bottom right, near Hard Rock / Ma Cherie
+  { id: "G4", label: "Gate 4", x: 68, y: 55 },   // Right side, at Kidzo
 ];
 
 // ── Data Sources ────────────────────────────────────────────
