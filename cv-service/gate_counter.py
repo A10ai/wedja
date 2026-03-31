@@ -155,6 +155,15 @@ def compute_delta(gate_name, new_enter, new_leave):
         delta_enter = new_enter - last["enter"]
         delta_leave = (new_leave or 0) - (last["leave"] or 0)
 
+    # Sanity check: max 200 people through one gate in 5 minutes
+    MAX_DELTA_PER_CYCLE = 200
+    if delta_enter > MAX_DELTA_PER_CYCLE:
+        print(f"    ⚠ OCR spike detected: delta {delta_enter} > {MAX_DELTA_PER_CYCLE}, ignoring")
+        delta_enter = 0
+    if delta_leave > MAX_DELTA_PER_CYCLE:
+        print(f"    ⚠ OCR spike detected: delta {delta_leave} > {MAX_DELTA_PER_CYCLE}, ignoring")
+        delta_leave = 0
+
     # Update last known
     last_cam_counts[gate_name] = {"enter": new_enter, "leave": new_leave}
 
