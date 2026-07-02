@@ -4,6 +4,7 @@ import { emitEvent } from "@/lib/event-bus";
 import { runBrainCycle, getBrainConfig } from "@/lib/ai-brain";
 import { runAllAutomations } from "@/lib/automations-engine";
 import { trainFootfallModel, trainRevenueModel } from "@/lib/prediction-model";
+import { requireAuth } from "@/lib/api-auth";
 
 // In-memory scheduler state (resets on deploy)
 let lastRun: string | null = null;
@@ -15,6 +16,9 @@ let totalCycles = 0;
 const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   return NextResponse.json({
     data: {
       enabled,
@@ -27,6 +31,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const { action, interval_minutes } = body;

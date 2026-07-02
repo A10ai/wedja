@@ -3,12 +3,16 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getVerificationReport } from "@/lib/revenue-engine";
 import { getTenantRankings } from "@/lib/tenant-analytics";
 import { getFootfallOverview, getFootfallByZone, getPeakPatterns } from "@/lib/footfall-engine";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
 const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);

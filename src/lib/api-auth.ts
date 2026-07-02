@@ -1,72 +1,77 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cookies } from "next/headers";
+import type { User } from "@supabase/supabase-js";
 
-interface AuthResult {
-  authenticated: boolean;
-  userId?: string;
-  error?: string;
+/**
+ * Extract the access token from a Supabase auth cookie value.
+ * The cookie may be a raw JWT or a JSON-encoded session object.
+ */
+function extractAccessToken(cookieValue: string): string | null {
+  // Try parsing as JSON (supabase-js v2 cookie format)
+  try {
+    const parsed = JSON.parse(cookieValue);
+    if (parsed && typeof parsed.access_token === "string") {
+      return parsed.access_token;
+    }
+  } catch {
+    // Not JSON — treat as raw token
+  }
+  return cookieValue;
 }
 
 /**
- * API authentication helper.
- * Fast path: checks for auth cookies + same-origin referer.
- * Slow path: validates the full session with Supabase.
+ * Require authentication for an API route.
+ * Returns the authenticated user, or a 401 NextResponse if unauthorized.
+ *
+ * Usage:
+ *   const auth = await requireAuth(req);
+ *   if (auth instanceof NextResponse) return auth;
  */
-export async function authenticateRequest(
+export async function requireAuth(
   req: NextRequest
-): Promise<AuthResult> {
+): Promise<NextResponse | User> {
   try {
-    // Fast path — check same-origin referer
-    const referer = req.headers.get("referer");
-    const origin = req.headers.get("origin");
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3001";
-
-    const isSameOrigin =
-      (referer && referer.startsWith(appUrl)) ||
-      (origin && origin.startsWith(appUrl));
-
-    // Check for Supabase auth cookies
     const cookieStore = cookies();
-    const accessToken =
-      cookieStore.get("sb-127-auth-token")?.value ||
-      cookieStore.get("sb-access-token")?.value;
+    const allCookies = cookieStore.getAll();
 
-    // In development with same-origin, allow requests (fast path)
-    if (process.env.NODE_ENV === "development" && isSameOrigin) {
-      return { authenticated: true };
+    // Find any cookie starting with "sb-" and containing "auth-token"
+    const authCookie = allCookies.find(
+      (c) => c.name.startsWith("sb-") && c.name.includes("auth-token")
+    );
+
+    if (!authCookie || !authCookie.value) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // If we have an access token, validate the session
-    if (accessToken) {
-      const supabase = createAdminClient();
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser(accessToken);
-
-      if (error || !user) {
-        // Token invalid but same-origin in dev — still allow
-        if (process.env.NODE_ENV === "development" && isSameOrigin) {
-          return { authenticated: true };
-        }
-        return { authenticated: false, error: "Invalid session" };
-      }
-
-      return { authenticated: true, userId: user.id };
+    const token = extractAccessToken(authCookie.value);
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // No token but same-origin — allow in development
-    if (process.env.NODE_ENV === "development") {
-      return { authenticated: true };
+    const supabase = createAdminClient();
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    return { authenticated: false, error: "No authentication provided" };
+    return user;
   } catch {
-    // In development, fail open for easier testing
-    if (process.env.NODE_ENV === "development") {
-      return { authenticated: true };
-    }
-    return { authenticated: false, error: "Authentication check failed" };
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+}
+
+/**
+ * Legacy authentication check (kept for backward compatibility).
+ */
+export async function authenticateRequest(req: NextRequest) {
+  const result = await requireAuth(req);
+  if (result instanceof NextResponse) {
+    return { authenticated: false, error: "Unauthorized" };
+  }
+  return { authenticated: true, userId: result.id };
 }

@@ -6,6 +6,7 @@ import {
   type EventType,
   type SourceSystem,
 } from "@/lib/event-bus";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,9 @@ export const dynamic = "force-dynamic";
  *   source: SourceSystem filter
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
@@ -107,6 +111,9 @@ export async function GET(req: NextRequest) {
  * Body: { type: EventType, source_system: string, payload: object }
  */
 export async function POST(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createAdminClient();
     const body = await req.json();

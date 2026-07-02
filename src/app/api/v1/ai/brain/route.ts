@@ -8,8 +8,12 @@ import {
   rejectDecision,
   getRecentDecisions,
 } from "@/lib/ai-brain";
+import { requireAuth } from "@/lib/api-auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createAdminClient();
     const config = getBrainConfig();
@@ -48,6 +52,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const { action } = body;

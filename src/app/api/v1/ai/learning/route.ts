@@ -7,6 +7,7 @@ import {
   getLearningHistory,
   getLearnedPatterns,
 } from "@/lib/learning-engine";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,10 @@ const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
  * Returns learning stats, recent cycles, active patterns,
  * calibrated params, and feedback history.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createAdminClient();
 
@@ -67,6 +71,9 @@ export async function GET() {
  * - { action: "dismiss_pattern", pattern_id } — dismisses a pattern
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const supabase = createAdminClient();

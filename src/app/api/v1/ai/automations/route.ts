@@ -7,9 +7,13 @@ import {
   toggleAutomation,
   getAutomationLog,
 } from "@/lib/automations-engine";
+import { requireAuth } from "@/lib/api-auth";
 
 // GET: List all automations with status and recent log
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const automations = getAutomations();
     const log = getAutomationLog();
@@ -32,6 +36,9 @@ export async function GET() {
 
 // POST: Run automations or toggle state
 export async function POST(request: NextRequest) {
+  const auth = await requireAuth(request);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const body = await request.json();
     const { action, automation_id, enabled } = body as {

@@ -9,6 +9,7 @@ import {
   getContractAlerts,
   getPortfolioAnalytics,
 } from "@/lib/contract-engine";
+import { requireAuth } from "@/lib/api-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,9 @@ const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
  *   within_days: number (for expiring, default 180)
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req);
+  if (auth instanceof NextResponse) return auth;
+
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
