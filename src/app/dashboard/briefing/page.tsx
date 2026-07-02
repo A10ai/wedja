@@ -30,6 +30,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/client-logger";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -62,7 +63,7 @@ interface HealthScore {
   overall?: number;
   total?: number;
   dimensions?: Record<string, number>;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface BriefingData {
@@ -160,7 +161,7 @@ export default function BriefingPage() {
         health_score: json.health_score,
       });
     } catch (err) {
-      console.error("Briefing error:", err);
+      logger.error({ err: err }, "Briefing error:");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -205,8 +206,8 @@ export default function BriefingPage() {
   // If dimensions is empty, extract from health_score object
   if (Object.keys(healthDimensions).length === 0 && health_score) {
     for (const [key, val] of Object.entries(health_score)) {
-      if (key !== "total" && key !== "overall" && key !== "dimensions" && key !== "details" && typeof val === "object" && val?.score !== undefined) {
-        healthDimensions[key] = val.score;
+      if (key !== "total" && key !== "overall" && key !== "dimensions" && key !== "details" && typeof val === "object" && ((val as Record<string, any>)?.score) !== undefined) {
+        healthDimensions[key] = (val as Record<string, any>).score;
       }
     }
   }

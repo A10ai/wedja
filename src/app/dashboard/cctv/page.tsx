@@ -735,8 +735,8 @@ export default function CCTVAnalyticsPage() {
         case "security": setSecurityData(data); break;
         case "conversion": setConversionData(data); break;
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err) {
+      setError((err instanceof Error ? err.message : String(err)) || "An error occurred");
     } finally {
       setLoading(false);
     }

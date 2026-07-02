@@ -260,7 +260,7 @@ async function getSalesData(
     .order("period_month", { ascending: true });
 
   const result: Record<string, { total: number; count: number; monthly: Array<{ month: number; year: number; amount: number }> }> = {};
-  (data || []).forEach((s: any) => {
+  (data || []).forEach((s: Record<string, any>) => {
     if (!result[s.tenant_id]) {
       result[s.tenant_id] = { total: 0, count: 0, monthly: [] };
     }
@@ -288,7 +288,7 @@ async function getEstimatesData(
     .order("period_month", { ascending: true });
 
   const result: Record<string, { total: number; count: number; monthly: Array<{ month: number; year: number; amount: number }> }> = {};
-  (data || []).forEach((e: any) => {
+  (data || []).forEach((e: Record<string, any>) => {
     if (!result[e.tenant_id]) {
       result[e.tenant_id] = { total: 0, count: 0, monthly: [] };
     }
@@ -320,7 +320,7 @@ async function getFootfallData(
     .gte("date", startDate);
 
   const result: Record<string, { total_in: number; days: number; dwell_sum: number; dwell_count: number }> = {};
-  (data || []).forEach((r: any) => {
+  (data || []).forEach((r: Record<string, any>) => {
     if (!result[r.unit_id]) {
       result[r.unit_id] = { total_in: 0, days: 0, dwell_sum: 0, dwell_count: 0 };
     }
@@ -345,7 +345,7 @@ async function getPaymentData(
     .in("lease_id", leaseIds);
 
   const result: Record<string, { total: number; on_time: number; total_paid: number; total_due: number }> = {};
-  (data || []).forEach((t: any) => {
+  (data || []).forEach((t: Record<string, any>) => {
     if (!result[t.lease_id]) {
       result[t.lease_id] = { total: 0, on_time: 0, total_paid: 0, total_due: 0 };
     }

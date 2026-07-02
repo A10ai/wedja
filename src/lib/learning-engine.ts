@@ -219,8 +219,8 @@ async function calibrateConversionRates(
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
   const startDate = sixMonthsAgo.toISOString().split("T")[0];
 
-  const unitIds = leases.map((l: any) => l.unit_id);
-  const tenantIds = leases.map((l: any) => l.tenant_id);
+  const unitIds = leases.map((l: Record<string, any>) => l.unit_id);
+  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get footfall data
   const { data: footfallData } = await supabase
@@ -231,7 +231,7 @@ async function calibrateConversionRates(
 
   // Group footfall by unit by month
   const footfallByUnitMonth: Record<string, Record<string, number>> = {};
-  (footfallData || []).forEach((r: any) => {
+  (footfallData || []).forEach((r: Record<string, any>) => {
     const d = new Date(r.date);
     const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
     if (!footfallByUnitMonth[r.unit_id]) footfallByUnitMonth[r.unit_id] = {};
@@ -248,7 +248,7 @@ async function calibrateConversionRates(
 
   // Group sales by tenant by month
   const salesByTenantMonth: Record<string, Record<string, number>> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     const key = `${s.period_year}-${s.period_month}`;
     if (!salesByTenantMonth[s.tenant_id]) salesByTenantMonth[s.tenant_id] = {};
     salesByTenantMonth[s.tenant_id][key] = s.reported_revenue_egp;
@@ -256,7 +256,7 @@ async function calibrateConversionRates(
 
   // For each tenant, calculate actual conversion rate
   for (const lease of leases) {
-    const tenant = (lease as any).tenants;
+    const tenant = (lease as Record<string, any>).tenants;
     const category = tenant.category as string;
     const model = CATEGORY_MODELS[category] || CATEGORY_MODELS.services;
     const [, tickHigh] = model.avg_ticket;
@@ -374,7 +374,7 @@ async function detectFootfallPatterns(
     .eq("property_id", propertyId);
 
   const zoneNames: Record<string, string> = {};
-  (zones || []).forEach((z: any) => {
+  (zones || []).forEach((z: Record<string, any>) => {
     zoneNames[z.id] = z.name;
   });
 
@@ -383,7 +383,7 @@ async function detectFootfallPatterns(
     string,
     Array<{ date: string; total_in: number; peak_hour: number; dayOfWeek: number }>
   > = {};
-  footfallData.forEach((r: any) => {
+  footfallData.forEach((r: Record<string, any>) => {
     if (!r.zone_id) return;
     if (!byZone[r.zone_id]) byZone[r.zone_id] = [];
     const d = new Date(r.date);
@@ -547,14 +547,14 @@ async function detectEnergyPatterns(
 
   const zoneNames: Record<string, string> = {};
   const propertyZoneIds: Set<string> = new Set();
-  (zones || []).forEach((z: any) => {
+  (zones || []).forEach((z: Record<string, any>) => {
     zoneNames[z.id] = z.name;
     propertyZoneIds.add(z.id);
   });
 
   // Filter to property zones
   const propertyEnergy = energyData.filter(
-    (e: any) => e.zone_id && propertyZoneIds.has(e.zone_id)
+    (e: Record<string, any>) => e.zone_id && propertyZoneIds.has(e.zone_id)
   );
 
   if (propertyEnergy.length < 10) return { found };
@@ -568,7 +568,7 @@ async function detectEnergyPatterns(
 
   // Daily footfall by zone
   const ffByZoneDate: Record<string, Record<string, number>> = {};
-  (footfallData || []).forEach((f: any) => {
+  (footfallData || []).forEach((f: Record<string, any>) => {
     if (!f.zone_id) return;
     if (!ffByZoneDate[f.zone_id]) ffByZoneDate[f.zone_id] = {};
     ffByZoneDate[f.zone_id][f.date] = f.total_in || 0;
@@ -576,7 +576,7 @@ async function detectEnergyPatterns(
 
   // Group energy by zone by date
   const energyByZoneDate: Record<string, Record<string, number>> = {};
-  propertyEnergy.forEach((e: any) => {
+  propertyEnergy.forEach((e: Record<string, any>) => {
     const date = new Date(e.timestamp).toISOString().split("T")[0];
     if (!energyByZoneDate[e.zone_id]) energyByZoneDate[e.zone_id] = {};
     energyByZoneDate[e.zone_id][date] =
@@ -687,13 +687,13 @@ async function detectMaintenanceCycles(
     .eq("property_id", propertyId);
 
   const zoneNames: Record<string, string> = {};
-  (zones || []).forEach((z: any) => {
+  (zones || []).forEach((z: Record<string, any>) => {
     zoneNames[z.id] = z.name;
   });
 
   // Detect recurring issues by zone + category
   const byZoneCategory: Record<string, Array<{ created_at: string; title: string }>> = {};
-  tickets.forEach((t: any) => {
+  tickets.forEach((t: Record<string, any>) => {
     const key = `${t.zone_id || "none"}::${t.category}`;
     if (!byZoneCategory[key]) byZoneCategory[key] = [];
     byZoneCategory[key].push({ created_at: t.created_at, title: t.title });
@@ -1076,7 +1076,7 @@ export async function getLearningStats(
   const avgConfidence =
     params.length > 0
       ? Math.round(
-          params.reduce((s: number, p: any) => s + (p.confidence || 0), 0) /
+          params.reduce((s: number, p: Record<string, any>) => s + (p.confidence || 0), 0) /
             params.length
         )
       : 0;
@@ -1095,15 +1095,15 @@ export async function getLearningStats(
 
   // Top improvements: params with biggest learned vs initial difference
   const topImprovements = params
-    .filter((p: any) => p.confidence > 40)
-    .map((p: any) => ({
+    .filter((p: Record<string, any>) => p.confidence > 40)
+    .map((p: Record<string, any>) => ({
       entity_name: p.entity_name || "Unknown",
       param_key: p.param_key,
       initial_value: p.initial_value,
       learned_value: p.learned_value,
       confidence: p.confidence,
     }))
-    .sort((a: any, b: any) => b.confidence - a.confidence)
+    .sort((a: Record<string, any>, b: Record<string, any>) => b.confidence - a.confidence)
     .slice(0, 5);
 
   return {

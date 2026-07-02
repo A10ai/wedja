@@ -343,7 +343,7 @@ export async function generateContentIdeas(
     .order("start_date", { ascending: true })
     .limit(5);
 
-  (events || []).forEach((event: any) => {
+  (events || []).forEach((event: Record<string, any>) => {
     const da = daysUntil(event.start_date);
     if (da > 0 && da <= 30) {
       ideas.push({
@@ -385,7 +385,7 @@ export async function generateContentIdeas(
     .eq("status", "active")
     .limit(5);
 
-  (promotions || []).forEach((promo: any) => {
+  (promotions || []).forEach((promo: Record<string, any>) => {
     const brand = promo.tenants?.brand_name || "Store";
     const discount = promo.discount_pct ? `${promo.discount_pct}% off` : "exclusive deals";
     ideas.push({
@@ -410,7 +410,7 @@ export async function generateContentIdeas(
     .eq("property_id", propertyId);
 
   const currentYear = new Date().getFullYear();
-  (seasons || []).forEach((season: any) => {
+  (seasons || []).forEach((season: Record<string, any>) => {
     let startDate: string | null = null;
     if (season.year_specific_start) {
       startDate = season.year_specific_start;
@@ -489,7 +489,7 @@ export async function generateContentIdeas(
     .order("engagement_rate", { ascending: false });
 
   const categoryRates: Record<string, number[]> = {};
-  (recentPosts || []).forEach((p: any) => {
+  (recentPosts || []).forEach((p: Record<string, any>) => {
     if (p.category) {
       if (!categoryRates[p.category]) categoryRates[p.category] = [];
       categoryRates[p.category].push(p.engagement_rate || 0);
@@ -534,7 +534,7 @@ export async function generateContentIdeas(
 
   // 6. Arabic content suggestion
   const langRates: Record<string, number[]> = {};
-  (recentPosts || []).forEach((p: any) => {
+  (recentPosts || []).forEach((p: Record<string, any>) => {
     // We'd need language field — approximate from main posts query
   });
   ideas.push({
@@ -704,8 +704,8 @@ export async function getPostAnalytics(
 
   const growthByPlatform = accountList.map((account) => {
     const data = (analyticsData || [])
-      .filter((a: any) => a.account_id === account.id)
-      .map((a: any) => ({ date: a.date, followers: a.followers_count }));
+      .filter((a: Record<string, any>) => a.account_id === account.id)
+      .map((a: Record<string, any>) => ({ date: a.date, followers: a.followers_count }));
     return { platform: account.platform, data };
   });
 

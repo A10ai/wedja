@@ -8,6 +8,7 @@ import {
   getUnreadCount,
 } from "@/lib/notifications";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ notifications, unread_count: unreadCount });
   } catch (error) {
-    console.error("Notifications GET error:", error);
+    logger.error({ err: error }, "Notifications GET error:");
     return NextResponse.json(
       { error: "Failed to fetch notifications" },
       { status: 500 }
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   } catch (error) {
-    console.error("Notifications POST error:", error);
+    logger.error({ err: error }, "Notifications POST error:");
     return NextResponse.json(
       { error: "Failed to process notification action" },
       { status: 500 }

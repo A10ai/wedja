@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
+import { validateBody, formatZodErrors, createTenantSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(enriched);
   } catch (error) {
-    console.error("Tenants GET error:", error);
+    logger.error({ err: error }, "Tenants GET error:");
     return NextResponse.json(
       { error: "Failed to fetch tenants" },
       { status: 500 }
@@ -72,9 +74,18 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
+    const validation = validateBody(createTenantSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(validation.error) },
+        { status: 400 }
+      );
+    }
+    const validated = validation.data;
+
     const { data, error } = await supabase
       .from("tenants")
-      .insert(body)
+      .insert(validated)
       .select()
       .single();
 
@@ -84,7 +95,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Tenants POST error:", error);
+    logger.error({ err: error }, "Tenants POST error:");
     return NextResponse.json(
       { error: "Failed to create tenant" },
       { status: 500 }

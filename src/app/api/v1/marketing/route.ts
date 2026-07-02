@@ -10,6 +10,7 @@ import {
   getTenantPromotions,
 } from "@/lib/marketing-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Marketing GET error:", error);
+    logger.error({ err: error }, "Marketing GET error:");
     return NextResponse.json(
       { error: "Failed to fetch marketing data" },
       { status: 500 }
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   } catch (error) {
-    console.error("Marketing POST error:", error);
+    logger.error({ err: error }, "Marketing POST error:");
     return NextResponse.json(
       { error: "Failed to create marketing entity" },
       { status: 500 }

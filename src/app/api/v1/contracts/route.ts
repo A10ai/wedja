@@ -10,6 +10,7 @@ import {
   getPortfolioAnalytics,
 } from "@/lib/contract-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Contracts GET error:", error);
+    logger.error({ err: error }, "Contracts GET error:");
     return NextResponse.json(
       { error: "Failed to fetch contract data" },
       { status: 500 }

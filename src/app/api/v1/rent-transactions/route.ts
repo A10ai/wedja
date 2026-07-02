@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emitEvent } from "@/lib/event-bus";
 import { requireAuth } from "@/lib/api-auth";
+import { validateBody, formatZodErrors, createRentTransactionSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +50,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error("Rent transactions GET error:", error);
+    logger.error({ err: error }, "Rent transactions GET error:");
     return NextResponse.json(
       { error: "Failed to fetch rent transactions" },
       { status: 500 }
@@ -64,9 +66,18 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
+    const validation = validateBody(createRentTransactionSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(validation.error) },
+        { status: 400 }
+      );
+    }
+    const validated = validation.data;
+
     const { data, error } = await supabase
       .from("rent_transactions")
-      .insert(body)
+      .insert(validated)
       .select()
       .single();
 
@@ -87,12 +98,12 @@ export async function POST(req: NextRequest) {
           period_year: data.period_year,
         },
         supabase
-      ).catch((err) => console.error("[EventBus] rent.overdue emit failed:", err));
+      ).catch((err) => logger.error({ err: err }, "[EventBus] rent.overdue emit failed:"));
     }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Rent transactions POST error:", error);
+    logger.error({ err: error }, "Rent transactions POST error:");
     return NextResponse.json(
       { error: "Failed to record payment" },
       { status: 500 }

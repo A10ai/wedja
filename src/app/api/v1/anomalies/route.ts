@@ -10,6 +10,14 @@ import {
   resolveAnomaly,
 } from "@/lib/anomaly-engine";
 import type { AnomalySeverity, AnomalyType } from "@/lib/anomaly-engine";
+import {
+  validateBody,
+  validateQuery,
+  formatZodErrors,
+  anomaliesQuerySchema,
+  anomalyActionSchema,
+} from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +30,15 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "active";
-    const severity = searchParams.get("severity") as AnomalySeverity | null;
-    const anomalyType = searchParams.get("anomaly_type") as AnomalyType | null;
-    const days = parseInt(searchParams.get("days") || "30");
+
+    const queryValidation = validateQuery(anomaliesQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const { type = "active", severity, anomaly_type: anomalyType, days = 30 } = queryValidation.data;
 
     switch (type) {
       case "active":
@@ -33,8 +46,8 @@ export async function GET(req: NextRequest) {
           await getActiveAnomalies(
             supabase,
             PROPERTY_ID,
-            severity || undefined,
-            anomalyType || undefined
+            severity ? (severity as "low" | "medium" | "high" | "critical") : undefined,
+            anomalyType as "footfall_spike" | "footfall_drop" | "energy_spike" | "energy_drop" | "revenue_anomaly" | "rent_delay_pattern" | "queue_anomaly" | "parking_anomaly" | "security_pattern" | "maintenance_pattern" | "conversion_anomaly" | undefined
           )
         );
 
@@ -55,7 +68,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Anomalies GET error:", error);
+    logger.error({ err: error }, "Anomalies GET error:");
     return NextResponse.json(
       { error: "Failed to fetch anomaly data" },
       { status: 500 }
@@ -70,7 +83,15 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
-    const { action } = body;
+
+    const validation = validateBody(anomalyActionSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(validation.error) },
+        { status: 400 }
+      );
+    }
+    const { action } = validation.data;
 
     switch (action) {
       case "run_detection": {
@@ -79,19 +100,19 @@ export async function POST(req: NextRequest) {
       }
 
       case "acknowledge": {
-        const { id, staff_id } = body;
+        const { id, staff_id } = validation.data;
         if (!id) {
           return NextResponse.json(
             { error: "Missing anomaly ID" },
             { status: 400 }
           );
         }
-        const success = await acknowledgeAnomaly(supabase, id, staff_id);
+        const success = await acknowledgeAnomaly(supabase, id, staff_id ?? undefined);
         return NextResponse.json({ success });
       }
 
       case "resolve": {
-        const { id, staff_id, notes, false_alarm } = body;
+        const { id, staff_id, notes, false_alarm } = validation.data;
         if (!id) {
           return NextResponse.json(
             { error: "Missing anomaly ID" },
@@ -101,8 +122,8 @@ export async function POST(req: NextRequest) {
         const success = await resolveAnomaly(
           supabase,
           id,
-          staff_id,
-          notes,
+          staff_id ?? undefined,
+          notes ?? undefined,
           false_alarm === true
         );
         return NextResponse.json({ success });
@@ -115,7 +136,7 @@ export async function POST(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Anomalies POST error:", error);
+    logger.error({ err: error }, "Anomalies POST error:");
     return NextResponse.json(
       { error: "Failed to process anomaly action" },
       { status: 500 }

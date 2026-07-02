@@ -7,6 +7,14 @@ import {
   getTenantRevenueProfile,
 } from "@/lib/revenue-engine";
 import { requireAuth } from "@/lib/api-auth";
+import {
+  validateBody,
+  validateQuery,
+  formatZodErrors,
+  revenueVerificationQuerySchema,
+  revenueVerificationActionSchema,
+} from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +37,14 @@ export async function GET(req: NextRequest) {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
 
-    const type = searchParams.get("type") || "summary";
-    const month = searchParams.get("month")
-      ? parseInt(searchParams.get("month")!)
-      : undefined;
-    const year = searchParams.get("year")
-      ? parseInt(searchParams.get("year")!)
-      : undefined;
-    const tenantId = searchParams.get("tenant_id");
+    const queryValidation = validateQuery(revenueVerificationQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const { type = "summary", month, year, tenant_id: tenantId } = queryValidation.data;
 
     switch (type) {
       case "summary": {
@@ -83,7 +91,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Revenue verification GET error:", error);
+    logger.error({ err: error }, "Revenue verification GET error:");
     return NextResponse.json(
       { error: "Failed to fetch verification data" },
       { status: 500 }
@@ -105,20 +113,16 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
-    if (body.action !== "run_verification") {
+    const validation = validateBody(revenueVerificationActionSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: `Unknown action: ${body.action}` },
+        { error: formatZodErrors(validation.error) },
         { status: 400 }
       );
     }
+    const validated = validation.data;
 
-    const { month, year } = body;
-    if (!month || !year) {
-      return NextResponse.json(
-        { error: "month and year are required" },
-        { status: 400 }
-      );
-    }
+    const { month, year } = validated;
 
     const result = await runRevenueVerification(
       supabase,
@@ -129,7 +133,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Revenue verification POST error:", error);
+    logger.error({ err: error }, "Revenue verification POST error:");
     return NextResponse.json(
       { error: "Failed to run verification" },
       { status: 500 }

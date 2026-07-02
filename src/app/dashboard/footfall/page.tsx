@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatNumber, formatPercentage, formatCurrency, cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from "recharts";
+import { logger } from "@/lib/client-logger";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -217,7 +218,7 @@ export default function FootfallPage() {
       setPeaks(peakData);
       setCameras(Array.isArray(camData) ? camData : []);
     } catch (err) {
-      console.error("Failed to fetch footfall data:", err);
+      logger.error({ err: err }, "Failed to fetch footfall data:");
     } finally {
       setLoading(false);
     }
@@ -248,7 +249,7 @@ export default function FootfallPage() {
           const txData = await txRes.json();
           const map: Record<string, number> = {};
           if (Array.isArray(txData)) {
-            txData.forEach((tx: any) => {
+            txData.forEach((tx: Record<string, any>) => {
               const unitId = tx.lease?.unit?.id;
               if (unitId) {
                 map[unitId] = (map[unitId] || 0) + (tx.amount_paid || 0);
@@ -262,7 +263,7 @@ export default function FootfallPage() {
           const cctvData = await cctvRes.json();
           const stores = Array.isArray(cctvData) ? cctvData : cctvData?.stores || [];
           const map: Record<string, number> = {};
-          stores.forEach((s: any) => {
+          stores.forEach((s: Record<string, any>) => {
             if (s.unit_id && s.conversion_rate !== undefined) {
               map[s.unit_id] = s.conversion_rate;
             }
@@ -279,8 +280,8 @@ export default function FootfallPage() {
   // ── Sorted zones ─────────────────────────────────────────
 
   const sortedZones = [...zones].sort((a, b) => {
-    const aVal = (a as any)[zoneSortKey] ?? 0;
-    const bVal = (b as any)[zoneSortKey] ?? 0;
+    const aVal = (a as Record<string, any>)[zoneSortKey] ?? 0;
+    const bVal = (b as Record<string, any>)[zoneSortKey] ?? 0;
     return zoneSortAsc ? aVal - bVal : bVal - aVal;
   });
 
@@ -1099,8 +1100,8 @@ function ManualEntryModal({
         if (Array.isArray(data)) {
           setUnits(
             data
-              .filter((u: any) => u.status === "occupied")
-              .map((u: any) => ({
+              .filter((u: Record<string, any>) => u.status === "occupied")
+              .map((u: Record<string, any>) => ({
                 id: u.id,
                 unit_number: u.unit_number,
                 name: u.name,
@@ -1134,8 +1135,8 @@ function ManualEntryModal({
       }
 
       onSaved();
-    } catch (err: any) {
-      setError(err.message || "Failed to save entry");
+    } catch (err) {
+      setError((err instanceof Error ? err.message : String(err)) || "Failed to save entry");
     } finally {
       setSaving(false);
     }

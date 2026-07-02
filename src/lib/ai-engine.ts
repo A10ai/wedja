@@ -635,11 +635,11 @@ export async function generateCrossDataInsights(
 
   const rentTx = rentTransactionsResult.data || [];
   if (rentTx.length > 0 && portfolio) {
-    const totalCollected = rentTx.reduce((s: number, t: any) => s + (Number(t.amount_paid) || 0), 0);
+    const totalCollected = rentTx.reduce((s: number, t: Record<string, any>) => s + (Number(t.amount_paid) || 0), 0);
 
     // Spinneys anchor dependency
-    const spinneysTx = rentTx.filter((t: any) => t.lease?.tenant?.brand_name?.toLowerCase().includes("spinneys"));
-    const spinneysRent = spinneysTx.reduce((s: number, t: any) => s + (Number(t.amount_paid) || 0), 0);
+    const spinneysTx = rentTx.filter((t: Record<string, any>) => t.lease?.tenant?.brand_name?.toLowerCase().includes("spinneys"));
+    const spinneysRent = spinneysTx.reduce((s: number, t: Record<string, any>) => s + (Number(t.amount_paid) || 0), 0);
     if (spinneysRent > 0 && totalCollected > 0) {
       const spinPct = (spinneysRent / totalCollected) * 100;
       if (spinPct > 8) {
@@ -661,8 +661,8 @@ export async function generateCrossDataInsights(
     // Kiosk area performance
     const kiosks = kiosksResult.data || [];
     if (kiosks.length > 3) {
-      const kioskRent = kiosks.reduce((s: number, k: any) => s + (k.min_rent_monthly_egp || 0), 0);
-      const kioskArea = kiosks.reduce((s: number, k: any) => s + (k.unit?.area_sqm || 0), 0);
+      const kioskRent = kiosks.reduce((s: number, k: Record<string, any>) => s + (k.min_rent_monthly_egp || 0), 0);
+      const kioskArea = kiosks.reduce((s: number, k: Record<string, any>) => s + (k.unit?.area_sqm || 0), 0);
       const kioskRentPerSqm = kioskArea > 0 ? kioskRent / kioskArea : 0;
       if (kioskRentPerSqm > 0) {
         insights.push({
@@ -813,9 +813,9 @@ export async function generateCrossDataInsights(
 
   const openTickets = maintenanceResult.data || [];
   if (openTickets.length > 0 && energyByZone.length > 0) {
-    const hvacTickets = openTickets.filter((t: any) => t.category === "hvac");
+    const hvacTickets = openTickets.filter((t: Record<string, any>) => t.category === "hvac");
     if (hvacTickets.length > 0) {
-      const hvacZoneIds = new Set(hvacTickets.map((t: any) => t.zone_id).filter(Boolean));
+      const hvacZoneIds = new Set(hvacTickets.map((t: Record<string, any>) => t.zone_id).filter(Boolean));
       const affectedZones = energyByZone.filter((z) => hvacZoneIds.has(z.zone_id));
       if (affectedZones.length > 0) {
         const totalEnergyCost = affectedZones.reduce((s, z) => s + z.cost_egp, 0);
@@ -860,7 +860,7 @@ export async function generateCrossDataInsights(
   // ── Occupancy ──
   const units = unitsResult.data || [];
   const totalUnits = units.length;
-  const vacantUnits = units.filter((u: any) => u.status === "vacant").length;
+  const vacantUnits = units.filter((u: Record<string, any>) => u.status === "vacant").length;
   if (vacantUnits > 0) {
     const occupancyRate = totalUnits > 0 ? ((totalUnits - vacantUnits) / totalUnits) * 100 : 100;
     insights.push({
@@ -1094,8 +1094,8 @@ export async function calculatePropertyHealthScore(
   // ── Revenue Health (0-15) ──
   const rentTx = rentResult.data || [];
   const totalRentTx = rentTx.length;
-  const paidTx = rentTx.filter((r: any) => r.status === "paid").length;
-  const overdueTx = rentTx.filter((r: any) => r.status === "overdue").length;
+  const paidTx = rentTx.filter((r: Record<string, any>) => r.status === "paid").length;
+  const overdueTx = rentTx.filter((r: Record<string, any>) => r.status === "overdue").length;
   const collectionRate = totalRentTx > 0 ? paidTx / totalRentTx : 1;
   let revenueScore = Math.round(collectionRate * 10);
   if (overdueTx === 0) revenueScore += 5;
@@ -1106,14 +1106,14 @@ export async function calculatePropertyHealthScore(
   // ── Occupancy Health (0-10) ──
   const units = unitsResult.data || [];
   const totalUnits = units.length;
-  const occupiedUnits = units.filter((u: any) => u.status === "occupied").length;
+  const occupiedUnits = units.filter((u: Record<string, any>) => u.status === "occupied").length;
   const occupancyRate = totalUnits > 0 ? occupiedUnits / totalUnits : 1;
   const occupancyScore = Math.min(Math.round(occupancyRate * 10), 10);
   const occupancyDetail = `${occupiedUnits}/${totalUnits} occupied (${(occupancyRate * 100).toFixed(0)}%)`;
 
   // ── Tenant Quality (0-10) ──
   const discrepancies = discrepancyResult.data || [];
-  const highRiskDisc = discrepancies.filter((d: any) => d.confidence >= 0.75 && d.status !== "resolved" && d.status !== "dismissed");
+  const highRiskDisc = discrepancies.filter((d: Record<string, any>) => d.confidence >= 0.75 && d.status !== "resolved" && d.status !== "dismissed");
   let tenantScore = 10;
   if (highRiskDisc.length > 5) tenantScore -= 6;
   else if (highRiskDisc.length > 2) tenantScore -= 3;
@@ -1124,7 +1124,7 @@ export async function calculatePropertyHealthScore(
   // ── Contract Health (0-10) ──
   const leases = leasesResult.data || [];
   const ninetyDays = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-  const expiringCount = leases.filter((l: any) => new Date(l.end_date) <= ninetyDays).length;
+  const expiringCount = leases.filter((l: Record<string, any>) => new Date(l.end_date) <= ninetyDays).length;
   const wale = portfolio?.wale_years || 0;
   let contractScore = 10;
   if (wale < 2) contractScore -= 4;
@@ -1149,12 +1149,12 @@ export async function calculatePropertyHealthScore(
 
   // ── Maintenance Health (0-10) ──
   const tickets = maintenanceResult.data || [];
-  const openTickets = tickets.filter((t: any) => ["open", "assigned", "in_progress"].includes(t.status));
-  const urgentOpen = openTickets.filter((t: any) => t.priority === "urgent" || t.priority === "emergency");
-  const resolvedTickets = tickets.filter((t: any) => t.status === "completed" && t.resolved_at);
+  const openTickets = tickets.filter((t: Record<string, any>) => ["open", "assigned", "in_progress"].includes(t.status));
+  const urgentOpen = openTickets.filter((t: Record<string, any>) => t.priority === "urgent" || t.priority === "emergency");
+  const resolvedTickets = tickets.filter((t: Record<string, any>) => t.status === "completed" && t.resolved_at);
   let avgResolutionDays = 0;
   if (resolvedTickets.length > 0) {
-    const totalDays = resolvedTickets.reduce((sum: number, t: any) => {
+    const totalDays = resolvedTickets.reduce((sum: number, t: Record<string, any>) => {
       return sum + (new Date(t.resolved_at).getTime() - new Date(t.created_at).getTime()) / 86400000;
     }, 0);
     avgResolutionDays = totalDays / resolvedTickets.length;
@@ -1300,7 +1300,7 @@ export async function generateDailyBriefing(
   }
   const overdueTransactions = overdueResult.data || [];
   if (overdueTransactions.length > 0) {
-    const totalOverdue = overdueTransactions.reduce((sum: number, r: any) => sum + ((r.amount_due || 0) - (r.amount_paid || 0)), 0);
+    const totalOverdue = overdueTransactions.reduce((sum: number, r: Record<string, any>) => sum + ((r.amount_due || 0) - (r.amount_paid || 0)), 0);
     revenueItems.push({ text: `EGP ${Math.round(totalOverdue).toLocaleString()} overdue from ${overdueTransactions.length} transactions`, alert: true });
   } else {
     revenueItems.push({ text: "All rent payments up to date", trend: "up" });
@@ -1324,7 +1324,7 @@ export async function generateDailyBriefing(
   const contractItems: BriefingSection["items"] = [];
   const activeLeases = leasesResult.data || [];
   const ninetyDays = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-  const expiringLeases = activeLeases.filter((l: any) => new Date(l.end_date) <= ninetyDays);
+  const expiringLeases = activeLeases.filter((l: Record<string, any>) => new Date(l.end_date) <= ninetyDays);
   if (expiringLeases.length > 0) {
     contractItems.push({ text: `${expiringLeases.length} leases expiring within 90 days`, alert: expiringLeases.length > 3 });
   } else {
@@ -1351,7 +1351,7 @@ export async function generateDailyBriefing(
   const maintenanceItems: BriefingSection["items"] = [];
   const tickets = maintenanceResult.data || [];
   if (tickets.length > 0) {
-    const urgentCount = tickets.filter((t: any) => t.priority === "urgent" || t.priority === "emergency").length;
+    const urgentCount = tickets.filter((t: Record<string, any>) => t.priority === "urgent" || t.priority === "emergency").length;
     maintenanceItems.push({ text: `${tickets.length} open tickets`, alert: urgentCount > 0 });
     if (urgentCount > 0) {
       maintenanceItems.push({ text: `${urgentCount} urgent/emergency need attention`, alert: true });
@@ -1421,7 +1421,7 @@ export async function generateDailyBriefing(
 
   // Top 5 Actions
   const topActions: DailyBriefing["top_actions"] = [];
-  const urgentTickets = tickets.filter((t: any) => t.priority === "urgent" || t.priority === "emergency");
+  const urgentTickets = tickets.filter((t: Record<string, any>) => t.priority === "urgent" || t.priority === "emergency");
   if (urgentTickets.length > 0) {
     topActions.push({ text: `Resolve ${urgentTickets.length} urgent maintenance ticket(s)`, link: "/dashboard/maintenance", priority: "high" });
   }
@@ -1532,24 +1532,24 @@ export async function getPropertySnapshot(
   // Tenant summary
   const tenants = tenantsResult.data || [];
   const byCategory: Record<string, number> = {};
-  tenants.forEach((t: any) => {
+  tenants.forEach((t: Record<string, any>) => {
     byCategory[t.category] = (byCategory[t.category] || 0) + 1;
   });
 
   // Occupancy
   const units = unitsResult.data || [];
   const totalUnits = units.length;
-  const occupiedUnits = units.filter((u: any) => u.status === "occupied").length;
+  const occupiedUnits = units.filter((u: Record<string, any>) => u.status === "occupied").length;
   const occupancyRate = totalUnits > 0 ? (occupiedUnits / totalUnits) * 100 : 100;
 
   // Revenue
   const revenueThisMonth = (rentResult.data || []).reduce(
-    (s: number, t: any) => s + (Number(t.amount_paid) || 0), 0
+    (s: number, t: Record<string, any>) => s + (Number(t.amount_paid) || 0), 0
   );
 
   // Maintenance
   const openTickets = maintenanceResult.data || [];
-  const urgentTickets = openTickets.filter((t: any) => t.priority === "urgent" || t.priority === "emergency");
+  const urgentTickets = openTickets.filter((t: Record<string, any>) => t.priority === "urgent" || t.priority === "emergency");
 
   // Social
   const totalFollowers = socialOverview?.total_followers || 0;
@@ -1558,7 +1558,7 @@ export async function getPropertySnapshot(
   // New metrics
   const totalMonthlyRent = portfolio?.total_contracted_rent || 0;
   const topTenantByRent = portfolio?.tenant_concentration?.[0]?.brand_name || "N/A";
-  const kioskRevenue = (kiosksResult.data || []).reduce((s: number, k: any) => s + (k.min_rent_monthly_egp || 0), 0);
+  const kioskRevenue = (kiosksResult.data || []).reduce((s: number, k: Record<string, any>) => s + (k.min_rent_monthly_egp || 0), 0);
   const cctvAlerts = cctvOverview?.security_alerts || 0;
   const parkingOccPct = cctvOverview?.parking_occupancy_pct || 0;
   const storeAvgConv = storeConversion?.avg_conversion_rate || 0;

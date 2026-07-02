@@ -9,6 +9,7 @@ import {
   getRecentDecisions,
 } from "@/lib/ai-brain";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
-    console.error("Brain GET error:", err);
+    logger.error({ err: err }, "Brain GET error:");
     return NextResponse.json(
       { error: "Failed to fetch brain data" },
       { status: 500 }
@@ -107,7 +108,7 @@ export async function POST(request: NextRequest) {
         );
     }
   } catch (err) {
-    console.error("Brain POST error:", err);
+    logger.error({ err: err }, "Brain POST error:");
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

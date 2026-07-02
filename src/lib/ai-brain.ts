@@ -2,6 +2,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent } from "@/lib/event-bus";
 import { createNotification } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 
 // ============================================================
 // Wedja AI Brain — The Decision Engine of Senzo Mall
@@ -491,7 +492,7 @@ Return ONLY valid JSON with no markdown formatting:
     });
 
     if (!response.ok) {
-      console.error("Claude API error:", response.status, await response.text());
+      logger.error({ status: response.status, body: await response.text() }, "Claude API error");
       return null;
     }
 
@@ -526,7 +527,7 @@ Return ONLY valid JSON with no markdown formatting:
       summary: parsed.summary || "Brain cycle completed.",
     };
   } catch (err) {
-    console.error("Claude API call failed:", err);
+    logger.error({ err: err }, "Claude API call failed:");
     return null;
   }
 }
@@ -810,7 +811,7 @@ export async function runBrainCycle(
       .select();
 
     if (error) {
-      console.error("Failed to store brain decisions:", error);
+      logger.error({ err: error }, "Failed to store brain decisions:");
     } else if (inserted) {
       // Update decisions with IDs
       for (let i = 0; i < inserted.length && i < decisions.length; i++) {
@@ -848,7 +849,7 @@ export async function runBrainCycle(
           decision.approved = true;
           executedCount++;
         } catch (err) {
-          console.error("Auto-execute failed for decision:", decision.id, err);
+          logger.error({ err, decisionId: decision.id }, "Auto-execute failed for decision");
         }
       }
     }
@@ -964,7 +965,7 @@ export async function getRecentDecisions(
     .limit(limit);
 
   if (error) {
-    console.error("Failed to fetch brain decisions:", error);
+    logger.error({ err: error }, "Failed to fetch brain decisions:");
     return [];
   }
 

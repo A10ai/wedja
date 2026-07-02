@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
+import { validateBody, formatZodErrors, createLeaseSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error("Leases GET error:", error);
+    logger.error({ err: error }, "Leases GET error:");
     return NextResponse.json(
       { error: "Failed to fetch leases" },
       { status: 500 }
@@ -53,9 +55,18 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
+    const validation = validateBody(createLeaseSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(validation.error) },
+        { status: 400 }
+      );
+    }
+    const validated = validation.data;
+
     const { data, error } = await supabase
       .from("leases")
-      .insert(body)
+      .insert(validated)
       .select()
       .single();
 
@@ -65,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Leases POST error:", error);
+    logger.error({ err: error }, "Leases POST error:");
     return NextResponse.json(
       { error: "Failed to create lease" },
       { status: 500 }

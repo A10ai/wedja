@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createNotification } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 
 // ============================================================
 // Wedja Event Bus — Cross-system event processing
@@ -120,7 +121,7 @@ export async function emitEvent(
     .single();
 
   if (insertError || !event) {
-    console.error("[EventBus] Failed to store event:", insertError);
+    logger.error({ err: insertError }, "[EventBus] Failed to store event:");
     return { event: null, results: [] };
   }
 

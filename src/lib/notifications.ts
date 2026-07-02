@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { logger } from "@/lib/logger";
 
 // ============================================================
 // Wedja Notifications
@@ -42,7 +43,7 @@ export async function createNotification(
     .single();
 
   if (error) {
-    console.error("Failed to create notification:", error);
+    logger.error({ err: error }, "Failed to create notification:");
     return null;
   }
 
@@ -66,7 +67,7 @@ export async function getNotifications(
   const { data, error } = await query;
 
   if (error) {
-    console.error("Failed to fetch notifications:", error);
+    logger.error({ err: error }, "Failed to fetch notifications:");
     return [];
   }
 

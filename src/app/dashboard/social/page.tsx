@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatNumber, formatDate } from "@/lib/utils";
+import { logger } from "@/lib/client-logger";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -267,7 +268,7 @@ export default function SocialMediaPage() {
       const res = await fetch("/api/v1/social?type=overview");
       if (res.ok) setOverview(await res.json());
     } catch (e) {
-      console.error("Failed to fetch overview:", e);
+      logger.error({ err: e }, "Failed to fetch overview:");
     }
   }, []);
 
@@ -277,7 +278,7 @@ export default function SocialMediaPage() {
       const res = await fetch("/api/v1/social?type=ideas");
       if (res.ok) setIdeas(await res.json());
     } catch (e) {
-      console.error("Failed to fetch ideas:", e);
+      logger.error({ err: e }, "Failed to fetch ideas:");
     } finally {
       setIdeasLoading(false);
     }
@@ -294,7 +295,7 @@ export default function SocialMediaPage() {
       );
       if (res.ok) setCalendar(await res.json());
     } catch (e) {
-      console.error("Failed to fetch calendar:", e);
+      logger.error({ err: e }, "Failed to fetch calendar:");
     }
   }, [calendarWeekOffset]);
 
@@ -303,7 +304,7 @@ export default function SocialMediaPage() {
       const res = await fetch("/api/v1/social?type=posts&limit=30");
       if (res.ok) setPosts(await res.json());
     } catch (e) {
-      console.error("Failed to fetch posts:", e);
+      logger.error({ err: e }, "Failed to fetch posts:");
     }
   }, []);
 
@@ -312,7 +313,7 @@ export default function SocialMediaPage() {
       const res = await fetch("/api/v1/social?type=analytics&days=60");
       if (res.ok) setAnalytics(await res.json());
     } catch (e) {
-      console.error("Failed to fetch analytics:", e);
+      logger.error({ err: e }, "Failed to fetch analytics:");
     }
   }, []);
 
@@ -321,7 +322,7 @@ export default function SocialMediaPage() {
       const res = await fetch("/api/v1/social?type=insights");
       if (res.ok) setInsights(await res.json());
     } catch (e) {
-      console.error("Failed to fetch insights:", e);
+      logger.error({ err: e }, "Failed to fetch insights:");
     }
   }, []);
 
@@ -356,7 +357,7 @@ export default function SocialMediaPage() {
       );
       if (res.ok) setGeneratedCaptions(await res.json());
     } catch (e) {
-      console.error("Failed to generate captions:", e);
+      logger.error({ err: e }, "Failed to generate captions:");
     } finally {
       setGeneratingCaptions(false);
     }
@@ -398,7 +399,7 @@ export default function SocialMediaPage() {
         fetchPosts();
       }
     } catch (e) {
-      console.error("Failed to create post:", e);
+      logger.error({ err: e }, "Failed to create post:");
     } finally {
       setSubmitting(false);
     }

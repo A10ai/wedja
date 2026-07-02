@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
+import { validateBody, formatZodErrors, manualFootfallSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -14,21 +16,14 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
-    const { unit_id, zone_id, count_in, count_out, timestamp } = body;
-
-    if (!count_in && count_in !== 0) {
+    const validation = validateBody(manualFootfallSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "count_in is required" },
+        { error: formatZodErrors(validation.error) },
         { status: 400 }
       );
     }
-
-    if (!unit_id && !zone_id) {
-      return NextResponse.json(
-        { error: "Either unit_id or zone_id is required" },
-        { status: 400 }
-      );
-    }
+    const { unit_id, zone_id, count_in, count_out, timestamp } = validation.data;
 
     const ts = timestamp || new Date().toISOString();
 
@@ -122,7 +117,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Manual footfall POST error:", error);
+    logger.error({ err: error }, "Manual footfall POST error:");
     return NextResponse.json(
       { error: "Failed to save manual footfall entry" },
       { status: 500 }

@@ -293,14 +293,14 @@ export async function getMarketingOverview(
   ).data || [];
 
   const totalSpend = allActiveCampaigns.reduce(
-    (sum: number, c: any) => sum + (c.spend_egp || 0),
+    (sum: number, c: Record<string, any>) => sum + (c.spend_egp || 0),
     0
   );
 
   // Find next major season
   const currentYear = new Date().getFullYear();
-  const calendarItems = (calendarResult.data || [])
-    .map((item: any) => {
+  const calendarItems: Record<string, any>[] = (calendarResult.data || [])
+    .map((item: Record<string, any>) => {
       const dates = resolveSeasonDate(item, currentYear);
       const da = dates.start ? daysUntil(dates.start) : null;
       return {
@@ -311,12 +311,12 @@ export async function getMarketingOverview(
       };
     })
     .filter(
-      (item: any) =>
+      (item: Record<string, any>) =>
         item.days_away !== null &&
         item.days_away > 0 &&
         (item.footfall_impact === "very_high" || item.footfall_impact === "high")
     )
-    .sort((a: any, b: any) => (a.days_away || 999) - (b.days_away || 999));
+    .sort((a: Record<string, any>, b: Record<string, any>) => (a.days_away || 999) - (b.days_away || 999));
 
   const nextSeason = calendarItems.length > 0 ? calendarItems[0] : null;
   const nextSeasonItem: SeasonalItem | null = nextSeason
@@ -368,7 +368,7 @@ export async function getSeasonalCalendar(
 
   if (!data || data.length === 0) return [];
 
-  return data.map((item: any) => {
+  return data.map((item: Record<string, any>) => {
     const dates = resolveSeasonDate(item, currentYear);
     const da = dates.start ? daysUntil(dates.start) : null;
 
@@ -410,7 +410,7 @@ export async function getEventPerformance(
     return { events: [], ai_insight: "No completed events to analyze yet." };
   }
 
-  const events: EventPerformance[] = data.map((e: any) => {
+  const events: EventPerformance[] = data.map((e: Record<string, any>) => {
     const actualBoost = e.actual_footfall_boost_pct;
     const expectedBoost = e.expected_footfall_boost_pct || 0;
     const budget = e.budget_egp;
@@ -526,7 +526,7 @@ export async function getCampaignROI(
     };
   }
 
-  const campaigns: CampaignROI[] = data.map((c: any) => ({
+  const campaigns: CampaignROI[] = data.map((c: Record<string, any>) => ({
     id: c.id,
     name: c.name,
     campaign_type: c.campaign_type,
@@ -614,7 +614,7 @@ export async function getEventFootfallCorrelation(
 
     const eventDays = daysBetween(event.start_date, event.end_date);
     const eventTotal = (eventFootfall || []).reduce(
-      (sum: number, r: any) => sum + (r.total_in || 0),
+      (sum: number, r: Record<string, any>) => sum + (r.total_in || 0),
       0
     );
     const eventDailyAvg = eventDays > 0 ? Math.round(eventTotal / eventDays) : 0;
@@ -633,7 +633,7 @@ export async function getEventFootfallCorrelation(
       .lte("date", baselineEnd.toISOString().split("T")[0]);
 
     const baselineTotal = (baselineFootfall || []).reduce(
-      (sum: number, r: any) => sum + (r.total_in || 0),
+      (sum: number, r: Record<string, any>) => sum + (r.total_in || 0),
       0
     );
     const baselineDays = (baselineFootfall || []).length || 1;
@@ -676,7 +676,7 @@ export async function getUpcomingSeasonalAlerts(
 
   const alerts: SeasonalAlert[] = [];
 
-  data.forEach((item: any) => {
+  data.forEach((item: Record<string, any>) => {
     const dates = resolveSeasonDate(item, currentYear);
     if (!dates.start) return;
 
@@ -773,7 +773,7 @@ export async function getTenantPromotions(
 
   if (!data || data.length === 0) return [];
 
-  return data.map((p: any) => ({
+  return data.map((p: Record<string, any>) => ({
     id: p.id,
     tenant_id: p.tenant_id,
     tenant_name: p.tenants?.brand_name || "Unknown",

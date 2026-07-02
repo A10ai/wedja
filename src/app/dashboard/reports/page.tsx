@@ -49,7 +49,7 @@ export default function ReportsPage() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportData, setReportData] = useState<Record<string, any> | null>(null);
   const [error, setError] = useState("");
 
   const generateReport = useCallback(async () => {
@@ -82,42 +82,42 @@ export default function ReportsPage() {
 
     if (type === "revenue_verification" && reportData.data?.tenants) {
       csv = "Tenant,Unit,Category,Footfall,Reported (EGP),Estimated (EGP),Variance (EGP),Variance %,Confidence,Status\n";
-      reportData.data.tenants.forEach((t: any) => {
+      reportData.data.tenants.forEach((t: Record<string, any>) => {
         csv += `"${t.brand_name}","${t.unit_number}","${t.category}",${t.footfall},${t.reported_revenue_egp || 0},${t.estimated_mid_egp},${t.variance_egp},${t.variance_pct}%,${(t.confidence * 100).toFixed(0)}%,${t.status}\n`;
       });
     } else if (type === "tenant_performance" && reportData.data?.tenants) {
       csv = "Tenant,Unit,Category,Overall Score,Revenue/sqm,Footfall %,Payment %,Risk %\n";
-      reportData.data.tenants.forEach((t: any) => {
+      reportData.data.tenants.forEach((t: Record<string, any>) => {
         csv += `"${t.brand_name}","${t.unit_number}","${t.category}",${t.overall_score},${t.revenue_per_sqm},${t.footfall_attraction}%,${t.payment_reliability}%,${t.discrepancy_risk}%\n`;
       });
     } else if (type === "rent_collection" && reportData.data?.transactions) {
       csv = "Tenant,Unit,Amount Due (EGP),Amount Paid (EGP),Status\n";
-      reportData.data.transactions.forEach((t: any) => {
+      reportData.data.transactions.forEach((t: Record<string, any>) => {
         csv += `"${t.lease?.tenant?.brand_name || "Unknown"}","${t.lease?.unit?.unit_number || "N/A"}",${t.amount_due},${t.amount_paid},${t.status}\n`;
       });
     } else if (type === "maintenance" && reportData.data?.tickets) {
       csv = "Title,Category,Priority,Status,Zone,Unit,Created\n";
-      reportData.data.tickets.forEach((t: any) => {
+      reportData.data.tickets.forEach((t: Record<string, any>) => {
         csv += `"${t.title}","${t.category}","${t.priority}","${t.status}","${t.zone?.name || "N/A"}","${t.unit?.unit_number || "N/A"}","${t.created_at}"\n`;
       });
     } else if (type === "footfall_analysis" && reportData.data?.zones) {
       csv = "Zone,Type,Total In,Total Out,Share %,Avg Dwell (s)\n";
-      reportData.data.zones.forEach((z: any) => {
+      reportData.data.zones.forEach((z: Record<string, any>) => {
         csv += `"${z.zone_name}","${z.zone_type}",${z.total_in},${z.total_out},${z.share_of_total_pct}%,${z.avg_dwell_seconds}\n`;
       });
     } else if (type === "energy" && reportData.data?.zones) {
       csv = "Zone,Type,Consumption (kWh),Cost (EGP),Share %,kWh/sqm\n";
-      reportData.data.zones.forEach((z: any) => {
+      reportData.data.zones.forEach((z: Record<string, any>) => {
         csv += `"${z.zone_name}","${z.zone_type}",${z.consumption_kwh},${z.cost_egp},${z.share_pct}%,${z.kwh_per_sqm}\n`;
       });
     } else if (type === "marketing" && reportData.data?.events) {
       csv = "Event,Type,Start,End,Status,Budget (EGP)\n";
-      reportData.data.events.forEach((e: any) => {
+      reportData.data.events.forEach((e: Record<string, any>) => {
         csv += `"${e.name}","${e.type}","${e.start_date}","${e.end_date}","${e.status}",${e.budget_egp || 0}\n`;
       });
     } else if (type === "anomaly" && reportData.data?.anomalies) {
       csv = "Title,Type,Severity,Zone,Status,Created\n";
-      reportData.data.anomalies.forEach((a: any) => {
+      reportData.data.anomalies.forEach((a: Record<string, any>) => {
         csv += `"${a.title}","${a.type}","${a.severity}","${a.zone_name || "N/A"}","${a.status}","${a.created_at}"\n`;
       });
     }
@@ -323,7 +323,7 @@ function RevenueVerificationReport({
   month,
   year,
 }: {
-  data: any;
+  data: Record<string, any>;
   month: number;
   year: number;
 }) {
@@ -365,7 +365,7 @@ function RevenueVerificationReport({
               <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Reported vs Estimated Revenue</h3>
               <ResponsiveContainer width="100%" height={Math.max(220, (data.tenants || []).length * 36)}>
                 <BarChart
-                  data={(data.tenants || []).map((t: any) => ({
+                  data={(data.tenants || []).map((t: Record<string, any>) => ({
                     name: t.brand_name?.length > 14 ? t.brand_name.slice(0, 14) + "..." : t.brand_name,
                     Reported: t.reported_revenue_egp || 0,
                     Estimated: t.estimated_mid_egp || 0,
@@ -402,7 +402,7 @@ function RevenueVerificationReport({
                 </tr>
               </thead>
               <tbody>
-                {(data.tenants || []).map((t: any) => (
+                {(data.tenants || []).map((t: Record<string, any>) => (
                   <tr key={t.tenant_id} className="border-b border-wedja-border/50 hover:bg-wedja-border/10">
                     <td className="px-3 py-2 text-text-primary font-medium">{t.brand_name}</td>
                     <td className="px-3 py-2 text-text-secondary">{t.unit_number}</td>
@@ -434,7 +434,7 @@ function RevenueVerificationReport({
   );
 }
 
-function TenantPerformanceReport({ data }: { data: any }) {
+function TenantPerformanceReport({ data }: { data: Record<string, any> }) {
   const tenants = data?.tenants || [];
   const SCORE_COLORS = ["#EF4444", "#F59E0B", "#10B981"];
   const getScoreColor = (s: number) => s >= 70 ? SCORE_COLORS[2] : s >= 40 ? SCORE_COLORS[1] : SCORE_COLORS[0];
@@ -453,7 +453,7 @@ function TenantPerformanceReport({ data }: { data: any }) {
             <h3 className="text-xs font-medium text-text-muted uppercase tracking-wider mb-3">Overall Performance Scores</h3>
             <ResponsiveContainer width="100%" height={Math.max(200, tenants.length * 32)}>
               <BarChart
-                data={tenants.map((t: any) => ({
+                data={tenants.map((t: Record<string, any>) => ({
                   name: t.brand_name?.length > 14 ? t.brand_name.slice(0, 14) + "..." : t.brand_name,
                   score: t.overall_score,
                 }))}
@@ -530,7 +530,7 @@ function TenantPerformanceReport({ data }: { data: any }) {
   );
 }
 
-function FootfallReport({ data }: { data: any }) {
+function FootfallReport({ data }: { data: Record<string, any> }) {
   const overview = data?.overview;
   const zones = data?.zones || [];
   const peaks = data?.peaks;
@@ -577,7 +577,7 @@ function FootfallReport({ data }: { data: any }) {
             <div className="px-4 pb-4">
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart
-                  data={zones.map((z: any) => ({
+                  data={zones.map((z: Record<string, any>) => ({
                     name: z.zone_name?.length > 12 ? z.zone_name.slice(0, 12) + "..." : z.zone_name,
                     visitors: z.total_in,
                     dwell: z.avg_dwell_seconds,
@@ -610,7 +610,7 @@ function FootfallReport({ data }: { data: any }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {zones.map((z: any) => (
+                  {zones.map((z: Record<string, any>) => (
                     <tr key={z.zone_id} className="border-b border-wedja-border/50">
                       <td className="px-3 py-2 text-text-primary font-medium">{z.zone_name}</td>
                       <td className="px-3 py-2 text-text-secondary capitalize">{z.zone_type}</td>
@@ -670,7 +670,7 @@ function RentCollectionReport({
   month,
   year,
 }: {
-  data: any;
+  data: Record<string, any>;
   month: number;
   year: number;
 }) {
@@ -724,7 +724,7 @@ function RentCollectionReport({
           <CardContent>
             <ResponsiveContainer width="100%" height={Math.max(200, transactions.length * 36)}>
               <BarChart
-                data={transactions.map((t: any) => ({
+                data={transactions.map((t: Record<string, any>) => ({
                   name: (t.lease?.tenant?.brand_name || "Unknown").slice(0, 14),
                   Due: t.amount_due || 0,
                   Paid: t.amount_paid || 0,
@@ -763,7 +763,7 @@ function RentCollectionReport({
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((t: any) => (
+                {transactions.map((t: Record<string, any>) => (
                   <tr key={t.id} className="border-b border-wedja-border/50">
                     <td className="px-3 py-2 text-text-primary font-medium">{t.lease?.tenant?.brand_name || "Unknown"}</td>
                     <td className="px-3 py-2 text-text-secondary">{t.lease?.unit?.unit_number || "N/A"}</td>
@@ -783,7 +783,7 @@ function RentCollectionReport({
   );
 }
 
-function MaintenanceReport({ data }: { data: any }) {
+function MaintenanceReport({ data }: { data: Record<string, any> }) {
   const s = data?.summary;
   const tickets = data?.tickets || [];
 
@@ -861,7 +861,7 @@ function MaintenanceReport({ data }: { data: any }) {
                 </tr>
               </thead>
               <tbody>
-                {tickets.map((t: any) => (
+                {tickets.map((t: Record<string, any>) => (
                   <tr key={t.id} className="border-b border-wedja-border/50">
                     <td className="px-3 py-2 text-text-primary font-medium">{t.title}</td>
                     <td className="px-3 py-2 text-text-secondary capitalize">{t.category}</td>
@@ -889,7 +889,7 @@ function MaintenanceReport({ data }: { data: any }) {
   );
 }
 
-function EnergyReport({ data }: { data: any }) {
+function EnergyReport({ data }: { data: Record<string, any> }) {
   const zones = data?.zones || [];
   const overview = data?.overview;
 
@@ -941,7 +941,7 @@ function EnergyReport({ data }: { data: any }) {
             <div className="px-4 pb-4">
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart
-                  data={zones.map((z: any) => ({
+                  data={zones.map((z: Record<string, any>) => ({
                     name: z.zone_name?.length > 12 ? z.zone_name.slice(0, 12) + "..." : z.zone_name,
                     kWh: z.consumption_kwh || 0,
                     cost: z.cost_egp || 0,
@@ -975,7 +975,7 @@ function EnergyReport({ data }: { data: any }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {zones.map((z: any) => (
+                  {zones.map((z: Record<string, any>) => (
                     <tr key={z.zone_id} className="border-b border-wedja-border/50">
                       <td className="px-3 py-2 text-text-primary font-medium">{z.zone_name}</td>
                       <td className="px-3 py-2 text-text-secondary capitalize">{z.zone_type}</td>
@@ -1003,7 +1003,7 @@ function EnergyReport({ data }: { data: any }) {
   );
 }
 
-function MarketingReport({ data }: { data: any }) {
+function MarketingReport({ data }: { data: Record<string, any> }) {
   const overview = data?.overview;
   const events = data?.events || [];
   const campaigns = data?.campaigns || [];
@@ -1093,7 +1093,7 @@ function MarketingReport({ data }: { data: any }) {
   );
 }
 
-function AnomalyReport({ data }: { data: any }) {
+function AnomalyReport({ data }: { data: Record<string, any> }) {
   const stats = data?.stats;
   const anomalies = data?.anomalies || [];
 
@@ -1146,7 +1146,7 @@ function AnomalyReport({ data }: { data: any }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {anomalies.map((a: any) => (
+                  {anomalies.map((a: Record<string, any>) => (
                     <tr key={a.id} className="border-b border-wedja-border/50">
                       <td className="px-3 py-2 text-text-primary font-medium">{a.title}</td>
                       <td className="px-3 py-2 text-text-secondary capitalize">{a.type}</td>

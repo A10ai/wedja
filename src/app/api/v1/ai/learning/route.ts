@@ -8,6 +8,7 @@ import {
   getLearnedPatterns,
 } from "@/lib/learning-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
       feedback: feedbackResult.data || [],
     });
   } catch (error) {
-    console.error("Learning API GET error:", error);
+    logger.error({ err: error }, "Learning API GET error:");
     return NextResponse.json(
       { error: "Failed to fetch learning data" },
       { status: 500 }
@@ -131,7 +132,7 @@ export async function POST(request: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Learning API POST error:", error);
+    logger.error({ err: error }, "Learning API POST error:");
     return NextResponse.json(
       {
         error:

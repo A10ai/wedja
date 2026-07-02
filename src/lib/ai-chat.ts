@@ -85,6 +85,7 @@ import { getActiveAnomalies, getAnomalyStats } from "./anomaly-engine";
 
 // ── Learning
 import { getLearningStats, getLearnedPatterns } from "./learning-engine";
+import { logger } from "@/lib/logger";
 
 // ============================================================
 // Wedja AI Chat — Natural Language Query Engine
@@ -100,7 +101,7 @@ const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
 
 export interface ChatResponse {
   message: string;
-  data?: any;
+  data?: unknown;
   type: "text" | "table" | "briefing" | "list" | "metric";
 }
 
@@ -811,14 +812,14 @@ async function handleBriefing(
 
   const sections = Object.values(briefing.sections)
     .map(
-      (s: any) =>
-        `**${s.title}:**\n${s.items.map((item: any) => `  - ${typeof item === "string" ? item : item.text}`).join("\n")}`
+      (s: Record<string, any>) =>
+        `**${s.title}:**\n${s.items.map((item: Record<string, any>) => `  - ${typeof item === "string" ? item : item.text}`).join("\n")}`
     )
     .join("\n\n");
 
   const actionsText =
     briefing.top_actions && briefing.top_actions.length > 0
-      ? `\n\n**Top Actions:** ${briefing.top_actions.map((a: any) => a.text).join("; ")}`
+      ? `\n\n**Top Actions:** ${briefing.top_actions.map((a: Record<string, any>) => a.text).join("; ")}`
       : "";
 
   return {
@@ -835,7 +836,7 @@ async function handleHealthScore(
 
   const dimensions = Object.entries(health)
     .filter(([k]) => k !== "total")
-    .map(([, v]: [string, any]) =>
+    .map(([, v]: [string, Record<string, any>]) =>
       v && v.score !== undefined
         ? `- ${v.label || ""}: **${v.score}/${v.max}** — ${v.detail}`
         : null
@@ -924,13 +925,13 @@ async function handleOverdueRent(
   }
 
   const totalOverdue = overdue.reduce(
-    (sum: number, r: any) => sum + ((r.amount_due || 0) - (r.amount_paid || 0)),
+    (sum: number, r: Record<string, any>) => sum + ((r.amount_due || 0) - (r.amount_paid || 0)),
     0
   );
 
   const list = overdue
     .slice(0, 8)
-    .map((r: any) => {
+    .map((r: Record<string, any>) => {
       const outstanding = (r.amount_due || 0) - (r.amount_paid || 0);
       return `- **${r.lease?.tenant?.brand_name || "Unknown"}** (${r.lease?.unit?.unit_number || "N/A"}) — ${fmtEGP(outstanding)} overdue (${r.period_month}/${r.period_year})`;
     })
@@ -1707,7 +1708,7 @@ async function handleAnomalies(
   const list = anomalies
     .slice(0, 8)
     .map(
-      (a: any) =>
+      (a: Record<string, any>) =>
         `- [${(a.severity || "info").toUpperCase()}] **${a.title}**\n  ${a.description}${a.impact_egp ? `\n  Impact: ${fmtEGP(a.impact_egp)}` : ""}`
     )
     .join("\n\n");
@@ -1730,7 +1731,7 @@ async function handleCriticalIssues(
 
   const list = anomalies
     .map(
-      (a: any) =>
+      (a: Record<string, any>) =>
         `- [CRITICAL] **${a.title}**\n  ${a.description}${a.impact_egp ? `\n  Impact: ${fmtEGP(a.impact_egp)}` : ""}`
     )
     .join("\n\n");
@@ -1863,7 +1864,7 @@ async function handleLearning(
   const patternList = patterns
     .slice(0, 5)
     .map(
-      (p: any) =>
+      (p: Record<string, any>) =>
         `- [${p.status.toUpperCase()}] **${p.title}** (${p.confidence}% confidence, ${p.data_points} data points)\n  ${p.description}`
     )
     .join("\n\n");
@@ -1907,7 +1908,7 @@ async function handleVacantUnits(
 
   const list = vacantUnits
     .map(
-      (u: any) =>
+      (u: Record<string, any>) =>
         `- **${u.unit_number}** — ${u.name || "Unnamed"}, Floor ${u.floor}, ${u.area_sqm} sqm (${u.zone?.name || "Unknown zone"})`
     )
     .join("\n");
@@ -1928,9 +1929,9 @@ async function handleOccupancyRate(
     .eq("property_id", PROPERTY_ID);
 
   const total = (units || []).length;
-  const occupied = (units || []).filter((u: any) => u.status === "occupied").length;
-  const vacant = (units || []).filter((u: any) => u.status === "vacant").length;
-  const maintenance = (units || []).filter((u: any) => u.status === "maintenance").length;
+  const occupied = (units || []).filter((u: Record<string, any>) => u.status === "occupied").length;
+  const vacant = (units || []).filter((u: Record<string, any>) => u.status === "vacant").length;
+  const maintenance = (units || []).filter((u: Record<string, any>) => u.status === "maintenance").length;
   const rate = total > 0 ? ((occupied / total) * 100).toFixed(1) : "0";
 
   return {
@@ -1955,12 +1956,12 @@ async function handleMaintenance(
   }
 
   const urgentCount = tickets.filter(
-    (t: any) => t.priority === "urgent" || t.priority === "emergency"
+    (t: Record<string, any>) => t.priority === "urgent" || t.priority === "emergency"
   ).length;
 
   const list = tickets
     .map(
-      (t: any) =>
+      (t: Record<string, any>) =>
         `- [${t.priority.toUpperCase()}] **${t.title}** — ${t.category} (${t.status})`
     )
     .join("\n");
@@ -1982,7 +1983,7 @@ async function handleInsights(
   }
 
   const list = insights
-    .map((ins: any) => {
+    .map((ins: Record<string, any>) => {
       const icon =
         ins.severity === "critical"
           ? "[CRITICAL]"
@@ -2038,7 +2039,7 @@ async function handleTenantLookup(
 
   // Multiple matches
   const list = tenants
-    .map((t: any) => `- **${t.brand_name}** (${t.category}) — ${t.status}`)
+    .map((t: Record<string, any>) => `- **${t.brand_name}** (${t.category}) — ${t.status}`)
     .join("\n");
 
   return {
@@ -2224,7 +2225,7 @@ export async function processChat(
         return await handleBriefing(supabase);
     }
   } catch (error) {
-    console.error("AI Chat error:", error);
+    logger.error({ err: error }, "AI Chat error:");
     return {
       message:
         "I encountered an error while processing your request. Please try again or rephrase your question.",

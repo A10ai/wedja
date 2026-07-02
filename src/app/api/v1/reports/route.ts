@@ -4,6 +4,7 @@ import { getVerificationReport } from "@/lib/revenue-engine";
 import { getTenantRankings } from "@/lib/tenant-analytics";
 import { getFootfallOverview, getFootfallByZone, getPeakPatterns } from "@/lib/footfall-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -56,8 +57,8 @@ export async function GET(req: NextRequest) {
           .order("status", { ascending: true });
 
         const tx = transactions || [];
-        const totalDue = tx.reduce((s: number, t: any) => s + (t.amount_due || 0), 0);
-        const totalPaid = tx.reduce((s: number, t: any) => s + (t.amount_paid || 0), 0);
+        const totalDue = tx.reduce((s: number, t: Record<string, any>) => s + (t.amount_due || 0), 0);
+        const totalPaid = tx.reduce((s: number, t: Record<string, any>) => s + (t.amount_paid || 0), 0);
 
         return NextResponse.json({
           type: reportType,
@@ -69,9 +70,9 @@ export async function GET(req: NextRequest) {
               total_paid: totalPaid,
               collection_rate: totalDue > 0 ? (totalPaid / totalDue) * 100 : 100,
               total_transactions: tx.length,
-              paid: tx.filter((t: any) => t.status === "paid").length,
-              overdue: tx.filter((t: any) => t.status === "overdue").length,
-              partial: tx.filter((t: any) => t.status === "partial").length,
+              paid: tx.filter((t: Record<string, any>) => t.status === "paid").length,
+              overdue: tx.filter((t: Record<string, any>) => t.status === "overdue").length,
+              partial: tx.filter((t: Record<string, any>) => t.status === "partial").length,
             },
             transactions: tx,
           },
@@ -87,13 +88,13 @@ export async function GET(req: NextRequest) {
 
         const allTickets = tickets || [];
         const open = allTickets.filter(
-          (t: any) => ["open", "assigned", "in_progress"].includes(t.status)
+          (t: Record<string, any>) => ["open", "assigned", "in_progress"].includes(t.status)
         );
-        const completed = allTickets.filter((t: any) => t.status === "completed");
+        const completed = allTickets.filter((t: Record<string, any>) => t.status === "completed");
 
         let avgResolution = 0;
         if (completed.length > 0) {
-          const total = completed.reduce((sum: number, t: any) => {
+          const total = completed.reduce((sum: number, t: Record<string, any>) => {
             if (t.resolved_at) {
               return sum + (new Date(t.resolved_at).getTime() - new Date(t.created_at).getTime()) / (1000 * 60 * 60 * 24);
             }
@@ -113,11 +114,11 @@ export async function GET(req: NextRequest) {
               completed: completed.length,
               avg_resolution_days: Math.round(avgResolution * 10) / 10,
               by_priority: {
-                emergency: allTickets.filter((t: any) => t.priority === "emergency").length,
-                urgent: allTickets.filter((t: any) => t.priority === "urgent").length,
-                high: allTickets.filter((t: any) => t.priority === "high").length,
-                normal: allTickets.filter((t: any) => t.priority === "normal").length,
-                low: allTickets.filter((t: any) => t.priority === "low").length,
+                emergency: allTickets.filter((t: Record<string, any>) => t.priority === "emergency").length,
+                urgent: allTickets.filter((t: Record<string, any>) => t.priority === "urgent").length,
+                high: allTickets.filter((t: Record<string, any>) => t.priority === "high").length,
+                normal: allTickets.filter((t: Record<string, any>) => t.priority === "normal").length,
+                low: allTickets.filter((t: Record<string, any>) => t.priority === "low").length,
               },
             },
             tickets: allTickets,
@@ -129,7 +130,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Unknown report type" }, { status: 400 });
     }
   } catch (error) {
-    console.error("Reports API error:", error);
+    logger.error({ err: error }, "Reports API error:");
     return NextResponse.json(
       { error: "Failed to generate report" },
       { status: 500 }

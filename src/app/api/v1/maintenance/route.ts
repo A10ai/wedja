@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emitEvent } from "@/lib/event-bus";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ tickets: data || [] });
   } catch (error) {
-    console.error("Maintenance GET error:", error);
+    logger.error({ err: error }, "Maintenance GET error:");
     return NextResponse.json(
       { error: "Failed to fetch maintenance tickets" },
       { status: 500 }
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     // Status update
     if (body.action === "update_status" && body.id && body.status) {
-      const updateData: any = { status: body.status };
+      const updateData: Record<string, any> = { status: body.status };
       if (body.status === "completed") {
         updateData.resolved_at = new Date().toISOString();
       }
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
             zone_id: data.zone_id,
           },
           supabase
-        ).catch((err) => console.error("[EventBus] maintenance.resolved emit failed:", err));
+        ).catch((err) => logger.error({ err: err }, "[EventBus] maintenance.resolved emit failed:"));
       }
 
       return NextResponse.json(data);
@@ -129,11 +130,11 @@ export async function POST(req: NextRequest) {
         unit_id: data.unit_id,
       },
       supabase
-    ).catch((err) => console.error("[EventBus] maintenance.created emit failed:", err));
+    ).catch((err) => logger.error({ err: err }, "[EventBus] maintenance.created emit failed:"));
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Maintenance POST error:", error);
+    logger.error({ err: error }, "Maintenance POST error:");
     return NextResponse.json(
       { error: "Failed to process maintenance request" },
       { status: 500 }

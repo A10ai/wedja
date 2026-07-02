@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(zonesWithCounts);
   } catch (error) {
-    console.error("Zones GET error:", error);
+    logger.error({ err: error }, "Zones GET error:");
     return NextResponse.json(
       { error: "Failed to fetch zones" },
       { status: 500 }

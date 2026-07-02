@@ -10,6 +10,7 @@ import {
   getReplacementAnalysis,
 } from "@/lib/tenant-analytics";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Tenant analytics GET error:", error);
+    logger.error({ err: error }, "Tenant analytics GET error:");
     return NextResponse.json(
       { error: "Failed to fetch tenant analytics" },
       { status: 500 }

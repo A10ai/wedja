@@ -24,6 +24,7 @@ import {
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatNumber } from "@/lib/utils";
+import { logger } from "@/lib/client-logger";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -241,7 +242,7 @@ export default function HeatmapPage() {
         setFootfallOverview(footfallJson);
       }
     } catch (err) {
-      console.error("Failed to fetch heatmap data:", err);
+      logger.error({ err: err }, "Failed to fetch heatmap data:");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -278,7 +279,7 @@ export default function HeatmapPage() {
       const data = await res.json();
       setDeepDive(data);
     } catch (err) {
-      console.error("Failed to fetch zone deep dive:", err);
+      logger.error({ err: err }, "Failed to fetch zone deep dive:");
     } finally {
       setDeepDiveLoading(false);
     }

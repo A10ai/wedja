@@ -344,7 +344,7 @@ export async function getDwellAnalysis(
   (units || []).forEach((u: { id: string; name: string }) => { unitMap[u.id] = u.name; });
 
   const tenantMap: Record<string, string> = {};
-  (leases || []).forEach((l: any) => {
+  (leases || []).forEach((l: Record<string, any>) => {
     if (l.unit_id && l.tenant?.brand_name) tenantMap[l.unit_id] = l.tenant.brand_name;
   });
 
@@ -357,7 +357,7 @@ export async function getDwellAnalysis(
     stopped_sum: number; passed_sum: number; stop_rate_sum: number; count: number;
   }> = {};
 
-  data.forEach((r: any) => {
+  data.forEach((r: Record<string, any>) => {
     const uid = r.unit_id;
     if (!uid) return;
     if (!unitAgg[uid]) {
@@ -433,7 +433,7 @@ export async function getQueueStatus(
 
   // Get latest per unit
   const latestMap: Record<string, any> = {};
-  data.forEach((r: any) => {
+  data.forEach((r: Record<string, any>) => {
     if (!latestMap[r.unit_id]) latestMap[r.unit_id] = r;
   });
 
@@ -453,13 +453,13 @@ export async function getQueueStatus(
   (units || []).forEach((u: { id: string; name: string }) => { unitMap[u.id] = u.name; });
 
   const tenantMap: Record<string, string> = {};
-  (leases || []).forEach((l: any) => {
+  (leases || []).forEach((l: Record<string, any>) => {
     if (l.unit_id && l.tenant?.brand_name) tenantMap[l.unit_id] = l.tenant.brand_name;
   });
 
   const queues: QueueItem[] = Object.entries(latestMap)
-    .filter(([, r]: [string, any]) => r.queue_length > 0)
-    .map(([uid, r]: [string, any]) => ({
+    .filter(([, r]: [string, Record<string, any>]) => r.queue_length > 0)
+    .map(([uid, r]: [string, Record<string, any>]) => ({
       unit_id: uid,
       unit_name: unitMap[uid] || "Unknown",
       tenant_name: tenantMap[uid] || "Unknown",
@@ -760,7 +760,7 @@ export async function getSecurityAlerts(
     };
   }
 
-  const alerts: SecurityAlert[] = data.map((r: any) => ({
+  const alerts: SecurityAlert[] = data.map((r: Record<string, any>) => ({
     id: r.id,
     zone_name: r.zones?.name || "Unknown",
     camera_name: r.camera_feeds?.name || "Unknown",
@@ -844,11 +844,11 @@ export async function getStoreConversion(
   (units || []).forEach((u: { id: string; name: string }) => { unitMap[u.id] = u.name; });
 
   const tenantMap: Record<string, string> = {};
-  (leases || []).forEach((l: any) => {
+  (leases || []).forEach((l: Record<string, any>) => {
     if (l.unit_id && l.tenant?.brand_name) tenantMap[l.unit_id] = l.tenant.brand_name;
   });
 
-  const stores: StoreConversionItem[] = data.map((r: any) => ({
+  const stores: StoreConversionItem[] = data.map((r: Record<string, any>) => ({
     unit_id: r.unit_id,
     unit_name: unitMap[r.unit_id] || "Unknown",
     tenant_name: tenantMap[r.unit_id] || "Vacant",

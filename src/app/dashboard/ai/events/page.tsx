@@ -30,6 +30,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { timeAgo } from "@/lib/utils";
+import { logger } from "@/lib/client-logger";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -375,7 +376,7 @@ export default function EventBusPage() {
       // Refresh immediately
       await fetchData();
     } catch (err) {
-      console.error("Emit error:", err);
+      logger.error({ err: err }, "Emit error:");
     } finally {
       setEmitting(false);
     }

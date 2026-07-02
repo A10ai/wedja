@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emitEvent } from "@/lib/event-bus";
 import { requireAuth } from "@/lib/api-auth";
+import {
+  validateBody,
+  validateQuery,
+  formatZodErrors,
+  discrepanciesQuerySchema,
+  updateDiscrepancySchema,
+} from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +32,14 @@ export async function GET(req: NextRequest) {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
 
-    const status = searchParams.get("status");
-    const confidence = searchParams.get("confidence");
-    const month = searchParams.get("month");
-    const year = searchParams.get("year");
+    const queryValidation = validateQuery(discrepanciesQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const { status, confidence, month, year } = queryValidation.data;
 
     // Get property unit IDs
     const { data: propertyUnits } = await supabase
@@ -35,7 +47,7 @@ export async function GET(req: NextRequest) {
       .select("id")
       .eq("property_id", PROPERTY_ID);
 
-    const unitIds = (propertyUnits || []).map((u: any) => u.id);
+    const unitIds = (propertyUnits || []).map((u: Record<string, any>) => u.id);
 
     let query = supabase
       .from("discrepancies")
@@ -50,11 +62,11 @@ export async function GET(req: NextRequest) {
     }
 
     if (month) {
-      query = query.eq("period_month", parseInt(month));
+      query = query.eq("period_month", Number(month));
     }
 
     if (year) {
-      query = query.eq("period_year", parseInt(year));
+      query = query.eq("period_year", Number(year));
     }
 
     const { data, error } = await query;
@@ -66,7 +78,7 @@ export async function GET(req: NextRequest) {
     // Filter by confidence level if specified
     let filtered = data || [];
     if (confidence) {
-      filtered = filtered.filter((d: any) => {
+      filtered = filtered.filter((d: Record<string, any>) => {
         const conf = d.confidence || 0;
         switch (confidence) {
           case "high":
@@ -83,7 +95,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(filtered);
   } catch (error) {
-    console.error("Discrepancies GET error:", error);
+    logger.error({ err: error }, "Discrepancies GET error:");
     return NextResponse.json(
       { error: "Failed to fetch discrepancies" },
       { status: 500 }
@@ -105,22 +117,14 @@ export async function PUT(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
-    const { id, status, resolution_notes } = body;
-
-    if (!id || !status) {
+    const validation = validateBody(updateDiscrepancySchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "id and status are required" },
+        { error: formatZodErrors(validation.error) },
         { status: 400 }
       );
     }
-
-    const validStatuses = ["flagged", "investigating", "resolved", "dismissed"];
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${validStatuses.join(", ")}` },
-        { status: 400 }
-      );
-    }
+    const { id, status, resolution_notes } = validation.data;
 
     const updateData: Record<string, any> = { status };
 
@@ -159,12 +163,12 @@ export async function PUT(req: NextRequest) {
           unit_number: data.units?.unit_number,
         },
         supabase
-      ).catch((err) => console.error("[EventBus] tenant.underreporting emit failed:", err));
+      ).catch((err) => logger.error({ err: err }, "[EventBus] tenant.underreporting emit failed:"));
     }
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Discrepancies PUT error:", error);
+    logger.error({ err: error }, "Discrepancies PUT error:");
     return NextResponse.json(
       { error: "Failed to update discrepancy" },
       { status: 500 }

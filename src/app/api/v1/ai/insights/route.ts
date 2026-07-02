@@ -8,6 +8,7 @@ import {
 } from "@/lib/ai-engine";
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
       snapshot,
     });
   } catch (error) {
-    console.error("AI Insights API error:", error);
+    logger.error({ err: error }, "AI Insights API error:");
     return NextResponse.json(
       { error: "Failed to generate AI insights" },
       { status: 500 }

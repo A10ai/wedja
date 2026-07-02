@@ -10,6 +10,8 @@ import {
   getPeakPatterns,
 } from "@/lib/footfall-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { validateQuery, formatZodErrors, footfallQuerySchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic"; // v2
 
@@ -23,12 +25,14 @@ export async function GET(req: NextRequest) {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
 
-    const type = searchParams.get("type") || "overview";
-    const date = searchParams.get("date") || undefined;
-    const zoneId = searchParams.get("zone_id") || undefined;
-    const days = searchParams.get("days")
-      ? parseInt(searchParams.get("days")!)
-      : undefined;
+    const queryValidation = validateQuery(footfallQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const { type = "overview", date, zone_id: zoneId, days } = queryValidation.data;
 
     switch (type) {
       case "overview": {
@@ -48,7 +52,7 @@ export async function GET(req: NextRequest) {
           );
           const dailyData = await dailyRes.json();
           if (Array.isArray(dailyData)) {
-            dailyTotal = dailyData.reduce((s: number, r: any) => s + (r.total_in || 0), 0);
+            dailyTotal = dailyData.reduce((s: number, r: Record<string, any>) => s + (r.total_in || 0), 0);
           }
         } catch { /* */ }
 
@@ -118,7 +122,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Footfall GET error:", error);
+    logger.error({ err: error }, "Footfall GET error:");
     return NextResponse.json(
       { error: "Failed to fetch footfall data" },
       { status: 500 }

@@ -10,6 +10,7 @@ import {
   getSocialInsights,
 } from "@/lib/social-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -102,7 +103,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Social GET error:", error);
+    logger.error({ err: error }, "Social GET error:");
     return NextResponse.json(
       { error: "Failed to fetch social media data" },
       { status: 500 }
@@ -179,7 +180,7 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   } catch (error) {
-    console.error("Social POST error:", error);
+    logger.error({ err: error }, "Social POST error:");
     return NextResponse.json(
       { error: "Failed to create social media entity" },
       { status: 500 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { processChat } from "@/lib/ai-chat";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error("AI Chat API error:", error);
+    logger.error({ err: error }, "AI Chat API error:");
     return NextResponse.json(
       { error: "Failed to process chat message" },
       { status: 500 }

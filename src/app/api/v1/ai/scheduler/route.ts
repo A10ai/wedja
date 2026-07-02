@@ -138,7 +138,7 @@ async function executeCycle() {
 
     if (expiringLeases && expiringLeases.length > 0) {
       for (const lease of expiringLeases.slice(0, 3)) {
-        const tenantName = (lease.tenants as any)?.name || "Unknown";
+        const tenantName = (lease.tenants as Record<string, any>)?.name || "Unknown";
         await emitEvent("lease.expiring", "scheduler", {
           lease_id: lease.id,
           tenant_id: lease.tenant_id,
@@ -164,7 +164,7 @@ async function executeCycle() {
       .select("id, severity")
       .eq("status", "active");
 
-    const criticalCount = (activeAnomalies || []).filter((a: any) => a.severity === "critical").length;
+    const criticalCount = (activeAnomalies || []).filter((a: Record<string, any>) => a.severity === "critical").length;
     results.active_anomalies = activeAnomalies?.length || 0;
     results.critical_anomalies = criticalCount;
 
@@ -182,8 +182,8 @@ async function executeCycle() {
       .select("total_in")
       .eq("date", yesterday);
 
-    const todayTotal = (todayFootfall || []).reduce((s: number, r: any) => s + (r.total_in || 0), 0);
-    const yesterdayTotal = (yesterdayFootfall || []).reduce((s: number, r: any) => s + (r.total_in || 0), 0);
+    const todayTotal = (todayFootfall || []).reduce((s: number, r: Record<string, any>) => s + (r.total_in || 0), 0);
+    const yesterdayTotal = (yesterdayFootfall || []).reduce((s: number, r: Record<string, any>) => s + (r.total_in || 0), 0);
 
     if (yesterdayTotal > 0 && todayTotal < yesterdayTotal * 0.7) {
       await emitEvent("footfall.drop", "scheduler", {
@@ -202,8 +202,8 @@ async function executeCycle() {
       .select("consumption_kwh, cost_egp")
       .gte("timestamp", today);
 
-    const totalEnergy = (energyToday || []).reduce((s: number, r: any) => s + (r.consumption_kwh || 0), 0);
-    const totalCost = (energyToday || []).reduce((s: number, r: any) => s + (r.cost_egp || 0), 0);
+    const totalEnergy = (energyToday || []).reduce((s: number, r: Record<string, any>) => s + (r.consumption_kwh || 0), 0);
+    const totalCost = (energyToday || []).reduce((s: number, r: Record<string, any>) => s + (r.cost_egp || 0), 0);
     results.energy_kwh_today = Math.round(totalEnergy);
     results.energy_cost_today = Math.round(totalCost);
 

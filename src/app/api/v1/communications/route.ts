@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
         { tenant_id: string; brand_name: string; contact_email: string; contact_phone: string; unit_number: string }
       >();
       for (const row of tenantsWithOverdueResult.data || []) {
-        const lease = row.lease as any;
+        const lease = row.lease as Record<string, any>;
         const tenant = lease?.tenant;
         const unit = lease?.unit;
         if (tenant && !tenantMap.has(tenant.id)) {
@@ -130,7 +131,7 @@ export async function GET(req: NextRequest) {
         .eq("leases.property_id", PROPERTY_ID);
 
       if (error) {
-        console.error("Overdue query error:", error);
+        logger.error({ err: error }, "Overdue query error:");
         return NextResponse.json(
           { error: "Failed to fetch overdue data" },
           { status: 500 }
@@ -153,7 +154,7 @@ export async function GET(req: NextRequest) {
       >();
 
       for (const row of data || []) {
-        const lease = row.lease as any;
+        const lease = row.lease as Record<string, any>;
         const tenant = lease?.tenant;
         const unit = lease?.unit;
         if (!tenant) continue;
@@ -200,7 +201,7 @@ export async function GET(req: NextRequest) {
         .order("end_date", { ascending: true });
 
       if (error) {
-        console.error("Renewals query error:", error);
+        logger.error({ err: error }, "Renewals query error:");
         return NextResponse.json(
           { error: "Failed to fetch renewals data" },
           { status: 500 }
@@ -209,8 +210,8 @@ export async function GET(req: NextRequest) {
 
       const now = new Date();
       const results = (data || []).map((lease) => {
-        const tenant = lease.tenant as any;
-        const unit = lease.unit as any;
+        const tenant = lease.tenant as Record<string, any>;
+        const unit = lease.unit as Record<string, any>;
         const endDate = new Date(lease.end_date);
         const daysRemaining = Math.ceil(
           (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
@@ -243,7 +244,7 @@ export async function GET(req: NextRequest) {
         .limit(50);
 
       if (error) {
-        console.error("History query error:", error);
+        logger.error({ err: error }, "History query error:");
         return NextResponse.json(
           { error: "Failed to fetch communication history" },
           { status: 500 }
@@ -258,7 +259,7 @@ export async function GET(req: NextRequest) {
       { status: 400 }
     );
   } catch (error) {
-    console.error("Communications GET error:", error);
+    logger.error({ err: error }, "Communications GET error:");
     return NextResponse.json(
       { error: "Failed to fetch communications data" },
       { status: 500 }
@@ -312,7 +313,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error("Insert notification error:", error);
+      logger.error({ err: error }, "Insert notification error:");
       return NextResponse.json(
         { error: "Failed to send communication" },
         { status: 500 }
@@ -324,7 +325,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Communications POST error:", error);
+    logger.error({ err: error }, "Communications POST error:");
     return NextResponse.json(
       { error: "Failed to send communication" },
       { status: 500 }

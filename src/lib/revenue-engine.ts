@@ -269,7 +269,7 @@ export async function runRevenueVerification(
       : `${year}-${String(month + 1).padStart(2, "0")}-01`;
 
   // 3. Get footfall for all units in this period
-  const unitIds = leases.map((l: any) => l.unit_id);
+  const unitIds = leases.map((l: Record<string, any>) => l.unit_id);
 
   const { data: footfallData } = await supabase
     .from("footfall_daily")
@@ -280,7 +280,7 @@ export async function runRevenueVerification(
 
   // Group footfall by unit
   const footfallByUnit: Record<string, { total: number; days: number }> = {};
-  (footfallData || []).forEach((r: any) => {
+  (footfallData || []).forEach((r: Record<string, any>) => {
     if (!footfallByUnit[r.unit_id]) {
       footfallByUnit[r.unit_id] = { total: 0, days: 0 };
     }
@@ -289,7 +289,7 @@ export async function runRevenueVerification(
   });
 
   // 4. Get reported sales for this period
-  const tenantIds = leases.map((l: any) => l.tenant_id);
+  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   const { data: salesData } = await supabase
     .from("tenant_sales_reported")
@@ -299,7 +299,7 @@ export async function runRevenueVerification(
     .eq("period_year", year);
 
   const salesByTenant: Record<string, number> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     salesByTenant[s.tenant_id] = s.reported_revenue_egp;
   });
 
@@ -336,7 +336,7 @@ export async function runRevenueVerification(
     string,
     { rate: number; confidence: number; source: "learned" | "default"; sample_count: number }
   > = {};
-  (learnedParams || []).forEach((p: any) => {
+  (learnedParams || []).forEach((p: Record<string, any>) => {
     if (p.entity_id) {
       learnedRates[p.entity_id] = {
         rate: p.learned_value,
@@ -348,8 +348,8 @@ export async function runRevenueVerification(
   });
 
   for (const lease of leases) {
-    const tenant = (lease as any).tenants;
-    const unit = (lease as any).units;
+    const tenant = (lease as Record<string, any>).tenants;
+    const unit = (lease as Record<string, any>).units;
     const unitFootfall = footfallByUnit[lease.unit_id] || {
       total: 0,
       days: 0,
@@ -495,7 +495,7 @@ export async function getDiscrepancySummary(
     .select("id")
     .eq("property_id", propertyId);
 
-  const unitIds = (propertyUnits || []).map((u: any) => u.id);
+  const unitIds = (propertyUnits || []).map((u: Record<string, any>) => u.id);
 
   if (unitIds.length > 0) {
     query = query.in("unit_id", unitIds);
@@ -521,18 +521,18 @@ export async function getDiscrepancySummary(
   }
 
   const totalVariance = discrepancies.reduce(
-    (sum: number, d: any) => sum + (d.variance_egp || 0),
+    (sum: number, d: Record<string, any>) => sum + (d.variance_egp || 0),
     0
   );
   const avgVariancePct =
     discrepancies.reduce(
-      (sum: number, d: any) => sum + (d.variance_pct || 0),
+      (sum: number, d: Record<string, any>) => sum + (d.variance_pct || 0),
       0
     ) / discrepancies.length;
 
   // Count by confidence level
   const byConfidence = { high: 0, medium: 0, low: 0 };
-  discrepancies.forEach((d: any) => {
+  discrepancies.forEach((d: Record<string, any>) => {
     const conf = d.confidence || 0;
     if (conf >= 0.75) byConfidence.high++;
     else if (conf >= 0.5) byConfidence.medium++;
@@ -541,18 +541,18 @@ export async function getDiscrepancySummary(
 
   // Count by status
   const byStatus = { flagged: 0, investigating: 0, resolved: 0, dismissed: 0 };
-  discrepancies.forEach((d: any) => {
+  discrepancies.forEach((d: Record<string, any>) => {
     if (d.status in byStatus)
       byStatus[d.status as keyof typeof byStatus]++;
   });
 
   // Potential recovery: sum of variance where confidence > 0.6
   const potentialRecovery = discrepancies
-    .filter((d: any) => (d.confidence || 0) > 0.6)
-    .reduce((sum: number, d: any) => sum + (d.variance_egp || 0), 0);
+    .filter((d: Record<string, any>) => (d.confidence || 0) > 0.6)
+    .reduce((sum: number, d: Record<string, any>) => sum + (d.variance_egp || 0), 0);
 
   // Top 10 discrepancies
-  const topDiscrepancies = discrepancies.slice(0, 10).map((d: any) => ({
+  const topDiscrepancies = discrepancies.slice(0, 10).map((d: Record<string, any>) => ({
     tenant_id: d.tenant_id,
     tenant_name: d.tenants?.name || "",
     brand_name: d.tenants?.brand_name || "",
@@ -613,7 +613,7 @@ export async function getTenantRevenueProfile(
     .order("period_month", { ascending: true });
 
   const salesMap: Record<string, number> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     salesMap[`${s.period_year}-${s.period_month}`] = s.reported_revenue_egp;
   });
 
@@ -628,7 +628,7 @@ export async function getTenantRevenueProfile(
     .order("period_month", { ascending: true });
 
   const estimateMap: Record<string, { egp: number; conf: number }> = {};
-  (estimateData || []).forEach((e: any) => {
+  (estimateData || []).forEach((e: Record<string, any>) => {
     estimateMap[`${e.period_year}-${e.period_month}`] = {
       egp: e.estimated_revenue_egp,
       conf: e.confidence_score,
@@ -777,8 +777,8 @@ export async function getVerificationReport(
       ? `${year + 1}-01-01`
       : `${year}-${String(month + 1).padStart(2, "0")}-01`;
 
-  const unitIds = leases.map((l: any) => l.unit_id);
-  const tenantIds = leases.map((l: any) => l.tenant_id);
+  const unitIds = leases.map((l: Record<string, any>) => l.unit_id);
+  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get footfall
   const { data: footfallData } = await supabase
@@ -789,7 +789,7 @@ export async function getVerificationReport(
     .lt("date", endDate);
 
   const footfallByUnit: Record<string, { total: number; days: number }> = {};
-  (footfallData || []).forEach((r: any) => {
+  (footfallData || []).forEach((r: Record<string, any>) => {
     if (!footfallByUnit[r.unit_id]) {
       footfallByUnit[r.unit_id] = { total: 0, days: 0 };
     }
@@ -806,7 +806,7 @@ export async function getVerificationReport(
     .eq("period_year", year);
 
   const salesByTenant: Record<string, number> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     salesByTenant[s.tenant_id] = s.reported_revenue_egp;
   });
 
@@ -820,7 +820,7 @@ export async function getVerificationReport(
 
   const discrepancyMap: Record<string, { status: string; confidence: number }> =
     {};
-  (existingDiscrepancies || []).forEach((d: any) => {
+  (existingDiscrepancies || []).forEach((d: Record<string, any>) => {
     discrepancyMap[d.tenant_id] = {
       status: d.status,
       confidence: d.confidence,
@@ -836,8 +836,8 @@ export async function getVerificationReport(
   let highConfidenceFlags = 0;
 
   for (const lease of leases) {
-    const tenant = (lease as any).tenants;
-    const unit = (lease as any).units;
+    const tenant = (lease as Record<string, any>).tenants;
+    const unit = (lease as Record<string, any>).units;
     const unitFootfall = footfallByUnit[lease.unit_id] || {
       total: 0,
       days: 0,

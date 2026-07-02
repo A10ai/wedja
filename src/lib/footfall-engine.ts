@@ -341,7 +341,7 @@ export async function getFootfallByZone(
 
   let grandTotal = 0;
 
-  data.forEach((row: any) => {
+  data.forEach((row: Record<string, any>) => {
     const zoneId = row.zone_id;
     if (!zoneMap[zoneId]) {
       zoneMap[zoneId] = {
@@ -397,7 +397,7 @@ export async function getFootfallByUnit(
 
   // Get tenant names via leases
   const unitIds = Array.from(
-    new Set(data.map((r: any) => r.unit_id).filter(Boolean))
+    new Set(data.map((r: Record<string, any>) => r.unit_id).filter(Boolean))
   );
 
   const { data: leases } = await supabase
@@ -407,13 +407,13 @@ export async function getFootfallByUnit(
     .in("unit_id", unitIds);
 
   const tenantMap: Record<string, string> = {};
-  (leases || []).forEach((l: any) => {
+  (leases || []).forEach((l: Record<string, any>) => {
     if (l.unit_id && l.tenant?.brand_name) {
       tenantMap[l.unit_id] = l.tenant.brand_name;
     }
   });
 
-  let results = data.map((row: any) => ({
+  let results = data.map((row: Record<string, any>) => ({
     unit_id: row.unit_id,
     unit_number: row.units?.unit_number || "N/A",
     tenant_name: tenantMap[row.unit_id] || "Vacant",
@@ -424,7 +424,7 @@ export async function getFootfallByUnit(
   }));
 
   if (zoneId) {
-    results = results.filter((r: any) => r._zone_id === zoneId);
+    results = results.filter((r: Record<string, any>) => r._zone_id === zoneId);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

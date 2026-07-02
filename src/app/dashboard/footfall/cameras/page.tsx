@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { logger } from "@/lib/client-logger";
 
 interface CameraFeed {
   id: string;
@@ -74,7 +75,7 @@ export default function CamerasPage() {
       setCameras(Array.isArray(camData) ? camData : []);
       setZones(Array.isArray(zoneData) ? zoneData : []);
     } catch (err) {
-      console.error("Failed to load cameras:", err);
+      logger.error({ err: err }, "Failed to load cameras:");
     } finally {
       setLoading(false);
     }
@@ -106,7 +107,7 @@ export default function CamerasPage() {
       });
       loadData();
     } catch (err) {
-      console.error("Failed to delete camera:", err);
+      logger.error({ err: err }, "Failed to delete camera:");
     }
   }
 
@@ -377,7 +378,7 @@ function CameraFormModal({
     setSaving(true);
 
     try {
-      const payload: any = {
+      const payload: Record<string, any> = {
         name,
         rtsp_url: rtspUrl || null,
         zone_id: zoneId || null,
@@ -403,8 +404,8 @@ function CameraFormModal({
       }
 
       onSaved();
-    } catch (err: any) {
-      setError(err.message || "Failed to save camera");
+    } catch (err) {
+      setError((err instanceof Error ? err.message : String(err)) || "Failed to save camera");
     } finally {
       setSaving(false);
     }

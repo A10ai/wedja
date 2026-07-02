@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error("Events GET error:", error);
+    logger.error({ err: error }, "Events GET error:");
     return NextResponse.json(
       { error: "Failed to fetch events" },
       { status: 500 }
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Events POST error:", error);
+    logger.error({ err: error }, "Events POST error:");
     return NextResponse.json(
       { error: "Failed to create event" },
       { status: 500 }
@@ -154,7 +155,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Events PUT error:", error);
+    logger.error({ err: error }, "Events PUT error:");
     return NextResponse.json(
       { error: "Failed to update event" },
       { status: 500 }

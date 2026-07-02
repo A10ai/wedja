@@ -7,6 +7,8 @@ import {
   getLiveFeed,
 } from "@/lib/heatmap-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { validateQuery, formatZodErrors, heatmapQuerySchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +21,15 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "live";
-    const zoneId = searchParams.get("zone_id") || "";
+
+    const queryValidation = validateQuery(heatmapQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const { type = "live", zone_id: zoneId = "" } = queryValidation.data;
 
     switch (type) {
       case "live":
@@ -56,7 +65,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Heatmap GET error:", error);
+    logger.error({ err: error }, "Heatmap GET error:");
     return NextResponse.json(
       { error: "Failed to fetch heatmap data" },
       { status: 500 }

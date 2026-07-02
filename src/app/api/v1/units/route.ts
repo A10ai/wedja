@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
+import { validateBody, formatZodErrors, createUnitSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +52,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(enriched);
   } catch (error) {
-    console.error("Units GET error:", error);
+    logger.error({ err: error }, "Units GET error:");
     return NextResponse.json(
       { error: "Failed to fetch units" },
       { status: 500 }
@@ -66,9 +68,18 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
+    const validation = validateBody(createUnitSchema, body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(validation.error) },
+        { status: 400 }
+      );
+    }
+    const validated = validation.data;
+
     const { data, error } = await supabase
       .from("units")
-      .insert(body)
+      .insert(validated)
       .select()
       .single();
 
@@ -78,7 +89,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Units POST error:", error);
+    logger.error({ err: error }, "Units POST error:");
     return NextResponse.json(
       { error: "Failed to create unit" },
       { status: 500 }

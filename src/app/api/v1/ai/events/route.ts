@@ -7,6 +7,7 @@ import {
   type SourceSystem,
 } from "@/lib/event-bus";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +97,7 @@ export async function GET(req: NextRequest) {
       source_systems: uniqueSources,
     });
   } catch (error) {
-    console.error("Events GET error:", error);
+    logger.error({ err: error }, "Events GET error:");
     return NextResponse.json(
       { error: "Failed to fetch events" },
       { status: 500 }
@@ -135,7 +136,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error("Events POST error:", error);
+    logger.error({ err: error }, "Events POST error:");
     return NextResponse.json(
       { error: "Failed to emit event" },
       { status: 500 }

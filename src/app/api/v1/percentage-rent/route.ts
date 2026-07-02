@@ -8,6 +8,8 @@ import {
   getRentCompositionBreakdown,
 } from "@/lib/percentage-rent-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { validateQuery, formatZodErrors, percentageRentQuerySchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +22,15 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "overview";
-    const month = searchParams.get("month")
-      ? parseInt(searchParams.get("month")!)
-      : undefined;
-    const year = searchParams.get("year")
-      ? parseInt(searchParams.get("year")!)
-      : undefined;
+
+    const queryValidation = validateQuery(percentageRentQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const { type = "overview", month, year } = queryValidation.data;
 
     switch (type) {
       case "overview":
@@ -61,7 +65,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Percentage Rent GET error:", error);
+    logger.error({ err: error }, "Percentage Rent GET error:");
     return NextResponse.json(
       { error: "Failed to fetch percentage rent data" },
       { status: 500 }

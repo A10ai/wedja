@@ -8,6 +8,7 @@ import {
   getProfitAndLoss,
 } from "@/lib/finance-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -77,7 +78,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Finance GET error:", error);
+    logger.error({ err: error }, "Finance GET error:");
     return NextResponse.json(
       { error: "Failed to fetch finance data" },
       { status: 500 }
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Finance POST error:", error);
+    logger.error({ err: error }, "Finance POST error:");
     return NextResponse.json(
       { error: "Failed to create expense" },
       { status: 500 }

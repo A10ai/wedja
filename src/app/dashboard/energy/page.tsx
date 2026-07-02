@@ -155,7 +155,7 @@ export default function EnergyPage() {
           const ffData = await ffRes.json();
           const map: Record<string, number> = {};
           if (Array.isArray(ffData)) {
-            ffData.forEach((z: any) => { map[z.zone_id] = z.total_in || 0; });
+            ffData.forEach((z: Record<string, any>) => { map[z.zone_id] = z.total_in || 0; });
           }
           setZoneOccupancy(map);
         }
@@ -164,7 +164,7 @@ export default function EnergyPage() {
           const anomalyData = await anomalyRes.json();
           const list = Array.isArray(anomalyData) ? anomalyData : anomalyData?.anomalies || [];
           const map: Record<string, number> = {};
-          list.forEach((a: any) => {
+          list.forEach((a: Record<string, any>) => {
             if (a.type === "energy" || a.type === "energy_anomaly") {
               const zid = a.zone_id;
               if (zid) map[zid] = (map[zid] || 0) + 1;
@@ -177,7 +177,7 @@ export default function EnergyPage() {
           const maintData = await maintRes.json();
           const tickets = maintData?.tickets || [];
           const openHvac = Array.isArray(tickets)
-            ? tickets.filter((t: any) => ["open", "assigned", "in_progress"].includes(t.status)).length
+            ? tickets.filter((t: Record<string, any>) => ["open", "assigned", "in_progress"].includes(t.status)).length
             : 0;
           setHvacTicketCount(openHvac);
         }

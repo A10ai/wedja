@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
 import { NextRequest } from "next/server";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic"; // v2
 
@@ -116,7 +117,7 @@ export async function GET(req: NextRequest) {
       );
       const dailyData = await dailyRes.json();
       if (Array.isArray(dailyData)) {
-        const dailyTotal = dailyData.reduce((s: number, r: any) => s + (r.total_in || 0), 0);
+        const dailyTotal = dailyData.reduce((s: number, r: Record<string, any>) => s + (r.total_in || 0), 0);
         footfallToday = Math.max(footfallToday, dailyTotal);
       }
 
@@ -150,7 +151,7 @@ export async function GET(req: NextRequest) {
       headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     });
   } catch (error) {
-    console.error("Dashboard stats error:", error);
+    logger.error({ err: error }, "Dashboard stats error:");
     return NextResponse.json(
       { error: "Failed to fetch dashboard stats" },
       { status: 500 }

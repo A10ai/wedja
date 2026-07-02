@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
+import { validateBody, formatZodErrors, updatePropertySchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Properties GET error:", error);
+    logger.error({ err: error }, "Properties GET error:");
     return NextResponse.json(
       { error: "Failed to fetch property" },
       { status: 500 }
@@ -39,14 +41,16 @@ export async function PUT(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
-    const { id, ...updates } = body;
-
-    if (!id) {
+    const validation = validateBody(updatePropertySchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "Property ID is required" },
+        { error: formatZodErrors(validation.error) },
         { status: 400 }
       );
     }
+    const validated = validation.data;
+
+    const { id, ...updates } = validated;
 
     const { data, error } = await supabase
       .from("properties")
@@ -61,7 +65,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Properties PUT error:", error);
+    logger.error({ err: error }, "Properties PUT error:");
     return NextResponse.json(
       { error: "Failed to update property" },
       { status: 500 }

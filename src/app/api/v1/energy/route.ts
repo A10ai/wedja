@@ -9,6 +9,7 @@ import {
   getEnergyRecommendations,
 } from "@/lib/energy-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("Energy GET error:", error);
+    logger.error({ err: error }, "Energy GET error:");
     return NextResponse.json(
       { error: "Failed to fetch energy data" },
       { status: 500 }

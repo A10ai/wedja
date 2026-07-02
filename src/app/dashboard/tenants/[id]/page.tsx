@@ -226,20 +226,20 @@ export default function TenantDetailPage() {
           setFootfallToday(totalIn); // Will be refined below
           setAvgDwell(count > 0 ? Math.round(totalDwell / count) : 0);
           // Store raw data for tenant unit matching
-          (window as any).__ffUnits = allUnits;
+          (window as Record<string, any>).__ffUnits = allUnits;
         }
 
         if (cctvRes?.ok) {
           const cctvData = await cctvRes.json();
           const conversions = Array.isArray(cctvData) ? cctvData : cctvData?.stores || [];
-          (window as any).__cctvConversions = conversions;
+          (window as Record<string, any>).__cctvConversions = conversions;
         }
 
         if (discRes?.ok) {
           const discData = await discRes.json();
           const list = Array.isArray(discData) ? discData : discData?.discrepancies || [];
           const match = list.find(
-            (d: any) => d.tenant_id === tenantId && (d.status === "flagged" || d.status === "investigating")
+            (d: Record<string, any>) => d.tenant_id === tenantId && (d.status === "flagged" || d.status === "investigating")
           );
           if (match) setDiscrepancy(match);
         }
@@ -265,7 +265,7 @@ export default function TenantDetailPage() {
     const activeLease = leases.find((l) => l.status === "active");
     if (!activeLease?.unit_id) return;
 
-    const ffUnits = (window as any).__ffUnits as FootfallUnit[] | undefined;
+    const ffUnits = (window as Record<string, any>).__ffUnits as FootfallUnit[] | undefined;
     if (ffUnits) {
       const match = ffUnits.find((u) => u.unit_id === activeLease.unit_id);
       if (match) {
@@ -274,7 +274,7 @@ export default function TenantDetailPage() {
       }
     }
 
-    const cctvConversions = (window as any).__cctvConversions as StoreConversion[] | undefined;
+    const cctvConversions = (window as Record<string, any>).__cctvConversions as StoreConversion[] | undefined;
     if (cctvConversions) {
       const match = cctvConversions.find((c) => c.unit_id === activeLease.unit_id);
       if (match) {

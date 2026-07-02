@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
+import { validateBody, formatZodErrors, createCameraSchema, updateCameraSchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data || []);
   } catch (error) {
-    console.error("Cameras GET error:", error);
+    logger.error({ err: error }, "Cameras GET error:");
     return NextResponse.json(
       { error: "Failed to fetch cameras" },
       { status: 500 }
@@ -41,14 +43,14 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
 
-    const { name, rtsp_url, zone_id, location_description, angle_type, resolution } = body;
-
-    if (!name) {
+    const validation = validateBody(createCameraSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "Camera name is required" },
+        { error: formatZodErrors(validation.error) },
         { status: 400 }
       );
     }
+    const { name, rtsp_url, zone_id, location_description, angle_type, resolution } = validation.data;
 
     const { data, error } = await supabase
       .from("camera_feeds")
@@ -71,7 +73,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error("Cameras POST error:", error);
+    logger.error({ err: error }, "Cameras POST error:");
     return NextResponse.json(
       { error: "Failed to create camera" },
       { status: 500 }
@@ -86,14 +88,15 @@ export async function PUT(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
-    const { id, ...updates } = body;
 
-    if (!id) {
+    const validation = validateBody(updateCameraSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: "Camera id is required" },
+        { error: formatZodErrors(validation.error) },
         { status: 400 }
       );
     }
+    const { id, ...updates } = validation.data;
 
     const { data, error } = await supabase
       .from("camera_feeds")
@@ -108,7 +111,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("Cameras PUT error:", error);
+    logger.error({ err: error }, "Cameras PUT error:");
     return NextResponse.json(
       { error: "Failed to update camera" },
       { status: 500 }

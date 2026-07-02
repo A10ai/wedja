@@ -229,22 +229,22 @@ export async function getLiveHeatmapData(
 
   // 3. Build lookup maps
   const footfallByZone: Record<string, number> = {};
-  (todayFootfall.data || []).forEach((r: any) => {
+  (todayFootfall.data || []).forEach((r: Record<string, any>) => {
     footfallByZone[r.zone_id] = (footfallByZone[r.zone_id] || 0) + (r.total_in || 0);
   });
 
   const yesterdayByZone: Record<string, number> = {};
-  (yesterdayFootfall.data || []).forEach((r: any) => {
+  (yesterdayFootfall.data || []).forEach((r: Record<string, any>) => {
     yesterdayByZone[r.zone_id] = (yesterdayByZone[r.zone_id] || 0) + (r.total_in || 0);
   });
 
   const energyByZone: Record<string, number> = {};
-  (energyToday.data || []).forEach((r: any) => {
+  (energyToday.data || []).forEach((r: Record<string, any>) => {
     energyByZone[r.zone_id] = (energyByZone[r.zone_id] || 0) + Number(r.consumption_kwh || 0);
   });
 
   const unitsByZone: Record<string, Array<{ id: string; area_sqm: number }>> = {};
-  (occupiedUnits.data || []).forEach((u: any) => {
+  (occupiedUnits.data || []).forEach((u: Record<string, any>) => {
     if (!unitsByZone[u.zone_id]) unitsByZone[u.zone_id] = [];
     unitsByZone[u.zone_id].push({ id: u.id, area_sqm: Number(u.area_sqm) || 0 });
   });
@@ -257,7 +257,7 @@ export async function getLiveHeatmapData(
     .eq("status", "active");
 
   const tenantByUnit: Record<string, { tenant_id: string; brand_name: string; min_rent: number }> = {};
-  (leases || []).forEach((l: any) => {
+  (leases || []).forEach((l: Record<string, any>) => {
     tenantByUnit[l.unit_id] = {
       tenant_id: l.tenant_id,
       brand_name: l.tenants?.brand_name || "Unknown",
@@ -267,13 +267,13 @@ export async function getLiveHeatmapData(
 
   // Revenue map by tenant
   const revenueByTenant: Record<string, number> = {};
-  (monthRevenue.data || []).forEach((r: any) => {
+  (monthRevenue.data || []).forEach((r: Record<string, any>) => {
     revenueByTenant[r.tenant_id] = r.reported_revenue_egp || 0;
   });
 
   // Maintenance by zone
   const maintenanceByZone: Record<string, number> = {};
-  (maintenanceTickets.data || []).forEach((t: any) => {
+  (maintenanceTickets.data || []).forEach((t: Record<string, any>) => {
     if (t.zone_id) {
       maintenanceByZone[t.zone_id] = (maintenanceByZone[t.zone_id] || 0) + 1;
     }
@@ -281,12 +281,12 @@ export async function getLiveHeatmapData(
 
   // Discrepancies by zone (via unit -> zone mapping)
   const unitToZone: Record<string, string> = {};
-  (occupiedUnits.data || []).forEach((u: any) => {
+  (occupiedUnits.data || []).forEach((u: Record<string, any>) => {
     unitToZone[u.id] = u.zone_id;
   });
 
   const discrepanciesByZone: Record<string, number> = {};
-  (discrepancies.data || []).forEach((d: any) => {
+  (discrepancies.data || []).forEach((d: Record<string, any>) => {
     const zoneId = unitToZone[d.unit_id];
     if (zoneId) {
       discrepanciesByZone[zoneId] = (discrepanciesByZone[zoneId] || 0) + 1;
@@ -295,7 +295,7 @@ export async function getLiveHeatmapData(
 
   // Unit footfall map
   const footfallByUnit: Record<string, number> = {};
-  (unitFootfall.data || []).forEach((r: any) => {
+  (unitFootfall.data || []).forEach((r: Record<string, any>) => {
     footfallByUnit[r.unit_id] = (footfallByUnit[r.unit_id] || 0) + (r.total_in || 0);
   });
 
@@ -499,7 +499,7 @@ export async function getZoneDeepDive(
   // Build footfall map for units
   const footfallByUnit: Record<string, number> = {};
   let zoneTotalToday = 0;
-  (footfallRes.data || []).forEach((r: any) => {
+  (footfallRes.data || []).forEach((r: Record<string, any>) => {
     if (r.unit_id) {
       footfallByUnit[r.unit_id] = (footfallByUnit[r.unit_id] || 0) + (r.total_in || 0);
     }
@@ -509,7 +509,7 @@ export async function getZoneDeepDive(
   });
 
   const yesterdayTotal = (yesterdayFootfallRes.data || []).reduce(
-    (s: number, r: any) => s + (r.total_in || 0),
+    (s: number, r: Record<string, any>) => s + (r.total_in || 0),
     0
   );
 
@@ -525,7 +525,7 @@ export async function getZoneDeepDive(
   }
 
   // Get reported sales for tenants
-  const tenantIds = (leasesRes.data || []).map((l: any) => l.tenant_id);
+  const tenantIds = (leasesRes.data || []).map((l: Record<string, any>) => l.tenant_id);
   const { data: salesData } = tenantIds.length > 0
     ? await supabase
         .from("tenant_sales_reported")
@@ -536,7 +536,7 @@ export async function getZoneDeepDive(
     : { data: [] };
 
   const salesByTenant: Record<string, number> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     salesByTenant[s.tenant_id] = s.reported_revenue_egp;
   });
 
@@ -551,7 +551,7 @@ export async function getZoneDeepDive(
     : { data: [] };
 
   const estimatesByTenant: Record<string, number> = {};
-  (estimateData || []).forEach((e: any) => {
+  (estimateData || []).forEach((e: Record<string, any>) => {
     estimatesByTenant[e.tenant_id] = e.estimated_revenue_egp;
   });
 
@@ -561,7 +561,7 @@ export async function getZoneDeepDive(
     unitMap[u.id] = { area_sqm: Number(u.area_sqm) || 0 };
   });
 
-  const tenants: ZoneTenant[] = (leasesRes.data || []).map((l: any) => {
+  const tenants: ZoneTenant[] = (leasesRes.data || []).map((l: Record<string, any>) => {
     const t = l.tenants;
     const unitArea = unitMap[l.unit_id]?.area_sqm || 0;
     const visitors = footfallByUnit[l.unit_id] || 0;
@@ -598,11 +598,11 @@ export async function getZoneDeepDive(
 
   // Energy
   const energyKwh = (energyRes.data || []).reduce(
-    (s: number, r: any) => s + Number(r.consumption_kwh || 0),
+    (s: number, r: Record<string, any>) => s + Number(r.consumption_kwh || 0),
     0
   );
   const energyCost = (energyRes.data || []).reduce(
-    (s: number, r: any) => s + Number(r.cost_egp || 0),
+    (s: number, r: Record<string, any>) => s + Number(r.cost_egp || 0),
     0
   );
   const efficiencyScore =
@@ -613,14 +613,14 @@ export async function getZoneDeepDive(
   // Discrepancies
   const discrepancyCount = (discrepancyRes.data || []).length;
   const totalVariance = (discrepancyRes.data || []).reduce(
-    (s: number, d: any) => s + (d.variance_egp || 0),
+    (s: number, d: Record<string, any>) => s + (d.variance_egp || 0),
     0
   );
 
   // Maintenance
   const openTickets = (maintenanceRes.data || []).length;
   const urgentCount = (maintenanceRes.data || []).filter(
-    (t: any) => t.priority === "urgent" || t.priority === "emergency"
+    (t: Record<string, any>) => t.priority === "urgent" || t.priority === "emergency"
   ).length;
 
   // Events
@@ -682,7 +682,7 @@ export async function getVisitorFlowData(
 
   const footfallByZone: Record<string, number> = {};
   let totalDaily = 0;
-  (footfallData || []).forEach((r: any) => {
+  (footfallData || []).forEach((r: Record<string, any>) => {
     footfallByZone[r.zone_id] = (footfallByZone[r.zone_id] || 0) + (r.total_in || 0);
     totalDaily += r.total_in || 0;
   });
@@ -797,7 +797,7 @@ export async function getLiveFeed(
     .order("created_at", { ascending: false })
     .limit(4);
 
-  (tickets || []).forEach((t: any) => {
+  (tickets || []).forEach((t: Record<string, any>) => {
     const zoneName = zoneNameMap[t.zone_id] || "General";
     events.push({
       id: `maint-${t.id}`,
@@ -816,7 +816,7 @@ export async function getLiveFeed(
     .order("flagged_at", { ascending: false })
     .limit(4);
 
-  (discrepancyData || []).forEach((d: any) => {
+  (discrepancyData || []).forEach((d: Record<string, any>) => {
     const brandName = d.tenants?.brand_name || "Unknown";
     events.push({
       id: `disc-${d.id}`,
@@ -836,7 +836,7 @@ export async function getLiveFeed(
     .order("consumption_kwh", { ascending: false })
     .limit(3);
 
-  (energyData || []).forEach((e: any) => {
+  (energyData || []).forEach((e: Record<string, any>) => {
     const zoneName = zoneNameMap[e.zone_id] || "Unknown";
     events.push({
       id: `energy-${e.zone_id}-${e.timestamp}`,
@@ -855,7 +855,7 @@ export async function getLiveFeed(
     .eq("status", "active")
     .limit(3);
 
-  (marketingEvents || []).forEach((e: any) => {
+  (marketingEvents || []).forEach((e: Record<string, any>) => {
     events.push({
       id: `marketing-${e.id}`,
       timestamp: e.start_date || now.toISOString(),

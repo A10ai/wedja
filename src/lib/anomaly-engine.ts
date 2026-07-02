@@ -206,13 +206,13 @@ async function detectFootfallAnomalies(
 
   // Aggregate today per zone
   const todayByZone: Record<string, number> = {};
-  (todayData || []).forEach((r: any) => {
+  (todayData || []).forEach((r: Record<string, any>) => {
     todayByZone[r.zone_id] = (todayByZone[r.zone_id] || 0) + (r.total_in || 0);
   });
 
   // Aggregate baseline per zone (average)
   const baselineByZone: Record<string, { total: number; days: number }> = {};
-  (baselineData || []).forEach((r: any) => {
+  (baselineData || []).forEach((r: Record<string, any>) => {
     if (!baselineByZone[r.zone_id]) baselineByZone[r.zone_id] = { total: 0, days: 0 };
     baselineByZone[r.zone_id].total += r.total_in || 0;
     baselineByZone[r.zone_id].days += 1;
@@ -327,7 +327,7 @@ async function detectEnergyAnomalies(
 
   // Aggregate today by zone
   const todayByZone: Record<string, { kwh: number; cost: number }> = {};
-  (todayReadings || []).forEach((r: any) => {
+  (todayReadings || []).forEach((r: Record<string, any>) => {
     if (!todayByZone[r.zone_id]) todayByZone[r.zone_id] = { kwh: 0, cost: 0 };
     todayByZone[r.zone_id].kwh += Number(r.consumption_kwh);
     todayByZone[r.zone_id].cost += Number(r.cost_egp);
@@ -335,7 +335,7 @@ async function detectEnergyAnomalies(
 
   // Aggregate baseline by zone (average daily)
   const baselineByZone: Record<string, { totalKwh: number; days: Set<string> }> = {};
-  (baselineReadings || []).forEach((r: any) => {
+  (baselineReadings || []).forEach((r: Record<string, any>) => {
     if (!baselineByZone[r.zone_id]) baselineByZone[r.zone_id] = { totalKwh: 0, days: new Set() };
     baselineByZone[r.zone_id].totalKwh += Number(r.consumption_kwh);
     baselineByZone[r.zone_id].days.add(r.timestamp.split("T")[0]);
@@ -350,7 +350,7 @@ async function detectEnergyAnomalies(
     .not("zone_id", "is", null);
 
   const footfallByZone: Record<string, number> = {};
-  (footfallToday || []).forEach((r: any) => {
+  (footfallToday || []).forEach((r: Record<string, any>) => {
     footfallByZone[r.zone_id] = (footfallByZone[r.zone_id] || 0) + (r.total_in || 0);
   });
 
@@ -364,7 +364,7 @@ async function detectEnergyAnomalies(
     .not("zone_id", "is", null);
 
   const footfallBaselineByZone: Record<string, { total: number; days: number }> = {};
-  (footfallBaseline || []).forEach((r: any) => {
+  (footfallBaseline || []).forEach((r: Record<string, any>) => {
     if (!footfallBaselineByZone[r.zone_id]) footfallBaselineByZone[r.zone_id] = { total: 0, days: 0 };
     footfallBaselineByZone[r.zone_id].total += r.total_in || 0;
     footfallBaselineByZone[r.zone_id].days += 1;
@@ -455,21 +455,21 @@ async function detectEnergyAnomalies(
   }
 
   // After-hours check: energy at 1AM-5AM above threshold
-  const afterHoursReadings = (todayReadings || []).filter((r: any) => {
+  const afterHoursReadings = (todayReadings || []).filter((r: Record<string, any>) => {
     const h = new Date(r.timestamp).getHours();
     return h >= 1 && h <= 5;
   });
 
   if (afterHoursReadings.length > 0) {
-    const afterHoursKwh = afterHoursReadings.reduce((s: number, r: any) => s + Number(r.consumption_kwh), 0);
+    const afterHoursKwh = afterHoursReadings.reduce((s: number, r: Record<string, any>) => s + Number(r.consumption_kwh), 0);
     const baselineAfterHours = (baselineReadings || [])
-      .filter((r: any) => {
+      .filter((r: Record<string, any>) => {
         const h = new Date(r.timestamp).getHours();
         return h >= 1 && h <= 5;
       })
-      .reduce((s: number, r: any) => s + Number(r.consumption_kwh), 0);
+      .reduce((s: number, r: Record<string, any>) => s + Number(r.consumption_kwh), 0);
 
-    const baselineDays = new Set((baselineReadings || []).map((r: any) => r.timestamp.split("T")[0])).size || 1;
+    const baselineDays = new Set((baselineReadings || []).map((r: Record<string, any>) => r.timestamp.split("T")[0])).size || 1;
     const avgAfterHours = baselineDays > 0 ? baselineAfterHours / baselineDays : 0;
 
     if (avgAfterHours > 0) {
@@ -533,7 +533,7 @@ async function detectRevenueAnomalies(
 
       const isPattern = prevOverdue && prevOverdue.length >= 3;
 
-      const totalOverdue = overdueRent.reduce((s: number, r: any) => s + Number(r.amount_due || 0), 0);
+      const totalOverdue = overdueRent.reduce((s: number, r: Record<string, any>) => s + Number(r.amount_due || 0), 0);
 
       const inserted = await insertAnomaly(supabase, {
         property_id: propertyId,
@@ -565,14 +565,14 @@ async function detectRevenueAnomalies(
   if (recentSales && recentSales.length > 0) {
     // Group by tenant and check for drops
     const byTenant: Record<string, Array<{ month: number; year: number; revenue: number; name: string }>> = {};
-    recentSales.forEach((s: any) => {
+    recentSales.forEach((s: Record<string, any>) => {
       const tid = s.tenant_id;
       if (!byTenant[tid]) byTenant[tid] = [];
       byTenant[tid].push({
         month: s.period_month,
         year: s.period_year,
         revenue: Number(s.reported_revenue_egp),
-        name: (s.tenants as any)?.brand_name || "Unknown",
+        name: (s.tenants as Record<string, any>)?.brand_name || "Unknown",
       });
     });
 
@@ -638,7 +638,7 @@ async function detectQueueAnomalies(
   if (!queueData || queueData.length === 0) return details;
 
   // Get unit info and tenant names
-  const unitIds = Array.from(new Set(queueData.map((r: any) => r.unit_id).filter(Boolean)));
+  const unitIds = Array.from(new Set(queueData.map((r: Record<string, any>) => r.unit_id).filter(Boolean)));
   if (unitIds.length === 0) return details;
 
   const { data: units } = await supabase
@@ -653,27 +653,27 @@ async function detectQueueAnomalies(
     .in("unit_id", unitIds);
 
   const tenantMap: Record<string, string> = {};
-  (leases || []).forEach((l: any) => {
+  (leases || []).forEach((l: Record<string, any>) => {
     if (l.unit_id && l.tenant?.brand_name) tenantMap[l.unit_id] = l.tenant.brand_name;
   });
 
   // Check for abnormally long queues (> 15 min wait)
-  const longQueues = queueData.filter((r: any) => r.wait_time_seconds > 900);
-  const recentLong = longQueues.filter((r: any) => {
+  const longQueues = queueData.filter((r: Record<string, any>) => r.wait_time_seconds > 900);
+  const recentLong = longQueues.filter((r: Record<string, any>) => {
     const h = new Date(r.timestamp).getHours();
     return Math.abs(h - currentHour) <= 1;
   });
 
   if (recentLong.length > 0) {
     // Group by unit
-    const byUnit: Record<string, any[]> = {};
-    recentLong.forEach((r: any) => {
+    const byUnit: Record<string, Record<string, any>[]> = {};
+    recentLong.forEach((r: Record<string, any>) => {
       if (!byUnit[r.unit_id]) byUnit[r.unit_id] = [];
       byUnit[r.unit_id].push(r);
     });
 
     for (const [unitId, readings] of Object.entries(byUnit)) {
-      const avgWait = readings.reduce((s: number, r: any) => s + r.wait_time_seconds, 0) / readings.length;
+      const avgWait = readings.reduce((s: number, r: Record<string, any>) => s + r.wait_time_seconds, 0) / readings.length;
       const tenantName = tenantMap[unitId] || "Unknown Store";
 
       const inserted = await insertAnomaly(supabase, {
@@ -682,7 +682,7 @@ async function detectQueueAnomalies(
         severity: avgWait > 1200 ? "high" : "medium",
         unit_id: unitId,
         title: `Long queue at ${tenantName} — estimated ${Math.round(avgWait / 60)} min wait`,
-        description: `${tenantName} has a sustained queue with average wait time of ${Math.round(avgWait / 60)} minutes. Average queue length: ${Math.round(readings.reduce((s: number, r: any) => s + r.queue_length, 0) / readings.length)} people. Consider deploying additional staff or opening extra service points.`,
+        description: `${tenantName} has a sustained queue with average wait time of ${Math.round(avgWait / 60)} minutes. Average queue length: ${Math.round(readings.reduce((s: number, r: Record<string, any>) => s + r.queue_length, 0) / readings.length)} people. Consider deploying additional staff or opening extra service points.`,
         expected_value: 5, // 5 min typical
         actual_value: Math.round(avgWait / 60),
         deviation_pct: Math.round(((avgWait / 60 - 5) / 5) * 100),
@@ -729,7 +729,7 @@ async function detectParkingAnomalies(
       .eq("property_id", propertyId)
       .eq("date", today);
 
-    const totalFootfall = (footfall || []).reduce((s: number, r: any) => s + (r.total_in || 0), 0);
+    const totalFootfall = (footfall || []).reduce((s: number, r: Record<string, any>) => s + (r.total_in || 0), 0);
 
     // Compare with 4-week average
     const weekAgo = daysAgoStr(28);
@@ -741,7 +741,7 @@ async function detectParkingAnomalies(
       .lt("date", today);
 
     const dailyTotals: Record<string, number> = {};
-    (avgFootfall || []).forEach((r: any) => {
+    (avgFootfall || []).forEach((r: Record<string, any>) => {
       dailyTotals[r.date] = (dailyTotals[r.date] || 0) + (r.total_in || 0);
     });
     const avgDaily = Object.values(dailyTotals).length > 0
@@ -792,13 +792,13 @@ async function detectMaintenancePatterns(
   if (!tickets || tickets.length === 0) return details;
 
   // Check for repeated failures on same equipment/zone
-  const byZoneCategory: Record<string, { tickets: any[]; zone_name: string }> = {};
-  tickets.forEach((t: any) => {
+  const byZoneCategory: Record<string, { tickets: Record<string, any>[]; zone_name: string }> = {};
+  tickets.forEach((t: Record<string, any>) => {
     const key = `${t.zone_id || "none"}-${t.category}`;
     if (!byZoneCategory[key]) {
       byZoneCategory[key] = {
         tickets: [],
-        zone_name: (t.zones as any)?.name || "Unknown",
+        zone_name: (t.zones as Record<string, any>)?.name || "Unknown",
       };
     }
     byZoneCategory[key].tickets.push(t);
@@ -875,12 +875,12 @@ async function detectCorrelationBreaks(
     .not("zone_id", "is", null);
 
   const thisWeekByZone: Record<string, number> = {};
-  (thisWeekFootfall || []).forEach((r: any) => {
+  (thisWeekFootfall || []).forEach((r: Record<string, any>) => {
     thisWeekByZone[r.zone_id] = (thisWeekByZone[r.zone_id] || 0) + (r.total_in || 0);
   });
 
   const lastWeekByZone: Record<string, number> = {};
-  (lastWeekFootfall || []).forEach((r: any) => {
+  (lastWeekFootfall || []).forEach((r: Record<string, any>) => {
     lastWeekByZone[r.zone_id] = (lastWeekByZone[r.zone_id] || 0) + (r.total_in || 0);
   });
 
@@ -900,12 +900,12 @@ async function detectCorrelationBreaks(
     .lt("timestamp", weekAgo + "T00:00:00");
 
   const thisWeekEnergyByZone: Record<string, number> = {};
-  (thisWeekEnergy || []).forEach((r: any) => {
+  (thisWeekEnergy || []).forEach((r: Record<string, any>) => {
     thisWeekEnergyByZone[r.zone_id] = (thisWeekEnergyByZone[r.zone_id] || 0) + Number(r.consumption_kwh);
   });
 
   const lastWeekEnergyByZone: Record<string, number> = {};
-  (lastWeekEnergy || []).forEach((r: any) => {
+  (lastWeekEnergy || []).forEach((r: Record<string, any>) => {
     lastWeekEnergyByZone[r.zone_id] = (lastWeekEnergyByZone[r.zone_id] || 0) + Number(r.consumption_kwh);
   });
 
@@ -1022,13 +1022,13 @@ export async function getActiveAnomalies(
 
   if (error || !data) return [];
 
-  return data.map((row: any) => ({
+  return data.map((row: Record<string, any>) => ({
     ...row,
     zone_name: row.zones?.name || null,
     zone_type: row.zones?.type || null,
     tenant_name: row.tenants?.brand_name || null,
     unit_number: row.units?.unit_number || null,
-  }));
+  })) as Anomaly[];
 }
 
 // ── Get Anomaly History ─────────────────────────────────────
@@ -1056,13 +1056,13 @@ export async function getAnomalyHistory(
 
   if (error || !data) return [];
 
-  return data.map((row: any) => ({
+  return data.map((row: Record<string, any>) => ({
     ...row,
     zone_name: row.zones?.name || null,
     zone_type: row.zones?.type || null,
     tenant_name: row.tenants?.brand_name || null,
     unit_number: row.units?.unit_number || null,
-  }));
+  })) as Anomaly[];
 }
 
 // ── Anomaly Stats ───────────────────────────────────────────
@@ -1081,25 +1081,25 @@ export async function getAnomalyStats(
 
   const anomalies = allAnomalies || [];
 
-  const active = anomalies.filter((a: any) => ["active", "acknowledged", "investigating"].includes(a.status));
-  const resolved = anomalies.filter((a: any) => a.status === "resolved");
-  const falseAlarms = anomalies.filter((a: any) => a.status === "false_alarm");
+  const active = anomalies.filter((a: Record<string, any>) => ["active", "acknowledged", "investigating"].includes(a.status));
+  const resolved = anomalies.filter((a: Record<string, any>) => a.status === "resolved");
+  const falseAlarms = anomalies.filter((a: Record<string, any>) => a.status === "false_alarm");
 
   // By severity
   const bySeverity: Record<AnomalySeverity, number> = { low: 0, medium: 0, high: 0, critical: 0 };
-  active.forEach((a: any) => {
+  active.forEach((a: Record<string, any>) => {
     bySeverity[a.severity as AnomalySeverity] = (bySeverity[a.severity as AnomalySeverity] || 0) + 1;
   });
 
   // By type
   const byType: Record<string, number> = {};
-  active.forEach((a: any) => {
+  active.forEach((a: Record<string, any>) => {
     byType[a.anomaly_type] = (byType[a.anomaly_type] || 0) + 1;
   });
 
   // Avg confidence
   const avgConfidence = active.length > 0
-    ? Math.round(active.reduce((s: number, a: any) => s + Number(a.detection_confidence || 0), 0) / active.length * 100) / 100
+    ? Math.round(active.reduce((s: number, a: Record<string, any>) => s + Number(a.detection_confidence || 0), 0) / active.length * 100) / 100
     : 0;
 
   // False alarm rate
@@ -1110,9 +1110,9 @@ export async function getAnomalyStats(
 
   // Most anomalous zone
   const zoneCount: Record<string, { name: string; count: number }> = {};
-  active.forEach((a: any) => {
+  active.forEach((a: Record<string, any>) => {
     if (a.zone_id) {
-      const zoneName = (a.zones as any)?.name || "Unknown";
+      const zoneName = (a.zones as Record<string, any>)?.name || "Unknown";
       if (!zoneCount[a.zone_id]) zoneCount[a.zone_id] = { name: zoneName, count: 0 };
       zoneCount[a.zone_id].count += 1;
     }
@@ -1124,15 +1124,15 @@ export async function getAnomalyStats(
   const mostCommonType = typeEntries.length > 0 ? { type: typeEntries[0][0], count: typeEntries[0][1] } : null;
 
   // Total impact
-  const totalImpact = active.reduce((s: number, a: any) => s + Number(a.impact_egp || 0), 0);
+  const totalImpact = active.reduce((s: number, a: Record<string, any>) => s + Number(a.impact_egp || 0), 0);
 
   // Correlation patterns — which types tend to co-occur
   const correlationPatterns: Array<{ types: string[]; count: number }> = [];
   const relatedPairs: Record<string, number> = {};
-  anomalies.forEach((a: any) => {
+  anomalies.forEach((a: Record<string, any>) => {
     if (a.related_anomalies && a.related_anomalies.length > 0) {
       a.related_anomalies.forEach((relatedId: string) => {
-        const related = anomalies.find((x: any) => x.id === relatedId);
+        const related = anomalies.find((x: Record<string, any>) => x.id === relatedId);
         if (related) {
           const pair = [a.anomaly_type, related.anomaly_type].sort().join(" + ");
           relatedPairs[pair] = (relatedPairs[pair] || 0) + 1;

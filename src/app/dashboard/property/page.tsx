@@ -146,7 +146,7 @@ export default function PropertyPage() {
           const txData = await txRes.json();
           const map: Record<string, number> = {};
           if (Array.isArray(txData)) {
-            txData.forEach((tx: any) => {
+            txData.forEach((tx: Record<string, any>) => {
               const zoneName = tx.lease?.unit?.zone?.name;
               const zoneId = tx.lease?.unit?.zone?.id;
               if (zoneId) {

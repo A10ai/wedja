@@ -157,7 +157,7 @@ export async function calculatePercentageRent(
     return emptyOverview();
   }
 
-  const tenantIds = leases.map((l: any) => l.tenant_id);
+  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get reported sales for this period
   const { data: salesData } = await supabase
@@ -168,7 +168,7 @@ export async function calculatePercentageRent(
     .eq("period_year", y);
 
   const reportedSalesByTenant: Record<string, number> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     reportedSalesByTenant[s.tenant_id] = s.reported_revenue_egp;
   });
 
@@ -182,7 +182,7 @@ export async function calculatePercentageRent(
       .order("period_month", { ascending: false });
 
     const seen = new Set<string>();
-    (latestSales || []).forEach((s: any) => {
+    (latestSales || []).forEach((s: Record<string, any>) => {
       if (!seen.has(s.tenant_id)) {
         reportedSalesByTenant[s.tenant_id] = s.reported_revenue_egp;
         seen.add(s.tenant_id);
@@ -199,7 +199,7 @@ export async function calculatePercentageRent(
     .order("period_month", { ascending: false });
 
   const estimatedSalesByTenant: Record<string, number> = {};
-  (estimates || []).forEach((e: any) => {
+  (estimates || []).forEach((e: Record<string, any>) => {
     if (!estimatedSalesByTenant[e.tenant_id]) {
       estimatedSalesByTenant[e.tenant_id] = e.estimated_revenue_egp;
     }
@@ -214,8 +214,8 @@ export async function calculatePercentageRent(
   let totalPotential = 0;
 
   for (const lease of leases) {
-    const tenant = (lease as any).tenant;
-    const unit = (lease as any).unit;
+    const tenant = (lease as Record<string, any>).tenant;
+    const unit = (lease as Record<string, any>).unit;
     const minRent = lease.min_rent_monthly_egp || 0;
     const pctRate = (lease.percentage_rate || 0) / 100;
     const reportedSales = reportedSalesByTenant[lease.tenant_id] ?? null;
@@ -319,7 +319,7 @@ export async function getPercentageRentTrend(
   const leases = await getActiveLeases(supabase, propertyId);
   if (leases.length === 0) return [];
 
-  const tenantIds = leases.map((l: any) => l.tenant_id);
+  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   // Build lease lookup: tenant_id -> { min_rent, pct_rate }
   const leaseLookup: Record<string, { min_rent: number; pct_rate: number }> = {};
@@ -345,7 +345,7 @@ export async function getPercentageRentTrend(
 
   // Group sales by month key
   const salesByMonthTenant: Record<string, Record<string, number>> = {};
-  (allSales || []).forEach((s: any) => {
+  (allSales || []).forEach((s: Record<string, any>) => {
     const key = `${s.period_year}-${s.period_month}`;
     if (!salesByMonthTenant[key]) salesByMonthTenant[key] = {};
     salesByMonthTenant[key][s.tenant_id] = s.reported_revenue_egp;
@@ -465,7 +465,7 @@ export async function getPercentageRateOptimization(
     return { tenants: [], total_portfolio_uplift_egp: 0, category_averages: {} };
   }
 
-  const tenantIds = leases.map((l: any) => l.tenant_id);
+  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get reported + estimated sales
   const { data: salesData } = await supabase
@@ -477,7 +477,7 @@ export async function getPercentageRateOptimization(
 
   const reportedByTenant: Record<string, number> = {};
   const seenReported = new Set<string>();
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     if (!seenReported.has(s.tenant_id)) {
       reportedByTenant[s.tenant_id] = s.reported_revenue_egp;
       seenReported.add(s.tenant_id);
@@ -492,7 +492,7 @@ export async function getPercentageRateOptimization(
     .order("period_month", { ascending: false });
 
   const estimatedByTenant: Record<string, number> = {};
-  (estimates || []).forEach((e: any) => {
+  (estimates || []).forEach((e: Record<string, any>) => {
     if (!estimatedByTenant[e.tenant_id]) {
       estimatedByTenant[e.tenant_id] = e.estimated_revenue_egp;
     }
@@ -501,7 +501,7 @@ export async function getPercentageRateOptimization(
   // Calculate category averages
   const categoryRates: Record<string, { total: number; count: number }> = {};
   for (const l of leases) {
-    const cat = (l as any).tenant?.category || "other";
+    const cat = (l as Record<string, any>).tenant?.category || "other";
     const rate = l.percentage_rate || 0;
     if (!categoryRates[cat]) categoryRates[cat] = { total: 0, count: 0 };
     categoryRates[cat].total += rate;
@@ -521,7 +521,7 @@ export async function getPercentageRateOptimization(
   let totalUplift = 0;
 
   for (const l of leases) {
-    const tenant = (l as any).tenant;
+    const tenant = (l as Record<string, any>).tenant;
     const cat = tenant?.category || "other";
     const currentRate = l.percentage_rate || 0;
     const avgRate = categoryAverages[cat]?.avg_rate || 0;

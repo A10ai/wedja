@@ -14,6 +14,8 @@ import {
   getStoreConversion,
 } from "@/lib/cctv-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { validateQuery, formatZodErrors, cctvQuerySchema } from "@/lib/validation";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +29,14 @@ export async function GET(req: NextRequest) {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
 
-    const type = searchParams.get("type") || "overview";
-    const date = searchParams.get("date") || undefined;
-    const hours = searchParams.get("hours")
-      ? parseInt(searchParams.get("hours")!)
-      : undefined;
-    const status = searchParams.get("status") || undefined;
+    const queryValidation = validateQuery(cctvQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const { type = "overview", date, hours, status } = queryValidation.data;
 
     switch (type) {
       case "overview": {
@@ -97,7 +101,7 @@ export async function GET(req: NextRequest) {
         );
     }
   } catch (error) {
-    console.error("[CCTV API Error]", error);
+    logger.error({ err: error }, "[CCTV API Error]");
     return NextResponse.json(
       { error: "Failed to fetch CCTV analytics data" },
       { status: 500 }

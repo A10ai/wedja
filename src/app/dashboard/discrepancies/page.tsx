@@ -32,6 +32,7 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { logger } from "@/lib/client-logger";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -296,7 +297,7 @@ export default function DiscrepanciesPage() {
       if (data.run_at) setLastRunAt(data.run_at);
       await loadAll();
     } catch (error) {
-      console.error("Verification failed:", error);
+      logger.error({ err: error }, "Verification failed:");
     } finally {
       setRunningVerification(false);
     }
@@ -321,7 +322,7 @@ export default function DiscrepanciesPage() {
       await fetchDiscrepancies();
       await fetchSummary();
     } catch (error) {
-      console.error("Status update failed:", error);
+      logger.error({ err: error }, "Status update failed:");
     }
   };
 

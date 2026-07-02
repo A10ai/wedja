@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as XLSX from "xlsx";
 import { requireAuth } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -280,7 +281,7 @@ async function importJDERevenue(
   const allSheet = workbook.SheetNames.find((s) => s.toLowerCase().includes("all category"))
     || workbook.SheetNames[workbook.SheetNames.length - 1];
   const ws = workbook.Sheets[allSheet];
-  const rawData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+  const rawData: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
 
   if (rawData.length < 4) {
     return { imported: 0, errors: ["File too short"], total_parsed: 0, matched: 0, unmatched: 0 };
@@ -289,7 +290,7 @@ async function importJDERevenue(
   // Find header row (row with "Customer Number" or "Customer Name")
   let headerIdx = -1;
   for (let i = 0; i < Math.min(10, rawData.length); i++) {
-    const row = rawData[i].map((c: any) => String(c).toLowerCase());
+    const row = rawData[i].map((c: unknown) => String(c).toLowerCase());
     if (row.some((c: string) => c.includes("customer"))) {
       headerIdx = i;
       break;
@@ -543,7 +544,7 @@ export async function POST(req: NextRequest) {
       total_rows: rows.length,
     });
   } catch (error) {
-    console.error("Import error:", error);
+    logger.error({ err: error }, "Import error:");
     return NextResponse.json(
       { error: "Failed to import data" },
       { status: 500 }

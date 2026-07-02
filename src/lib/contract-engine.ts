@@ -184,24 +184,24 @@ export async function getContractOverview(
 
   const units = allUnits || [];
   const totalUnits = units.length;
-  const occupiedUnits = units.filter((u: any) => u.status === "occupied").length;
-  const totalArea = units.reduce((sum: number, u: any) => sum + (u.area_sqm || 0), 0);
+  const occupiedUnits = units.filter((u: Record<string, any>) => u.status === "occupied").length;
+  const totalArea = units.reduce((sum: number, u: Record<string, any>) => sum + (u.area_sqm || 0), 0);
   const occupiedArea = units
-    .filter((u: any) => u.status === "occupied")
-    .reduce((sum: number, u: any) => sum + (u.area_sqm || 0), 0);
+    .filter((u: Record<string, any>) => u.status === "occupied")
+    .reduce((sum: number, u: Record<string, any>) => sum + (u.area_sqm || 0), 0);
   const vacantArea = totalArea - occupiedArea;
 
-  const activeLeases = leases.filter((l: any) => l.status === "active");
-  const expiredLeases = leases.filter((l: any) => l.status === "expired");
-  const pendingLeases = leases.filter((l: any) => l.status === "pending");
+  const activeLeases = leases.filter((l: Record<string, any>) => l.status === "active");
+  const expiredLeases = leases.filter((l: Record<string, any>) => l.status === "expired");
+  const pendingLeases = leases.filter((l: Record<string, any>) => l.status === "pending");
 
   const totalMonthlyMinRent = activeLeases.reduce(
-    (sum: number, l: any) => sum + (l.min_rent_monthly_egp || 0),
+    (sum: number, l: Record<string, any>) => sum + (l.min_rent_monthly_egp || 0),
     0
   );
 
   // Estimate percentage potential from recent sales data
-  const tenantIds = activeLeases.map((l: any) => l.tenant_id);
+  const tenantIds = activeLeases.map((l: Record<string, any>) => l.tenant_id);
   let totalPercentagePotential = 0;
 
   if (tenantIds.length > 0) {
@@ -214,13 +214,13 @@ export async function getContractOverview(
 
     // Get latest month of sales per tenant
     const latestSalesByTenant: Record<string, number> = {};
-    (salesData || []).forEach((s: any) => {
+    (salesData || []).forEach((s: Record<string, any>) => {
       if (!latestSalesByTenant[s.tenant_id]) {
         latestSalesByTenant[s.tenant_id] = s.reported_revenue_egp;
       }
     });
 
-    activeLeases.forEach((l: any) => {
+    activeLeases.forEach((l: Record<string, any>) => {
       const sales = latestSalesByTenant[l.tenant_id] || 0;
       const pctRent = sales * (l.percentage_rate / 100);
       totalPercentagePotential += pctRent;
@@ -228,7 +228,7 @@ export async function getContractOverview(
   }
 
   // Average lease duration
-  const durations = activeLeases.map((l: any) => {
+  const durations = activeLeases.map((l: Record<string, any>) => {
     const start = new Date(l.start_date);
     const end = new Date(l.end_date);
     return (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
@@ -238,8 +238,8 @@ export async function getContractOverview(
     : 0;
 
   // Average rent per sqm
-  const rentPerSqm = activeLeases.map((l: any) => {
-    const area = (l as any).unit?.area_sqm || 0;
+  const rentPerSqm = activeLeases.map((l: Record<string, any>) => {
+    const area = (l as Record<string, any>).unit?.area_sqm || 0;
     return area > 0 ? l.min_rent_monthly_egp / area : 0;
   });
   const avgRentPerSqm = rentPerSqm.length > 0
@@ -289,14 +289,14 @@ export async function getExpiringLeases(
   if (!leases || leases.length === 0) return [];
 
   // Get payment history for compliance calculation
-  const leaseIds = leases.map((l: any) => l.id);
+  const leaseIds = leases.map((l: Record<string, any>) => l.id);
   const { data: transactions } = await supabase
     .from("rent_transactions")
     .select("lease_id, status")
     .in("lease_id", leaseIds);
 
   const complianceByLease: Record<string, { total: number; onTime: number }> = {};
-  (transactions || []).forEach((t: any) => {
+  (transactions || []).forEach((t: Record<string, any>) => {
     if (!complianceByLease[t.lease_id]) {
       complianceByLease[t.lease_id] = { total: 0, onTime: 0 };
     }
@@ -305,7 +305,7 @@ export async function getExpiringLeases(
   });
 
   // Get sales data for revenue/sqm
-  const tenantIds = leases.map((l: any) => l.tenant_id);
+  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
   const { data: salesData } = await supabase
     .from("tenant_sales_reported")
     .select("tenant_id, reported_revenue_egp")
@@ -313,7 +313,7 @@ export async function getExpiringLeases(
 
   const avgSalesByTenant: Record<string, number> = {};
   const salesCountByTenant: Record<string, number> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     avgSalesByTenant[s.tenant_id] = (avgSalesByTenant[s.tenant_id] || 0) + s.reported_revenue_egp;
     salesCountByTenant[s.tenant_id] = (salesCountByTenant[s.tenant_id] || 0) + 1;
   });
@@ -329,10 +329,10 @@ export async function getExpiringLeases(
     .in("status", ["flagged", "investigating"]);
 
   const tenantsWithDiscrepancy = new Set(
-    (discrepancies || []).map((d: any) => d.tenant_id)
+    (discrepancies || []).map((d: Record<string, any>) => d.tenant_id)
   );
 
-  return leases.map((l: any) => {
+  return leases.map((l: Record<string, any>) => {
     const tenant = l.tenant;
     const unit = l.unit;
     const area = unit?.area_sqm || 0;
@@ -400,12 +400,12 @@ export async function getLeasePerformance(
   propertyId: string = PROPERTY_ID
 ): Promise<LeasePerformanceItem[]> {
   const leases = await getAllLeasesWithDetails(supabase, propertyId);
-  const activeLeases = leases.filter((l: any) => l.status === "active");
+  const activeLeases = leases.filter((l: Record<string, any>) => l.status === "active");
 
   if (activeLeases.length === 0) return [];
 
-  const leaseIds = activeLeases.map((l: any) => l.id);
-  const tenantIds = activeLeases.map((l: any) => l.tenant_id);
+  const leaseIds = activeLeases.map((l: Record<string, any>) => l.id);
+  const tenantIds = activeLeases.map((l: Record<string, any>) => l.tenant_id);
 
   // Payment history
   const { data: transactions } = await supabase
@@ -416,7 +416,7 @@ export async function getLeasePerformance(
   const paymentByLease: Record<string, {
     totalDue: number; totalPaid: number; onTime: number; total: number;
   }> = {};
-  (transactions || []).forEach((t: any) => {
+  (transactions || []).forEach((t: Record<string, any>) => {
     if (!paymentByLease[t.lease_id]) {
       paymentByLease[t.lease_id] = { totalDue: 0, totalPaid: 0, onTime: 0, total: 0 };
     }
@@ -433,7 +433,7 @@ export async function getLeasePerformance(
     .in("tenant_id", tenantIds);
 
   const salesByTenant: Record<string, { total: number; count: number }> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     if (!salesByTenant[s.tenant_id]) {
       salesByTenant[s.tenant_id] = { total: 0, count: 0 };
     }
@@ -441,7 +441,7 @@ export async function getLeasePerformance(
     salesByTenant[s.tenant_id].count++;
   });
 
-  return activeLeases.map((l: any) => {
+  return activeLeases.map((l: Record<string, any>) => {
     const tenant = l.tenant;
     const unit = l.unit;
     const area = unit?.area_sqm || 0;
@@ -506,7 +506,7 @@ export async function getEscalationTracker(
 
   const now = new Date();
 
-  return leases.map((l: any) => {
+  return leases.map((l: Record<string, any>) => {
     const tenant = l.tenant;
     const unit = l.unit;
 
@@ -549,11 +549,11 @@ export async function getRentVsSalesAnalysis(
   propertyId: string = PROPERTY_ID
 ): Promise<RentVsSalesItem[]> {
   const leases = await getAllLeasesWithDetails(supabase, propertyId);
-  const activeLeases = leases.filter((l: any) => l.status === "active");
+  const activeLeases = leases.filter((l: Record<string, any>) => l.status === "active");
 
   if (activeLeases.length === 0) return [];
 
-  const tenantIds = activeLeases.map((l: any) => l.tenant_id);
+  const tenantIds = activeLeases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get average reported sales per tenant
   const { data: salesData } = await supabase
@@ -562,7 +562,7 @@ export async function getRentVsSalesAnalysis(
     .in("tenant_id", tenantIds);
 
   const salesByTenant: Record<string, { total: number; count: number }> = {};
-  (salesData || []).forEach((s: any) => {
+  (salesData || []).forEach((s: Record<string, any>) => {
     if (!salesByTenant[s.tenant_id]) {
       salesByTenant[s.tenant_id] = { total: 0, count: 0 };
     }
@@ -579,7 +579,7 @@ export async function getRentVsSalesAnalysis(
     .order("period_month", { ascending: false });
 
   const latestEstimateByTenant: Record<string, number> = {};
-  (estimates || []).forEach((e: any) => {
+  (estimates || []).forEach((e: Record<string, any>) => {
     if (!latestEstimateByTenant[e.tenant_id]) {
       latestEstimateByTenant[e.tenant_id] = e.estimated_revenue_egp;
     }
@@ -593,11 +593,11 @@ export async function getRentVsSalesAnalysis(
     .in("status", ["flagged", "investigating"]);
 
   const discrepancyByTenant: Record<string, number> = {};
-  (discrepancies || []).forEach((d: any) => {
+  (discrepancies || []).forEach((d: Record<string, any>) => {
     discrepancyByTenant[d.tenant_id] = (discrepancyByTenant[d.tenant_id] || 0) + d.variance_egp;
   });
 
-  return activeLeases.map((l: any) => {
+  return activeLeases.map((l: Record<string, any>) => {
     const tenant = l.tenant;
     const unit = l.unit;
     const area = unit?.area_sqm || 0;
@@ -722,12 +722,12 @@ export async function getContractAlerts(
     .eq("status", "overdue");
 
   const overdueForProperty = (overdueTransactions || []).filter(
-    (t: any) => t.lease?.property_id === propertyId
+    (t: Record<string, any>) => t.lease?.property_id === propertyId
   );
 
   if (overdueForProperty.length > 0) {
     const totalOverdue = overdueForProperty.reduce(
-      (sum: number, t: any) => sum + ((t.amount_due || 0) - (t.amount_paid || 0)),
+      (sum: number, t: Record<string, any>) => sum + ((t.amount_due || 0) - (t.amount_paid || 0)),
       0
     );
     alerts.push({
@@ -754,7 +754,7 @@ export async function getContractAlerts(
       id: `alert-${++alertId}`,
       severity: "warning",
       title: `${noEscalation.length} lease${noEscalation.length > 1 ? "s" : ""} without escalation clause`,
-      message: `Leases without annual rent escalation: ${noEscalation.slice(0, 5).map((l: any) => l.tenant?.brand_name || "Unknown").join(", ")}${noEscalation.length > 5 ? ` +${noEscalation.length - 5} more` : ""}`,
+      message: `Leases without annual rent escalation: ${noEscalation.slice(0, 5).map((l: Record<string, any>) => l.tenant?.brand_name || "Unknown").join(", ")}${noEscalation.length > 5 ? ` +${noEscalation.length - 5} more` : ""}`,
       category: "contract_terms",
       recommended_action: "Renegotiate at renewal to include escalation clause",
     });
@@ -773,17 +773,17 @@ export async function getContractAlerts(
     for (const anchor of anchorLeases.data) {
       const endDate = new Date(anchor.end_date);
       const monthsUntil = (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
-      const area = (anchor as any).unit?.area_sqm || 0;
+      const area = (anchor as Record<string, any>).unit?.area_sqm || 0;
 
       if (monthsUntil > 6 && monthsUntil <= 24 && area > 500) {
         alerts.push({
           id: `alert-${++alertId}`,
           severity: "info",
-          title: `${(anchor as any).tenant?.brand_name || "Anchor tenant"} lease expires in ${Math.round(monthsUntil)} months`,
+          title: `${(anchor as Record<string, any>).tenant?.brand_name || "Anchor tenant"} lease expires in ${Math.round(monthsUntil)} months`,
           message: `Large tenant (${area.toLocaleString()} sqm) — start early negotiation to ensure retention`,
           category: "strategic",
           recommended_action: "Schedule meeting with tenant, prepare market rent analysis",
-          tenant_name: (anchor as any).tenant?.brand_name,
+          tenant_name: (anchor as Record<string, any>).tenant?.brand_name,
           impact_egp: anchor.min_rent_monthly_egp * 12,
         });
       }
@@ -819,7 +819,7 @@ export async function getPortfolioAnalytics(
   propertyId: string = PROPERTY_ID
 ): Promise<PortfolioAnalytics> {
   const leases = await getAllLeasesWithDetails(supabase, propertyId);
-  const activeLeases = leases.filter((l: any) => l.status === "active");
+  const activeLeases = leases.filter((l: Record<string, any>) => l.status === "active");
 
   const now = new Date();
   const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -835,16 +835,16 @@ export async function getPortfolioAnalytics(
     let activeCount = 0;
 
     for (const lease of activeLeases) {
-      const leaseEnd = new Date((lease as any).end_date);
-      const leaseStart = new Date((lease as any).start_date);
+      const leaseEnd = new Date((lease as Record<string, any>).end_date);
+      const leaseStart = new Date((lease as Record<string, any>).start_date);
 
       if (leaseStart <= monthEnd && leaseEnd >= d) {
-        contractedRent += (lease as any).min_rent_monthly_egp || 0;
+        contractedRent += (lease as Record<string, any>).min_rent_monthly_egp || 0;
         activeCount++;
 
         // Check if lease expires this month
         if (leaseEnd.getMonth() === d.getMonth() && leaseEnd.getFullYear() === d.getFullYear()) {
-          expiringRent += (lease as any).min_rent_monthly_egp || 0;
+          expiringRent += (lease as Record<string, any>).min_rent_monthly_egp || 0;
         }
       }
     }
@@ -864,12 +864,12 @@ export async function getPortfolioAnalytics(
   let totalRent = 0;
 
   for (const lease of activeLeases) {
-    const endDate = new Date((lease as any).end_date);
+    const endDate = new Date((lease as Record<string, any>).end_date);
     const yearsRemaining = Math.max(
       (endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24 * 365.25),
       0
     );
-    const rent = (lease as any).min_rent_monthly_egp || 0;
+    const rent = (lease as Record<string, any>).min_rent_monthly_egp || 0;
     totalWeightedYears += yearsRemaining * rent;
     totalRent += rent;
   }
@@ -877,7 +877,7 @@ export async function getPortfolioAnalytics(
   const wale = totalRent > 0 ? totalWeightedYears / totalRent : 0;
 
   // ── Tenant Concentration ──
-  const tenantRents = activeLeases.map((l: any) => ({
+  const tenantRents = activeLeases.map((l: Record<string, any>) => ({
     tenant_name: l.tenant?.name || "Unknown",
     brand_name: l.tenant?.brand_name || "Unknown",
     monthly_rent: l.min_rent_monthly_egp || 0,
@@ -906,7 +906,7 @@ export async function getPortfolioAnalytics(
 
   // ── Category Diversification ──
   const categoryRents: Record<string, { rent: number; count: number }> = {};
-  activeLeases.forEach((l: any) => {
+  activeLeases.forEach((l: Record<string, any>) => {
     const cat = l.tenant?.category || "other";
     if (!categoryRents[cat]) categoryRents[cat] = { rent: 0, count: 0 };
     categoryRents[cat].rent += l.min_rent_monthly_egp || 0;
@@ -924,7 +924,7 @@ export async function getPortfolioAnalytics(
 
   // ── Vacancy Cost ──
   const avgRentPerSqm = totalRent > 0 && activeLeases.length > 0
-    ? totalRent / activeLeases.reduce((sum: number, l: any) => sum + ((l as any).unit?.area_sqm || 0), 0)
+    ? totalRent / activeLeases.reduce((sum: number, l: Record<string, any>) => sum + ((l as Record<string, any>).unit?.area_sqm || 0), 0)
     : 0;
 
   const { data: allUnits } = await supabase
@@ -933,8 +933,8 @@ export async function getPortfolioAnalytics(
     .eq("property_id", propertyId);
 
   const vacantSqm = (allUnits || [])
-    .filter((u: any) => u.status === "vacant")
-    .reduce((sum: number, u: any) => sum + (u.area_sqm || 0), 0);
+    .filter((u: Record<string, any>) => u.status === "vacant")
+    .reduce((sum: number, u: Record<string, any>) => sum + (u.area_sqm || 0), 0);
 
   const vacancyCost = Math.round(vacantSqm * avgRentPerSqm);
 
