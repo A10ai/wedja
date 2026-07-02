@@ -27,6 +27,7 @@ import {
   Radar,
   Ban,
   ArrowRight,
+  type LucideIcon,
 } from "lucide-react";
 import {
   PieChart,
@@ -137,7 +138,7 @@ const severityConfig: Record<
 
 const typeConfig: Record<
   string,
-  { icon: any; color: string; label: string }
+  { icon: LucideIcon; color: string; label: string }
 > = {
   footfall_spike: { icon: TrendingUp, color: "bg-blue-500/15 text-blue-400", label: "Footfall Spike" },
   footfall_drop: { icon: TrendingDown, color: "bg-blue-500/15 text-blue-400", label: "Footfall Drop" },

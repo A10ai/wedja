@@ -11,6 +11,7 @@ import {
 } from "@/lib/contract-engine";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, formatZodErrors, contractsQuerySchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +31,16 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "overview";
-    const withinDays = searchParams.get("within_days")
-      ? parseInt(searchParams.get("within_days")!)
-      : 180;
+
+    const queryValidation = validateQuery(contractsQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const type = queryValidation.data.type || "overview";
+    const withinDays = queryValidation.data.within_days || 180;
 
     switch (type) {
       case "overview": {

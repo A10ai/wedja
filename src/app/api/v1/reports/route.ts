@@ -5,6 +5,7 @@ import { getTenantRankings } from "@/lib/tenant-analytics";
 import { getFootfallOverview, getFootfallByZone, getPeakPatterns } from "@/lib/footfall-engine";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, formatZodErrors, reportsQuerySchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,17 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const reportType = searchParams.get("type") || "revenue_verification";
-    const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
-    const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
+
+    const queryValidation = validateQuery(reportsQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const reportType = queryValidation.data.type || "revenue_verification";
+    const month = queryValidation.data.month || new Date().getMonth() + 1;
+    const year = queryValidation.data.year || new Date().getFullYear();
 
     switch (reportType) {
       case "revenue_verification": {

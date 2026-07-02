@@ -20,6 +20,7 @@ import {
   Target,
   Users,
   Percent,
+  type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +65,7 @@ type TabKey =
   | "escalations"
   | "alerts";
 
-const TABS: { key: TabKey; label: string; icon: any }[] = [
+const TABS: { key: TabKey; label: string; icon: LucideIcon }[] = [
   { key: "overview", label: "Overview", icon: ScrollText },
   { key: "expiring", label: "Expiring", icon: Clock },
   { key: "rent_vs_sales", label: "Rent vs Sales", icon: Target },
@@ -166,7 +167,7 @@ export default function ContractsPage() {
   const sortedPerformance = useMemo(() => {
     const items = [...performance];
     items.sort((a, b) => {
-      let valA: any, valB: any;
+      let valA: number | string, valB: number | string;
       switch (sortField) {
         case "revenue_per_sqm": valA = a.revenue_per_sqm; valB = b.revenue_per_sqm; break;
         case "payment_compliance": valA = a.payment_compliance; valB = b.payment_compliance; break;
@@ -178,8 +179,8 @@ export default function ContractsPage() {
         case "brand_name": valA = a.brand_name; valB = b.brand_name; break;
         default: valA = 0; valB = 0;
       }
-      if (typeof valA === "string") return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-      return sortAsc ? valA - valB : valB - valA;
+      if (typeof valA === "string") return sortAsc ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
+      return sortAsc ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
     });
     return items;
   }, [performance, sortField, sortAsc]);

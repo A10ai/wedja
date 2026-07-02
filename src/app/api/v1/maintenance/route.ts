@@ -1,8 +1,10 @@
+import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { emitEvent } from "@/lib/event-bus";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, validateBody, formatZodErrors, maintenanceQuerySchema, createMaintenanceSchema, updateMaintenanceStatusSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -15,9 +17,18 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-    const priority = searchParams.get("priority");
-    const category = searchParams.get("category");
+
+    const queryValidation = validateQuery(maintenanceQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+
+    const status = queryValidation.data.status;
+    const priority = queryValidation.data.priority;
+    const category = queryValidation.data.category;
 
     let query = supabase
       .from("maintenance_tickets")
@@ -60,6 +71,16 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
+
+    // Validate body — discriminated by action field
+    const schema = body.action === "update_status"
+      ? updateMaintenanceStatusSchema
+      : createMaintenanceSchema;
+    const validation = validateBody(schema as z.ZodSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
+    const validated = validation.data;
 
     // Status update
     if (body.action === "update_status" && body.id && body.status) {

@@ -11,6 +11,7 @@ import {
 } from "@/lib/tenant-analytics";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, formatZodErrors, tenantAnalyticsQuerySchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -31,8 +32,16 @@ export async function GET(req: NextRequest) {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
 
-    const type = searchParams.get("type") || "rankings";
-    const tenantId = searchParams.get("tenant_id");
+    const queryValidation = validateQuery(tenantAnalyticsQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+
+    const type = queryValidation.data.type || "rankings";
+    const tenantId = queryValidation.data.tenant_id;
 
     switch (type) {
       case "scorecard": {

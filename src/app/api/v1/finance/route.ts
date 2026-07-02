@@ -9,6 +9,7 @@ import {
 } from "@/lib/finance-engine";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, validateBody, formatZodErrors, financeQuerySchema, createExpenseSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +22,17 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "overview";
-    const month = searchParams.get("month")
-      ? parseInt(searchParams.get("month")!)
-      : undefined;
-    const year = searchParams.get("year")
-      ? parseInt(searchParams.get("year")!)
-      : undefined;
+
+    const queryValidation = validateQuery(financeQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const type = queryValidation.data.type || "overview";
+    const month = queryValidation.data.month;
+    const year = queryValidation.data.year;
 
     switch (type) {
       case "overview":
@@ -93,6 +98,11 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
+
+    const validation = validateBody(createExpenseSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from("expenses")

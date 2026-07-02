@@ -9,6 +9,7 @@ import {
 } from "@/lib/notifications";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, validateBody, formatZodErrors, notificationsQuerySchema, notificationActionSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,16 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const unreadOnly = searchParams.get("unread") === "true";
-    const countOnly = searchParams.get("count") === "true";
+
+    const queryValidation = validateQuery(notificationsQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const unreadOnly = queryValidation.data.unread === "true";
+    const countOnly = queryValidation.data.count === "true";
 
     if (countOnly) {
       const count = await getUnreadCount(supabase);
@@ -51,6 +60,11 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
+
+    const validation = validateBody(notificationActionSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
 
     // Mark read
     if (body.action === "mark_read" && body.id) {

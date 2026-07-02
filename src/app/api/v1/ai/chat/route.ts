@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { processChat } from "@/lib/ai-chat";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateBody, formatZodErrors, aiChatSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -12,14 +13,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { message } = body;
 
-    if (!message || typeof message !== "string") {
-      return NextResponse.json(
-        { error: "Message is required" },
-        { status: 400 }
-      );
+    const validation = validateBody(aiChatSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
     }
+    const { message } = validation.data;
 
     const supabase = createAdminClient();
     const response = await processChat(supabase, message);

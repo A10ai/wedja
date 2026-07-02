@@ -10,6 +10,7 @@ import {
 } from "@/lib/energy-engine";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, formatZodErrors, energyQuerySchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,16 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "overview";
-    const date = searchParams.get("date") || undefined;
+
+    const queryValidation = validateQuery(energyQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const type = queryValidation.data.type || "overview";
+    const date = queryValidation.data.date || undefined;
 
     switch (type) {
       case "overview":

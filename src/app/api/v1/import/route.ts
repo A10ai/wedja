@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import * as XLSX from "xlsx";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateBody, formatZodErrors, importTypeSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -463,9 +464,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!type || !VALID_TYPES.includes(type)) {
+    const typeValidation = validateBody(importTypeSchema, { type });
+    if (!typeValidation.success) {
       return NextResponse.json(
-        { error: `Invalid type. Must be: ${VALID_TYPES.join(", ")}` },
+        { error: formatZodErrors(typeValidation.error) },
         { status: 400 }
       );
     }

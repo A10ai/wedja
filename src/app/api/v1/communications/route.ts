@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, validateBody, formatZodErrors, communicationsQuerySchema, createCommunicationSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,15 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type");
+
+    const queryValidation = validateQuery(communicationsQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const type = queryValidation.data.type;
 
     if (type === "overview") {
       const [overdueResult, expiringLeasesResult, tenantsWithOverdueResult] =
@@ -274,6 +283,11 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
+
+    const validation = validateBody(createCommunicationSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
 
     const { tenant_id, type, channel, subject, body: messageBody } = body;
 

@@ -36,6 +36,7 @@ import {
   Sparkles,
   Video,
   AlertOctagon,
+  type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -268,7 +269,7 @@ const moduleColors: Record<string, string> = {
 
 // ── Briefing Icon Map ──────────────────────────────────────
 
-const briefingIcons: Record<string, any> = {
+const briefingIcons: Record<string, LucideIcon> = {
   Revenue: TrendingUp,
   Footfall: Users,
   Contracts: FileText,
@@ -295,7 +296,7 @@ function MetricCard({
   value: string;
   subtext?: string;
   link: string;
-  icon: any;
+  icon: LucideIcon;
   alert?: boolean;
 }) {
   return (

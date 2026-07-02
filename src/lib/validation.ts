@@ -488,7 +488,9 @@ export const tenantAnalyticsQuerySchema = z.object({
 
 // ── Import ──────────────────────────────────────────────────────────────────
 
-// Import route uses formData (file + type), validated inline in route
+export const importTypeSchema = z.object({
+  type: z.enum(["tenants", "leases", "sales", "rent", "expenses", "jde_revenue"]),
+}).strict();
 
 // ── AI Brain ─────────────────────────────────────────────────────────────────
 
@@ -501,6 +503,11 @@ export const aiBrainActionSchema = z.object({
 }).strict();
 
 // ── AI Chat ──────────────────────────────────────────────────────────────────
+
+export const aiInsightsQuerySchema = z.object({
+  severity: z.enum(["info", "opportunity", "warning", "critical"]).optional(),
+  type: z.string().max(100).optional(),
+}).strict();
 
 export const aiChatSchema = z.object({
   message: z.string().min(1, "Message is required").max(10000),

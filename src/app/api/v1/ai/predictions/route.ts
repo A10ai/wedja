@@ -9,6 +9,7 @@ import {
 } from "@/lib/prediction-model";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, validateBody, formatZodErrors, predictionsQuerySchema, predictionActionSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 

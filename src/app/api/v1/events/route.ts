@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, validateBody, formatZodErrors, eventsQuerySchema, createEventDirectSchema, updateEventSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,17 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-    const type = searchParams.get("type");
-    const upcoming = searchParams.get("upcoming");
+
+    const queryValidation = validateQuery(eventsQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const status = queryValidation.data.status;
+    const type = queryValidation.data.type;
+    const upcoming = queryValidation.data.upcoming;
 
     let query = supabase
       .from("events")
@@ -60,6 +69,11 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
+
+    const validation = validateBody(createEventDirectSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
 
     const { data, error } = await supabase
       .from("events")
@@ -105,6 +119,11 @@ export async function PUT(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const body = await req.json();
+
+    const validation = validateBody(updateEventSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
 
     if (!body.id) {
       return NextResponse.json(

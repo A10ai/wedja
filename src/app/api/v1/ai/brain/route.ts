@@ -10,6 +10,7 @@ import {
 } from "@/lib/ai-brain";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateBody, formatZodErrors, aiBrainActionSchema } from "@/lib/validation";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
@@ -60,6 +61,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action } = body;
     const supabase = createAdminClient();
+
+    const validation = validateBody(aiBrainActionSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
 
     switch (action) {
       case "run_cycle": {

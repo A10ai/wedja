@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/lib/marketing-engine";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, validateBody, formatZodErrors, marketingQuerySchema, createEventSchema, createCampaignSchema, createPromotionSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +25,17 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "overview";
-    const year = searchParams.get("year")
-      ? parseInt(searchParams.get("year")!)
-      : undefined;
-    const status = searchParams.get("status") || undefined;
+
+    const queryValidation = validateQuery(marketingQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const type = queryValidation.data.type || "overview";
+    const year = queryValidation.data.year;
+    const status = queryValidation.data.status;
 
     switch (type) {
       case "overview":
@@ -88,6 +96,25 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
     const entity = body.entity; // "event", "campaign", or "promotion"
+
+    // Validate body — discriminated by entity field
+    const schema = entity === "event"
+      ? createEventSchema
+      : entity === "campaign"
+        ? createCampaignSchema
+        : entity === "promotion"
+          ? createPromotionSchema
+          : null;
+    if (!schema) {
+      return NextResponse.json(
+        { error: "entity must be 'event', 'campaign', or 'promotion'" },
+        { status: 400 }
+      );
+    }
+    const validation = validateBody(schema as z.ZodSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
 
     if (entity === "event") {
       const { data, error } = await supabase

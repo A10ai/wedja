@@ -9,6 +9,7 @@ import {
 import { NextRequest } from "next/server";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, formatZodErrors, aiInsightsQuerySchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,15 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createAdminClient();
+    const { searchParams } = new URL(req.url);
+
+    const queryValidation = validateQuery(aiInsightsQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
 
     const [insights, healthScore, briefing, snapshot] = await Promise.all([
       generateCrossDataInsights(supabase, PROPERTY_ID).catch(() => []),

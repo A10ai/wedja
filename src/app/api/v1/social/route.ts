@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -11,6 +12,7 @@ import {
 } from "@/lib/social-engine";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { validateQuery, validateBody, formatZodErrors, socialQuerySchema, createSocialPostSchema, createContentCalendarSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,16 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "overview";
+
+    const queryValidation = validateQuery(socialQuerySchema, searchParams);
+    if (!queryValidation.success) {
+      return NextResponse.json(
+        { error: formatZodErrors(queryValidation.error) },
+        { status: 400 }
+      );
+    }
+    const qp = queryValidation.data;
+    const type = qp.type || "overview";
 
     switch (type) {
       case "overview":
@@ -32,17 +43,15 @@ export async function GET(req: NextRequest) {
         );
 
       case "calendar": {
-        const start = searchParams.get("start") || undefined;
-        const end = searchParams.get("end") || undefined;
+        const start = qp.start || undefined;
+        const end = qp.end || undefined;
         return NextResponse.json(
           await getContentCalendar(supabase, PROPERTY_ID, start, end)
         );
       }
 
       case "analytics": {
-        const days = searchParams.get("days")
-          ? parseInt(searchParams.get("days")!)
-          : 60;
+        const days = qp.days || 60;
         return NextResponse.json(
           await getPostAnalytics(supabase, PROPERTY_ID, days)
         );
@@ -59,11 +68,9 @@ export async function GET(req: NextRequest) {
         );
 
       case "posts": {
-        const status = searchParams.get("status") || undefined;
-        const platform = searchParams.get("platform") || undefined;
-        const limit = searchParams.get("limit")
-          ? parseInt(searchParams.get("limit")!)
-          : 20;
+        const status = qp.status || undefined;
+        const platform = qp.platform || undefined;
+        const limit = qp.limit || 20;
 
         let query = supabase
           .from("social_posts")
@@ -83,9 +90,9 @@ export async function GET(req: NextRequest) {
       }
 
       case "captions": {
-        const topic = searchParams.get("topic") || "Senzo Mall";
-        const language = searchParams.get("language") || "multi";
-        const platform = searchParams.get("platform") || "instagram";
+        const topic = qp.topic || "Senzo Mall";
+        const language = qp.language || "multi";
+        const platform = qp.platform || "instagram";
         return NextResponse.json(
           generateCaptions(topic, language, platform)
         );
@@ -119,6 +126,23 @@ export async function POST(req: NextRequest) {
     const supabase = createAdminClient();
     const body = await req.json();
     const entity = body.entity;
+
+    // Validate body — discriminated by entity field
+    const schema = entity === "post"
+      ? createSocialPostSchema
+      : entity === "calendar"
+        ? createContentCalendarSchema
+        : null;
+    if (!schema) {
+      return NextResponse.json(
+        { error: "entity must be 'post' or 'calendar'" },
+        { status: 400 }
+      );
+    }
+    const validation = validateBody(schema as z.ZodSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
+    }
 
     if (entity === "post") {
       const { data, error } = await supabase
