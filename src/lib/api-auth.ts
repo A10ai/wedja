@@ -8,16 +8,30 @@ import type { User } from "@supabase/supabase-js";
  * The cookie may be a raw JWT or a JSON-encoded session object.
  */
 function extractAccessToken(cookieValue: string): string | null {
+  // Supabase SSR may encode the cookie as base64-<json>
+  // The JSON contains { access_token, refresh_token, ... }
+  let rawValue = cookieValue;
+
+  // Strip base64 prefix if present
+  if (rawValue.startsWith("base64-")) {
+    try {
+      rawValue = atob(rawValue.slice(7));
+    } catch {
+      // Not valid base64 — treat original as raw token
+      rawValue = cookieValue;
+    }
+  }
+
   // Try parsing as JSON (supabase-js v2 cookie format)
   try {
-    const parsed = JSON.parse(cookieValue);
+    const parsed = JSON.parse(rawValue);
     if (parsed && typeof parsed.access_token === "string") {
       return parsed.access_token;
     }
   } catch {
     // Not JSON — treat as raw token
   }
-  return cookieValue;
+  return rawValue;
 }
 
 /**
