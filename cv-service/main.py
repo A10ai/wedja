@@ -1,13 +1,20 @@
 """
-Wedja CV Service — Main Entry Point
+Wedja CV Service — Main Entry Point (snapshot occupancy)
 
-Connects to Senzo Mall's 172 Hikvision cameras,
-counts people using YOLO, and pushes results to Supabase.
+Connects to Senzo Mall's Hikvision cameras, counts the people VISIBLE in a
+snapshot using YOLO, and writes that as zone OCCUPANCY (occupancy_readings).
+
+A snapshot count is "people in view right now", not "people who entered".
+It is never written to footfall_readings.count_in. Entries/exits come only
+from line-crossing counters (see gate_counter.py).
+
+Only cameras resolved to a camera_feeds row (UUID + zone) are processed; the
+rest are skipped with a warning at startup (see config/camera_mapping.py).
 
 Usage:
-    python main.py                    # Run continuous counting on all cameras
-    python main.py --test IP          # Test one camera
-    python main.py --snapshot IP      # Take one snapshot and count
+    python main.py                    # Run continuous counting on mapped cameras
+    python main.py --test IP          # Test one camera (no database writes)
+    python main.py --snapshot IP      # Same as --test
     python main.py --list             # List all registered cameras
 """
 
@@ -16,8 +23,8 @@ import sys
 import time
 import logging
 import argparse
-import schedule
-from datetime import datetime
+from collections import defaultdict
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -31,20 +38,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger("wedja-cv")
 
-from config.cameras import CAMERAS, COUNTING_CAMERAS, GATE_CAMERAS, get_rtsp_url
-from capture.rtsp_reader import RTSPReader
-from detection.people_counter import count_people, load_model
-from api.push_results import push_footfall_reading, push_daily_summary
+from config.cameras import CAMERAS, COUNTING_CAMERAS, GATE_CAMERAS, get_rtsp_url  # noqa: E402
+from config.camera_mapping import resolve_cameras  # noqa: E402
+from api.push_results import (  # noqa: E402
+    ConfigError,
+    FailureTracker,
+    SupabaseRest,
+    TooManyPushFailures,
+    fetch_camera_feeds,
+    push_occupancy,
+    require_env,
+    require_uuid_env,
+)
+
+
+def camera_credentials():
+    username = os.getenv("CAMERA_USERNAME", "admin")
+    password = require_env("CAMERA_PASSWORD", "RTSP password for the internal camera network")
+    return username, password
 
 
 def test_camera(ip: str):
     """Test connection to a single camera and count people."""
-    username = os.getenv("CAMERA_USERNAME", "admin")
-    password = os.getenv("CAMERA_PASSWORD", "")
+    from capture.rtsp_reader import RTSPReader
+    from detection.people_counter import count_people
 
-    if not password:
-        logger.error("Set CAMERA_PASSWORD in .env file")
-        return
+    username, password = camera_credentials()
 
     # Find camera in registry
     cam = None
@@ -74,7 +93,7 @@ def test_camera(ip: str):
     logger.info("Loading YOLO model...")
     result = count_people(frame, confidence=float(os.getenv("CONFIDENCE_THRESHOLD", "0.5")))
 
-    logger.info(f"✅ People detected: {result['count']}")
+    logger.info(f"✅ People visible in frame: {result['count']} (occupancy, not entries)")
     logger.info(f"   Processing time: {result['processing_time_ms']}ms")
     logger.info(f"   Frame size: {result['frame_size']}")
 
@@ -97,24 +116,45 @@ def test_camera(ip: str):
         logger.warning(f"Could not save annotated frame: {e}")
 
 
-def run_snapshot_cycle():
-    """Take a snapshot from each counting camera and count people."""
-    username = os.getenv("CAMERA_USERNAME", "admin")
-    password = os.getenv("CAMERA_PASSWORD", "")
-    confidence = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
-    property_id = os.getenv("PROPERTY_ID", "a0000000-0000-0000-0000-000000000001")
+class SnapshotContext:
+    """Everything a snapshot cycle needs, resolved once at startup."""
 
-    if not password:
-        logger.error("Set CAMERA_PASSWORD in .env")
-        return
+    def __init__(self):
+        self.username, self.password = camera_credentials()
+        self.confidence = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
+        self.property_id = require_uuid_env("PROPERTY_ID")
+        self.client = SupabaseRest.from_env()
+        self.tracker = FailureTracker()
 
-    total_counted = 0
-    cameras_processed = 0
+        feeds = fetch_camera_feeds(self.client, self.property_id)
+        self.cameras, skipped = resolve_cameras(COUNTING_CAMERAS, feeds)
+        for cam_id, reason in skipped:
+            logger.warning(f"[{cam_id}] SKIPPED — not mapped to camera_feeds: {reason}")
+        logger.info(
+            f"Camera mapping: {len(self.cameras)} mapped, {len(skipped)} skipped "
+            f"(of {len(COUNTING_CAMERAS)} counting cameras; {len(feeds)} camera_feeds rows)"
+        )
+        if not self.cameras:
+            raise ConfigError(
+                "no counting camera could be mapped to a camera_feeds row with a zone. "
+                "Register feeds named after the camera ids (e.g. 'N2-D1') or set feed_id in config/cameras.py."
+            )
+
+
+def run_snapshot_cycle(ctx: SnapshotContext):
+    """Snapshot each mapped camera, count visible people, write zone occupancy."""
+    from capture.rtsp_reader import RTSPReader
+    from detection.people_counter import count_people
+
+    zone_people = defaultdict(int)
+    zone_cams_ok = defaultdict(int)
+    zone_cams_total = defaultdict(int)
     cameras_failed = 0
 
-    for cam in COUNTING_CAMERAS:
+    for cam in ctx.cameras:
+        zone_cams_total[cam["zone_id"]] += 1
         try:
-            rtsp_url = get_rtsp_url(cam, username, password, sub_stream=True)
+            rtsp_url = get_rtsp_url(cam, ctx.username, ctx.password, sub_stream=True)
             reader = RTSPReader(rtsp_url, cam["id"])
             frame = reader.get_snapshot()
 
@@ -123,58 +163,60 @@ def run_snapshot_cycle():
                 logger.warning(f"[{cam['id']}] {cam['location']} — no frame")
                 continue
 
-            result = count_people(frame, confidence=confidence)
-            count = result["count"]
-            total_counted += count
-            cameras_processed += 1
-
-            # Push to Supabase
-            # Map camera zone to zone_id (would need a lookup table in production)
-            push_footfall_reading(
-                zone_id=cam.get("zone_id", ""),
-                unit_id=cam.get("unit_id"),
-                camera_id=cam["id"],
-                count_in=count,
-                confidence=min(det["confidence"] for det in result["detections"]) if result["detections"] else 0.5,
-            )
-
-            if count > 0:
-                logger.info(f"[{cam['id']}] {cam['location']}: {count} people ({result['processing_time_ms']}ms)")
-
+            result = count_people(frame, confidence=ctx.confidence)
+            zone_people[cam["zone_id"]] += result["count"]
+            zone_cams_ok[cam["zone_id"]] += 1
+            if result["count"] > 0:
+                logger.info(
+                    f"[{cam['id']}] {cam['location']}: {result['count']} visible "
+                    f"({result['processing_time_ms']}ms)"
+                )
         except Exception as e:
             cameras_failed += 1
-            logger.error(f"[{cam['id']}] {cam['location']} error: {e}")
+            logger.error(f"[{cam['id']}] {cam['location']} capture/detect error: {e}")
+
+    # One occupancy row per zone per cycle (only zones with at least one frame)
+    written = 0
+    for zone_id, ok in zone_cams_ok.items():
+        if ok < zone_cams_total[zone_id]:
+            logger.warning(
+                f"zone {zone_id}: only {ok}/{zone_cams_total[zone_id]} cameras returned a frame; "
+                f"occupancy is partial"
+            )
+        if push_occupancy(ctx.client, ctx.tracker, property_id=ctx.property_id,
+                          zone_id=zone_id, people_visible=zone_people[zone_id]):
+            written += 1
 
     logger.info(
-        f"Cycle complete: {cameras_processed} cameras, "
-        f"{cameras_failed} failed, {total_counted} total people"
+        f"Cycle complete: {sum(zone_cams_ok.values())} cameras ok, {cameras_failed} failed, "
+        f"{written}/{len(zone_cams_ok)} zone occupancy rows written, "
+        f"{sum(zone_people.values())} people visible; "
+        f"write failures total={ctx.tracker.total_failures}"
     )
 
 
 def run_continuous():
     """Run continuous counting on a schedule."""
-    interval = int(os.getenv("CAPTURE_INTERVAL_SECONDS", "10"))
+    import schedule
+    from detection.people_counter import load_model
+
+    interval = int(os.getenv("CAPTURE_INTERVAL_SECONDS", "300"))
+    ctx = SnapshotContext()
 
     logger.info("=" * 60)
-    logger.info("Wedja CV Service Starting")
+    logger.info("Wedja CV Service Starting (snapshot occupancy)")
     logger.info(f"Cameras registered: {len(CAMERAS)}")
-    logger.info(f"Counting cameras: {len(COUNTING_CAMERAS)}")
-    logger.info(f"Gate cameras: {len(GATE_CAMERAS)}")
+    logger.info(f"Counting cameras mapped: {len(ctx.cameras)}/{len(COUNTING_CAMERAS)}")
     logger.info(f"Capture interval: {interval}s")
     logger.info("=" * 60)
 
-    # Pre-load YOLO model
     logger.info("Loading YOLO model...")
     load_model(os.getenv("YOLO_MODEL", "yolov8n.pt"))
     logger.info("YOLO model ready")
 
-    # Schedule snapshot cycles
-    schedule.every(interval).seconds.do(run_snapshot_cycle)
+    schedule.every(interval).seconds.do(run_snapshot_cycle, ctx)
+    run_snapshot_cycle(ctx)
 
-    # Run immediately once
-    run_snapshot_cycle()
-
-    # Keep running
     logger.info(f"Running every {interval} seconds. Press Ctrl+C to stop.")
     try:
         while True:
@@ -214,4 +256,8 @@ if __name__ == "__main__":
     elif args.snapshot:
         test_camera(args.snapshot)  # Same as test for now
     else:
-        run_continuous()
+        try:
+            run_continuous()
+        except TooManyPushFailures as e:
+            logger.critical(f"Exiting: {e}")
+            sys.exit(1)

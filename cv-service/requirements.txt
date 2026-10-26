@@ -1,8 +1,19 @@
+# Snapshot occupancy (main.py, live_count.py)
 opencv-python-headless==4.9.0.80
+# opencv-python-headless 4.9 is built against NumPy 1.x: `import cv2` fails with numpy 2
+numpy>=1.24.0,<2
 ultralytics==8.1.0
-numpy>=1.24.0
-requests>=2.31.0
-supabase>=2.0.0
-python-dotenv>=1.0.0
 schedule>=1.2.0
 Pillow>=10.0.0
+
+# Gate counter OCR (gate_counter.py) — also needs the `tesseract` binary
+# (apt install tesseract-ocr) and ffmpeg on PATH
+pytesseract>=0.3.10
+
+# JDE workbook import (import_jde.py)
+openpyxl>=3.1.0
+
+# Common
+python-dotenv>=1.0.0
+tzdata>=2024.1  # Africa/Cairo for zoneinfo on systems without a tz database
+# Supabase writes use the stdlib (urllib, TLS verified); no supabase/requests package needed.

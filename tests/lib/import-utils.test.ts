@@ -6,6 +6,9 @@ import {
   parseAmount,
   normalizeForMatch,
   createTenantMatcher,
+  changedFields,
+  isJdeRentRow,
+  periodKey,
 } from "@/lib/import-utils";
 
 describe("import-utils: parseCSV", () => {
@@ -154,5 +157,37 @@ describe("import-utils: tenant matcher (JDE customer → tenant)", () => {
 
   test("returns brand_name for reporting", () => {
     expect(find("adidas")).toEqual({ id: "t-adidas", brand_name: "Adidas" });
+  });
+});
+
+describe("idempotent import helpers", () => {
+  test("periodKey identifies lease + year + month", () => {
+    expect(periodKey("L1", 2026, 3)).toBe("L1|2026|3");
+    expect(periodKey("L1", 2026, 3)).not.toBe(periodKey("L1", 2026, 4));
+  });
+
+  test("isJdeRentRow accepts both the source and legacy payment_method markers", () => {
+    expect(isJdeRentRow({ source: "jde_import" })).toBe(true);
+    expect(isJdeRentRow({ payment_method: "jde_import" })).toBe(true);
+    expect(isJdeRentRow({ source: "csv_import", payment_method: "cash" })).toBe(false);
+    expect(isJdeRentRow({})).toBe(false);
+  });
+
+  test("changedFields compares numbers to the cent, including NUMERIC strings", () => {
+    expect(changedFields({ amount: "1000.00" }, { amount: 1000 }, ["amount"])).toBeNull();
+    expect(changedFields({ amount: 1000.001 }, { amount: 1000 }, ["amount"])).toBeNull();
+    expect(changedFields({ amount: "1000.00" }, { amount: 1000.5 }, ["amount"])).toEqual({ amount: 1000.5 });
+  });
+
+  test("changedFields treats null / undefined / empty string as equal blanks", () => {
+    expect(changedFields({ d: null }, { d: "" }, ["d"])).toBeNull();
+    expect(changedFields({}, { d: null }, ["d"])).toBeNull();
+    expect(changedFields({ d: null }, { d: "2026-01-05" }, ["d"])).toEqual({ d: "2026-01-05" });
+    expect(changedFields({ d: 0 }, { d: null }, ["d"])).toEqual({ d: null });
+  });
+
+  test("changedFields only looks at the listed fields", () => {
+    expect(changedFields({ a: 1, b: 2 }, { a: 1, b: 3 }, ["a"])).toBeNull();
+    expect(changedFields({ s: "paid" }, { s: "overdue" }, ["s"])).toEqual({ s: "overdue" });
   });
 });

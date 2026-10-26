@@ -1,13 +1,31 @@
 #!/usr/bin/env python3
 """
-JDE Revenue Import Script
-=========================
-Parses the JDE Excel revenue file and imports data into Supabase.
+JDE Revenue Import Script (secondary / offline importer)
+=======================================================
+NOTE: the PRIMARY importer is the web import at /dashboard/import
+(type "JDE Revenue Analysis" -> POST /api/v1/import). Prefer it. This script
+exists for bulk/offline loads and writes the SAME shape of data:
+
+  * rent_transactions rows marked source='jde_import', one per
+    (lease_id, period_year, period_month).
+
+Writes are idempotent: for each lease/period the script looks up an existing
+JDE row (source or legacy payment_method = 'jde_import') and updates it when
+the amount changed, skips it when unchanged, and inserts only when none exists.
+Re-running the same workbook therefore never creates duplicates.
+
+Writing the per-category breakdown into tenant_sales_reported is OFF by default
+(--also-sales-reported). That table holds tenant-REPORTED sales used for
+underreporting detection; JDE billing totals are not tenant sales, so only
+enable it if the owner confirms the workbook really is tenant sales.
 
 Usage:
-    python import_jde.py                              # Full import
-    python import_jde.py --dry-run                    # Parse only, no Supabase writes
-    python import_jde.py --file /path/to/file.xlsx    # Custom file path
+    python import_jde.py --file /path/to/file.xlsx            # Import
+    python import_jde.py --file /path/to/file.xlsx --dry-run  # Parse only
+    python import_jde.py --file ... --also-sales-reported     # See note above
+
+Environment (--dry-run still READS tenants/leases, so it needs them too):
+    SUPABASE_URL, SUPABASE_SERVICE_KEY (SUPABASE_KEY accepted as legacy alias)
 
 Expected Excel structure:
     - 13 sheets, each a revenue category
@@ -20,10 +38,7 @@ Expected Excel structure:
 import json
 import logging
 import re
-import ssl
 import sys
-import urllib.request
-import urllib.error
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -34,19 +49,21 @@ except ImportError:
     print("ERROR: openpyxl not installed. Run: pip install openpyxl")
     sys.exit(1)
 
+from api.push_results import SupabaseRest, eq
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:  # optional for this script
+    pass
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
-EXCEL_FILE = "/Users/ai10/Downloads/Revenue Analysis 2025 By  Category.xlsx"
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
-UNMATCHED_FILE = "/tmp/jde_unmatched.txt"
-
+UNMATCHED_FILE = "jde_unmatched.txt"
 ALL_CATEGORY_SHEET = "ALL Category"
-
-# Month columns in the Excel file (columns 3-14 typically)
-# We detect these dynamically from row 3 headers
+JDE_SOURCE = "jde_import"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,86 +72,19 @@ logging.basicConfig(
 )
 log = logging.getLogger("jde_import")
 
-# ---------------------------------------------------------------------------
-# Supabase REST helpers (using urllib — no external HTTP lib needed)
-# ---------------------------------------------------------------------------
-
-# Allow self-signed / unverified SSL for local dev if needed
-_ssl_ctx = ssl.create_default_context()
-_ssl_ctx.check_hostname = False
-_ssl_ctx.verify_mode = ssl.CERT_NONE
+_client: Optional[SupabaseRest] = None
 
 
-def supabase_request(method: str, table: str, data: dict = None,
-                     params: str = "", expect_rows: bool = False) -> Optional[list]:
-    """Make a REST request to Supabase PostgREST API."""
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
-    if params:
-        url += f"?{params}"
-
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=representation",
-    }
-
-    body = json.dumps(data).encode("utf-8") if data else None
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
-
-    try:
-        with urllib.request.urlopen(req, context=_ssl_ctx) as resp:
-            raw = resp.read().decode("utf-8")
-            if raw:
-                return json.loads(raw)
-            return []
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode("utf-8") if e.fp else ""
-        log.error(f"Supabase {method} {table} failed ({e.code}): {err_body}")
-        return None
-    except Exception as e:
-        log.error(f"Supabase request error: {e}")
-        return None
+def client() -> SupabaseRest:
+    """Supabase REST client (TLS verification always on)."""
+    global _client
+    if _client is None:
+        _client = SupabaseRest.from_env()
+    return _client
 
 
 def supabase_get(table: str, params: str = "") -> list:
-    """GET rows from a Supabase table."""
-    result = supabase_request("GET", table, params=params)
-    return result if result else []
-
-
-def supabase_post(table: str, data: dict) -> Optional[list]:
-    """INSERT a row into a Supabase table."""
-    return supabase_request("POST", table, data=data)
-
-
-def supabase_upsert(table: str, data: dict, on_conflict: str = "") -> Optional[list]:
-    """UPSERT a row (insert or update on conflict)."""
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
-    if on_conflict:
-        url += f"?on_conflict={on_conflict}"
-
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates,return=representation",
-    }
-
-    body = json.dumps(data).encode("utf-8")
-    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-
-    try:
-        with urllib.request.urlopen(req, context=_ssl_ctx) as resp:
-            raw = resp.read().decode("utf-8")
-            return json.loads(raw) if raw else []
-    except urllib.error.HTTPError as e:
-        err_body = e.read().decode("utf-8") if e.fp else ""
-        log.error(f"Supabase upsert {table} failed ({e.code}): {err_body}")
-        return None
-    except Exception as e:
-        log.error(f"Supabase upsert error: {e}")
-        return None
+    return client().select(table, params)
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +143,6 @@ def fuzzy_match_tenant(jde_name: str, tenants: list) -> Optional[dict]:
             val = t.get(field, "")
             if not val:
                 continue
-            t_norm = normalize_name(val)
             t_agg = normalize_aggressive(val)
             # Skip very short names to avoid false matches
             if len(t_agg) < 3 or len(jde_agg) < 3:
@@ -436,25 +385,84 @@ def fetch_leases() -> dict:
     """Fetch active leases, return {tenant_id: lease_id} mapping."""
     leases = supabase_get("leases", "select=id,tenant_id&status=eq.active&limit=1000")
     mapping = {}
-    for l in leases:
-        tid = l.get("tenant_id")
+    for lease in leases:
+        tid = lease.get("tenant_id")
         if tid:
-            mapping[tid] = l["id"]
+            mapping[tid] = lease["id"]
     log.info(f"Fetched {len(mapping)} active leases")
     return mapping
 
 
-def import_revenue(rows: list, breakdown: dict, dry_run: bool = False):
-    """Match JDE rows to tenants and import into Supabase."""
+def is_jde_row(row: dict) -> bool:
+    return row.get("source") == JDE_SOURCE or row.get("payment_method") == JDE_SOURCE
+
+
+def _same(a, b) -> bool:
+    if a is None or b is None:
+        return a is b
+    try:
+        return abs(float(a) - float(b)) < 0.005
+    except (TypeError, ValueError):
+        return str(a) == str(b)
+
+
+def plan_period_write(existing: list, values: dict, compare: tuple, matches=lambda r: True):
+    """Decide what to do for one (lease, year, month) row. Pure function.
+
+    existing: rows already in the table for this lease (any period).
+    Returns ("insert", values) | ("update", id, changed) | ("skip", id).
+    The oldest matching row (by created_at) is the one compared/updated.
+    """
+    same_period = sorted(
+        (r for r in existing
+         if matches(r)
+         and int(r.get("period_year")) == int(values["period_year"])
+         and int(r.get("period_month")) == int(values["period_month"])),
+        key=lambda r: str(r.get("created_at") or ""),
+    )
+    if not same_period:
+        return ("insert", values)
+    row = same_period[0]
+    changed = {f: values[f] for f in compare if not _same(row.get(f), values[f])}
+    if not changed:
+        return ("skip", row["id"])
+    return ("update", row["id"], changed)
+
+
+def write_period_rows(table: str, lease_id: str, rows: list, compare: tuple,
+                      matches, stats: dict, select: str):
+    """Idempotently write a lease's period rows: one lookup per lease."""
+    existing = client().select(table, f"select={select}&lease_id={eq(lease_id)}&limit=1000")
+    for values in rows:
+        plan = plan_period_write(existing, values, compare, matches)
+        label = f"{table} {values['period_month']}/{values['period_year']}"
+        try:
+            if plan[0] == "insert":
+                client().insert(table, values)
+                stats["inserted"] += 1
+            elif plan[0] == "update":
+                client().update(table, f"id={eq(plan[1])}", plan[2])
+                stats["updated"] += 1
+            else:
+                stats["unchanged"] += 1
+        except Exception as e:  # noqa: BLE001 - reported and counted
+            stats["failed"] += 1
+            log.error(f"    Failed to write {label} (lease {lease_id}): {e}")
+
+
+def import_revenue(rows: list, breakdown: dict, dry_run: bool = False,
+                   also_sales_reported: bool = False):
+    """Match JDE rows to tenants and import into Supabase (idempotent)."""
     tenants = fetch_tenants()
     lease_map = fetch_leases()
 
     matched = 0
     unmatched = 0
-    transactions_created = 0
     unmatched_names = []
-    match_log = []
+    stats = {"inserted": 0, "updated": 0, "unchanged": 0, "failed": 0, "planned": 0}
 
+    # Aggregate per lease/period first (several JDE customers may map to one lease)
+    per_lease: dict = {}
     for row in rows:
         jde_name = row["customer_name"]
         tenant = fuzzy_match_tenant(jde_name, tenants)
@@ -469,55 +477,49 @@ def import_revenue(rows: list, breakdown: dict, dry_run: bool = False):
         tenant_id = tenant["id"]
         tenant_brand = tenant.get("brand_name") or tenant.get("name")
         lease_id = lease_map.get(tenant_id)
-
-        match_log.append(f"  MATCHED: '{jde_name}' -> '{tenant_brand}' (tenant_id={tenant_id})")
-        log.info(match_log[-1])
+        log.info(f"  MATCHED: '{jde_name}' -> '{tenant_brand}' (tenant_id={tenant_id})")
 
         if not lease_id:
-            log.warning(f"    No active lease for tenant {tenant_brand} ({tenant_id}), skipping transactions")
+            log.warning(f"    No active lease for tenant {tenant_brand} ({tenant_id}), skipping")
             continue
 
-        # Import monthly transactions
-        for (month, year), amount in row["months"].items():
-            if dry_run:
-                log.info(f"    [DRY RUN] Would create: {month}/{year} = EGP {amount:,.2f}")
-                transactions_created += 1
-                continue
+        entry = per_lease.setdefault(lease_id, {"tenant_id": tenant_id, "months": {}, "breakdown": {}})
+        for key, amount in row["months"].items():
+            entry["months"][key] = entry["months"].get(key, 0.0) + amount
+        for key, cats in breakdown.get(jde_name, {}).items():
+            merged = entry["breakdown"].setdefault(key, {})
+            for cat, amount in cats.items():
+                merged[cat] = merged.get(cat, 0.0) + amount
 
-            tx_data = {
+    for lease_id, entry in per_lease.items():
+        tx_rows = [
+            {
                 "lease_id": lease_id,
                 "period_month": month,
                 "period_year": year,
-                "amount_due": amount,
-                "amount_paid": amount,
+                "min_rent_due": 0,
+                "percentage_rent_due": 0,
+                "amount_due": round(amount, 2),
+                "amount_paid": round(amount, 2),
                 "status": "paid",
-                "source": "jde_import",
+                "source": JDE_SOURCE,
             }
-
-            result = supabase_upsert(
-                "rent_transactions",
-                tx_data,
-                on_conflict="lease_id,period_month,period_year",
+            for (month, year), amount in sorted(entry["months"].items(), key=lambda kv: (kv[0][1], kv[0][0]))
+        ]
+        if dry_run:
+            for tx in tx_rows:
+                log.info(f"    [DRY RUN] lease {lease_id} {tx['period_month']}/{tx['period_year']} = EGP {tx['amount_due']:,.2f}")
+            stats["planned"] += len(tx_rows)
+        else:
+            write_period_rows(
+                "rent_transactions", lease_id, tx_rows,
+                compare=("amount_due", "amount_paid", "status"),
+                matches=is_jde_row, stats=stats,
+                select="id,lease_id,period_month,period_year,amount_due,amount_paid,status,payment_method,source,created_at",
             )
 
-            if result is not None:
-                transactions_created += 1
-            else:
-                # If upsert fails (maybe no unique constraint), try plain insert
-                result = supabase_post("rent_transactions", tx_data)
-                if result is not None:
-                    transactions_created += 1
-                else:
-                    log.error(f"    Failed to create tx: {month}/{year} EGP {amount}")
-
-        # Import category breakdown if available
-        jde_breakdown = breakdown.get(jde_name, {})
-        if jde_breakdown and not dry_run:
-            import_category_breakdown(tenant_id, lease_id, tenant_brand, jde_breakdown)
-        elif jde_breakdown and dry_run:
-            for (month, year), cats in jde_breakdown.items():
-                cats_str = ", ".join(f"{c}: EGP {a:,.2f}" for c, a in cats.items())
-                log.info(f"    [DRY RUN] Breakdown {month}/{year}: {cats_str}")
+        if also_sales_reported and entry["breakdown"]:
+            import_category_breakdown(entry["tenant_id"], lease_id, entry["breakdown"], stats, dry_run)
 
     # Summary
     print("\n" + "=" * 60)
@@ -526,12 +528,16 @@ def import_revenue(rows: list, breakdown: dict, dry_run: bool = False):
     print(f"Total tenant rows parsed:    {len(rows)}")
     print(f"Tenants matched:             {matched}")
     print(f"Tenants unmatched:           {unmatched}")
-    print(f"Transactions created:        {transactions_created}")
     if dry_run:
+        print(f"Rows that would be written:  {stats['planned']}")
         print("MODE:                        DRY RUN (no writes)")
+    else:
+        print(f"Inserted:                    {stats['inserted']}")
+        print(f"Updated (amount changed):    {stats['updated']}")
+        print(f"Unchanged (already present): {stats['unchanged']}")
+        print(f"FAILED:                      {stats['failed']}")
     print("=" * 60)
 
-    # Save unmatched
     if unmatched_names:
         with open(UNMATCHED_FILE, "w") as f:
             f.write("JDE Unmatched Tenants\n")
@@ -542,43 +548,36 @@ def import_revenue(rows: list, breakdown: dict, dry_run: bool = False):
                 f.write(name + "\n")
         print(f"\nUnmatched tenants saved to: {UNMATCHED_FILE}")
 
-    return matched, unmatched, transactions_created
+    return matched, unmatched, stats
 
 
-def import_category_breakdown(tenant_id: str, lease_id: str, tenant_brand: str,
-                               breakdown_data: dict):
-    """
-    Import per-category revenue breakdown for a tenant.
-    Stores in tenant_sales_reported or a revenue_breakdown table.
+def import_category_breakdown(tenant_id: str, lease_id: str, breakdown_data: dict,
+                              stats: dict, dry_run: bool):
+    """OPT-IN: store the JDE category totals as tenant_sales_reported (idempotent).
 
     breakdown_data: {(month, year): {category_name: amount}}
     """
-    for (month, year), categories in breakdown_data.items():
-        # Build a JSON summary of category breakdown
-        breakdown_json = json.dumps(categories)
-        total = sum(categories.values())
-
-        # Store as tenant_sales_reported with breakdown in notes
-        report_data = {
+    rows = []
+    for (month, year), categories in sorted(breakdown_data.items(), key=lambda kv: (kv[0][1], kv[0][0])):
+        rows.append({
             "lease_id": lease_id,
             "tenant_id": tenant_id,
             "period_month": month,
             "period_year": year,
-            "reported_revenue_egp": total,
+            "reported_revenue_egp": round(sum(categories.values()), 2),
             "submission_date": datetime.now().strftime("%Y-%m-%d"),
-            "verified": True,
-            "verification_notes": f"JDE import. Breakdown: {breakdown_json}",
-        }
-
-        result = supabase_upsert(
-            "tenant_sales_reported",
-            report_data,
-            on_conflict="tenant_id,period_month,period_year",
-        )
-
-        if result is None:
-            # Fallback to plain insert
-            supabase_post("tenant_sales_reported", report_data)
+            "verified": False,
+            "verification_notes": f"JDE import. Breakdown: {json.dumps(categories)}",
+        })
+    if dry_run:
+        stats["planned"] += len(rows)
+        return
+    write_period_rows(
+        "tenant_sales_reported", lease_id, rows,
+        compare=("reported_revenue_egp", "verification_notes"),
+        matches=lambda r: True, stats=stats,
+        select="id,lease_id,period_month,period_year,reported_revenue_egp,verification_notes,created_at",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -589,8 +588,11 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Import JDE revenue data into Supabase")
-    parser.add_argument("--file", "-f", default=EXCEL_FILE, help="Path to Excel file")
+    parser.add_argument("--file", "-f", required=True, help="Path to the JDE Excel file")
     parser.add_argument("--dry-run", "-n", action="store_true", help="Parse only, no Supabase writes")
+    parser.add_argument("--also-sales-reported", action="store_true",
+                        help="Also write category totals to tenant_sales_reported (owner must confirm "
+                             "the workbook is tenant-reported sales, not JDE billing)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logging")
     args = parser.parse_args()
 
@@ -618,7 +620,11 @@ def main():
     if args.dry_run:
         log.info("\n--- DRY RUN MODE ---")
 
-    import_revenue(rows, breakdown, dry_run=args.dry_run)
+    client()  # fail fast on missing SUPABASE_URL / SUPABASE_SERVICE_KEY
+    _, _, stats = import_revenue(rows, breakdown, dry_run=args.dry_run,
+                                 also_sales_reported=args.also_sales_reported)
+    if stats["failed"]:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

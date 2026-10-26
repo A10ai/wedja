@@ -123,3 +123,59 @@ export function createTenantMatcher(tenants: MatchableTenant[]) {
     return null;
   };
 }
+
+// ── Idempotent period imports ─────────────────────────────
+//
+// rent_transactions and tenant_sales_reported have no unique constraint on
+// (lease_id, period_year, period_month), so re-importing a file must be made
+// idempotent in the application: look up existing rows for the same period
+// and update/skip them instead of inserting duplicates.
+
+/** Marker written to rent_transactions.source by every JDE import path. */
+export const JDE_SOURCE = "jde_import";
+
+/**
+ * True for rent rows that came from JDE. Older web imports marked them in
+ * payment_method; the SQL seeds and the Python importer use source.
+ */
+export function isJdeRentRow(row: { source?: unknown; payment_method?: unknown }): boolean {
+  return row.source === JDE_SOURCE || row.payment_method === JDE_SOURCE;
+}
+
+/** Identity of a monthly period row for one lease. */
+export function periodKey(leaseId: string, year: number, month: number): string {
+  return `${leaseId}|${year}|${month}`;
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+  const blank = (v: unknown) => v === null || v === undefined || v === "";
+  if (blank(a) && blank(b)) return true;
+  if (blank(a) || blank(b)) return false;
+  if (typeof a === "number" || typeof b === "number") {
+    const na = Number(a);
+    const nb = Number(b);
+    return Number.isFinite(na) && Number.isFinite(nb) && Math.abs(na - nb) < 0.005;
+  }
+  return String(a) === String(b);
+}
+
+/**
+ * Fields of `incoming` (restricted to `fields`) whose values differ from
+ * `existing`. Numbers compare to the cent (Postgres NUMERIC may come back as
+ * a string). Returns null when nothing changed.
+ */
+export function changedFields<T extends Record<string, unknown>>(
+  existing: Record<string, unknown>,
+  incoming: T,
+  fields: readonly (keyof T & string)[]
+): Partial<T> | null {
+  const changed: Partial<T> = {};
+  let any = false;
+  for (const f of fields) {
+    if (!sameValue(existing[f], incoming[f])) {
+      changed[f] = incoming[f];
+      any = true;
+    }
+  }
+  return any ? changed : null;
+}

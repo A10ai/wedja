@@ -2,6 +2,14 @@
 Senzo Mall Camera Registry
 172 Hikvision cameras across 5 network segments
 Generated from CCTV questionnaire response
+
+Ids here ("N2-D1") are NOT database ids. At startup main.py resolves each
+counting camera to a camera_feeds row (see config/camera_mapping.py):
+  * register a camera_feeds row whose name equals the id below (e.g. "N2-D1")
+    and set its zone, or
+  * add "feed_id": "<camera_feeds uuid>" (and optionally "zone_id"/"unit_id"
+    UUIDs) to the entry below.
+Unmapped cameras are skipped with a warning; nothing is written for them.
 """
 
 # RTSP URL format for Hikvision cameras
@@ -107,8 +115,3 @@ def get_camera_by_location(location: str) -> dict | None:
         if location_lower in cam["location"].lower():
             return cam
     return None
-
-print(f"Total cameras registered: {len(CAMERAS)}")
-print(f"Counting cameras: {len(COUNTING_CAMERAS)}")
-print(f"Gate cameras: {len(GATE_CAMERAS)}")
-print(f"Store cameras: {len(STORE_CAMERAS)}")
