@@ -24,9 +24,11 @@ export async function GET(req: NextRequest) {
       )
       .order("brand_name", { ascending: true });
 
-    if (search) {
+    // Strip PostgREST filter syntax so the search term can't add conditions
+    const term = search?.replace(/[,()"\\*%]/g, " ").trim();
+    if (term) {
       query = query.or(
-        `name.ilike.%${search}%,brand_name.ilike.%${search}%,contact_name.ilike.%${search}%`
+        `name.ilike.%${term}%,brand_name.ilike.%${term}%,contact_name.ilike.%${term}%`
       );
     }
 

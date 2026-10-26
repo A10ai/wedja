@@ -4,57 +4,17 @@ import * as XLSX from "xlsx";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { validateBody, formatZodErrors, importTypeSchema } from "@/lib/validation";
+import {
+  parseCSV,
+  parsePeriodMonth,
+  parsePeriodYear,
+  parseAmount,
+  createTenantMatcher,
+} from "@/lib/import-utils";
 
 export const dynamic = "force-dynamic";
 
 const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
-
-function parseCSV(text: string): Record<string, string>[] {
-  const lines = text.trim().split("\n");
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
-  const rows: Record<string, string>[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
-    // Parse fields handling quoted values (fields with commas inside double quotes)
-    const values: string[] = [];
-    let current = "";
-    let inQuotes = false;
-
-    for (let c = 0; c < line.length; c++) {
-      const char = line[c];
-      if (char === '"') {
-        if (inQuotes && c + 1 < line.length && line[c + 1] === '"') {
-          // Escaped quote inside quoted field
-          current += '"';
-          c++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === "," && !inQuotes) {
-        values.push(current.trim());
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-    values.push(current.trim());
-
-    if (values.length !== headers.length) continue;
-
-    const row: Record<string, string> = {};
-    headers.forEach((h, idx) => {
-      row[h] = values[idx];
-    });
-    rows.push(row);
-  }
-
-  return rows;
-}
 
 function parseExcel(buffer: Buffer): Record<string, string>[] {
   const workbook = XLSX.read(buffer);
@@ -164,15 +124,19 @@ async function importSales(
     const sale = {
       lease_id: row.lease_id,
       tenant_id: row.tenant_id,
-      period_month: parseInt(row.period_month || row.month || "0"),
-      period_year: parseInt(row.period_year || row.year || "0"),
-      reported_revenue_egp: parseFloat(row.reported_revenue_egp || row.revenue || "0"),
+      period_month: parsePeriodMonth(row.period_month || row.month),
+      period_year: parsePeriodYear(row.period_year || row.year),
+      reported_revenue_egp: parseAmount(row.reported_revenue_egp || row.revenue),
       submission_date: row.submission_date || new Date().toISOString().split("T")[0],
       verified: false,
     };
 
     if (!sale.lease_id || !sale.tenant_id || !sale.period_month || !sale.period_year) {
-      errors.push(`Row ${i + 2}: Missing required fields`);
+      errors.push(`Row ${i + 2}: Missing or invalid required fields (lease_id, tenant_id, period_month 1-12, period_year)`);
+      continue;
+    }
+    if (sale.reported_revenue_egp === null) {
+      errors.push(`Row ${i + 2}: Invalid reported_revenue_egp (must be a non-negative number)`);
       continue;
     }
 
@@ -198,19 +162,28 @@ async function importRent(
     const row = rows[i];
     const transaction = {
       lease_id: row.lease_id,
-      period_month: parseInt(row.period_month || row.month || "0"),
-      period_year: parseInt(row.period_year || row.year || "0"),
-      min_rent_due: parseFloat(row.min_rent_due || "0"),
-      percentage_rent_due: parseFloat(row.percentage_rent_due || "0"),
-      amount_due: parseFloat(row.amount_due || "0"),
-      amount_paid: parseFloat(row.amount_paid || "0"),
+      period_month: parsePeriodMonth(row.period_month || row.month),
+      period_year: parsePeriodYear(row.period_year || row.year),
+      min_rent_due: parseAmount(row.min_rent_due || "0"),
+      percentage_rent_due: parseAmount(row.percentage_rent_due || "0"),
+      amount_due: parseAmount(row.amount_due),
+      amount_paid: parseAmount(row.amount_paid || "0"),
       payment_date: row.payment_date || null,
       payment_method: row.payment_method || null,
       status: row.status || "overdue",
     };
 
     if (!transaction.lease_id || !transaction.period_month || !transaction.period_year) {
-      errors.push(`Row ${i + 2}: Missing required fields`);
+      errors.push(`Row ${i + 2}: Missing or invalid required fields (lease_id, period_month 1-12, period_year)`);
+      continue;
+    }
+    if (
+      transaction.amount_due === null ||
+      transaction.amount_paid === null ||
+      transaction.min_rent_due === null ||
+      transaction.percentage_rent_due === null
+    ) {
+      errors.push(`Row ${i + 2}: Invalid amount (must be a non-negative number)`);
       continue;
     }
 
@@ -262,10 +235,6 @@ async function importExpenses(
 }
 
 // ── JDE Revenue Import ─────────────────────────────────────
-
-function normalizeForMatch(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
 
 async function importJDERevenue(
   supabase: ReturnType<typeof createAdminClient>,
@@ -325,33 +294,10 @@ async function importJDERevenue(
     return { imported: 0, errors: ["Failed to fetch tenants/leases"], total_parsed: 0, matched: 0, unmatched: 0 };
   }
 
-  // Build lookup maps
-  const tenantByNorm: Record<string, { id: string; brand_name: string }> = {};
-  for (const t of tenants) {
-    const norm = normalizeForMatch(t.brand_name || t.name || "");
-    if (norm) tenantByNorm[norm] = { id: t.id, brand_name: t.brand_name || t.name };
-  }
+  const findTenant = createTenantMatcher(tenants);
   const leaseByTenant: Record<string, string> = {};
   for (const l of leases) {
     leaseByTenant[l.tenant_id] = l.id;
-  }
-
-  // Match function
-  function findTenant(jdeName: string): { id: string; brand_name: string } | null {
-    const norm = normalizeForMatch(jdeName);
-    if (!norm) return null;
-    // Exact
-    if (tenantByNorm[norm]) return tenantByNorm[norm];
-    // Contains
-    for (const [key, val] of Object.entries(tenantByNorm)) {
-      if (key.includes(norm) || norm.includes(key)) return val;
-    }
-    // First word (min 4 chars)
-    const firstWord = norm.slice(0, Math.max(4, norm.indexOf(" ") > 0 ? norm.indexOf(" ") : norm.length));
-    for (const [key, val] of Object.entries(tenantByNorm)) {
-      if (key.startsWith(firstWord) || firstWord.startsWith(key.slice(0, 4))) return val;
-    }
-    return null;
   }
 
   // Process data rows

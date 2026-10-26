@@ -27,7 +27,10 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const parsedLimit = parseInt(searchParams.get("limit") || "50", 10);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 500)
+      : 50;
     const typeFilter = searchParams.get("type");
     const sourceFilter = searchParams.get("source");
 
