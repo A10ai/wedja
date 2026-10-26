@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Percentage Rent Engine
@@ -160,12 +161,16 @@ export async function calculatePercentageRent(
   const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get reported sales for this period
-  const { data: salesData } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, reported_revenue_egp")
-    .in("tenant_id", tenantIds)
-    .eq("period_month", m)
-    .eq("period_year", y);
+  const salesData = await fetchAll((from, to) =>
+    supabase
+      .from("tenant_sales_reported")
+      .select("tenant_id, reported_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .eq("period_month", m)
+      .eq("period_year", y)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const reportedSalesByTenant: Record<string, number> = {};
   (salesData || []).forEach((s: Record<string, any>) => {
@@ -174,12 +179,16 @@ export async function calculatePercentageRent(
 
   // If no specific month data, try latest available
   if (!salesData || salesData.length === 0) {
-    const { data: latestSales } = await supabase
-      .from("tenant_sales_reported")
-      .select("tenant_id, reported_revenue_egp")
-      .in("tenant_id", tenantIds)
-      .order("period_year", { ascending: false })
-      .order("period_month", { ascending: false });
+    const latestSales = await fetchAll((from, to) =>
+      supabase
+        .from("tenant_sales_reported")
+        .select("tenant_id, reported_revenue_egp")
+        .in("tenant_id", tenantIds)
+        .order("period_year", { ascending: false })
+        .order("period_month", { ascending: false })
+        .order("id")
+        .range(from, to)
+    ).catch(() => null);
 
     const seen = new Set<string>();
     (latestSales || []).forEach((s: Record<string, any>) => {
@@ -191,12 +200,16 @@ export async function calculatePercentageRent(
   }
 
   // Get estimated sales from revenue_estimates (latest available)
-  const { data: estimates } = await supabase
-    .from("revenue_estimates")
-    .select("tenant_id, estimated_revenue_egp, period_month, period_year")
-    .in("tenant_id", tenantIds)
-    .order("period_year", { ascending: false })
-    .order("period_month", { ascending: false });
+  const estimates = await fetchAll((from, to) =>
+    supabase
+      .from("revenue_estimates")
+      .select("tenant_id, estimated_revenue_egp, period_month, period_year")
+      .in("tenant_id", tenantIds)
+      .order("period_year", { ascending: false })
+      .order("period_month", { ascending: false })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const estimatedSalesByTenant: Record<string, number> = {};
   (estimates || []).forEach((e: Record<string, any>) => {
@@ -335,13 +348,17 @@ export async function getPercentageRentTrend(
   const startMonth = startDate.getMonth() + 1;
   const startYear = startDate.getFullYear();
 
-  const { data: allSales } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, reported_revenue_egp, period_month, period_year")
-    .in("tenant_id", tenantIds)
-    .or(
-      `and(period_year.gt.${startYear}),and(period_year.eq.${startYear},period_month.gte.${startMonth})`
-    );
+  const allSales = await fetchAll((from, to) =>
+    supabase
+      .from("tenant_sales_reported")
+      .select("tenant_id, reported_revenue_egp, period_month, period_year")
+      .in("tenant_id", tenantIds)
+      .or(
+        `and(period_year.gt.${startYear}),and(period_year.eq.${startYear},period_month.gte.${startMonth})`
+      )
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Group sales by month key
   const salesByMonthTenant: Record<string, Record<string, number>> = {};
@@ -468,12 +485,16 @@ export async function getPercentageRateOptimization(
   const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get reported + estimated sales
-  const { data: salesData } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, reported_revenue_egp")
-    .in("tenant_id", tenantIds)
-    .order("period_year", { ascending: false })
-    .order("period_month", { ascending: false });
+  const salesData = await fetchAll((from, to) =>
+    supabase
+      .from("tenant_sales_reported")
+      .select("tenant_id, reported_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .order("period_year", { ascending: false })
+      .order("period_month", { ascending: false })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const reportedByTenant: Record<string, number> = {};
   const seenReported = new Set<string>();
@@ -484,12 +505,16 @@ export async function getPercentageRateOptimization(
     }
   });
 
-  const { data: estimates } = await supabase
-    .from("revenue_estimates")
-    .select("tenant_id, estimated_revenue_egp")
-    .in("tenant_id", tenantIds)
-    .order("period_year", { ascending: false })
-    .order("period_month", { ascending: false });
+  const estimates = await fetchAll((from, to) =>
+    supabase
+      .from("revenue_estimates")
+      .select("tenant_id, estimated_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .order("period_year", { ascending: false })
+      .order("period_month", { ascending: false })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const estimatedByTenant: Record<string, number> = {};
   (estimates || []).forEach((e: Record<string, any>) => {

@@ -20,6 +20,10 @@ import { vi } from "vitest";
  *                `from(table)` calls; once exhausted, falls back to
  *                tableData / errors / counts
  *   - throws:    per-table Error thrown synchronously from `from(table)`
+ *   - maxRows:   cap every select at this many rows, like PostgREST max_rows
+ *
+ * `.range(from, to)` slices array data (inclusive bounds, like PostgREST),
+ * so paged reads via src/lib/supabase/fetch-all.ts see every row.
  *
  * Each `_calls` entry has `table` and `filters` (unchanged format), plus
  * `payloads` (full insert/update/upsert payloads) and `selects` (select args).
@@ -43,6 +47,11 @@ export interface MockOptions {
   counts?: Record<string, number | null>;
   sequences?: Record<string, MockResponse[]>;
   throws?: Record<string, Error>;
+  /**
+   * Emulate PostgREST `max_rows`: a select returns at most this many rows
+   * (after any `.range()`). Off by default.
+   */
+  maxRows?: number;
 }
 
 export interface CallLog {
@@ -52,23 +61,30 @@ export interface CallLog {
   selects: any[][];
 }
 
-function chainable(config: QueryConfig, log: CallLog): any {
-  const result = {
-    data: config.data,
-    error: config.error,
-    count: config.count ?? null,
+function chainable(config: QueryConfig, log: CallLog, maxRows?: number): any {
+  // `.range(from, to)` slices array data like PostgREST does (inclusive), so
+  // code that pages with fetchAll() sees successive pages. Without a range
+  // call the full configured data is returned, as before.
+  let range: [number, number] | null = null;
+  const resolve = () => {
+    let data = config.data;
+    if (Array.isArray(data)) {
+      if (range) data = data.slice(range[0], range[1] + 1);
+      if (maxRows !== undefined) data = data.slice(0, maxRows);
+    }
+    return { data, error: config.error, count: config.count ?? null };
   };
 
   // The chain is a thenable that resolves to { data, error, count }.
   const chain: any = {
     then(onFulfilled: any, onRejected?: any) {
-      return Promise.resolve(result).then(onFulfilled, onRejected);
+      return Promise.resolve(resolve()).then(onFulfilled, onRejected);
     },
     catch(onRejected: any) {
-      return Promise.resolve(result).catch(onRejected);
+      return Promise.resolve(resolve()).catch(onRejected);
     },
     finally(onFinally: any) {
-      return Promise.resolve(result).finally(onFinally);
+      return Promise.resolve(resolve()).finally(onFinally);
     },
   };
 
@@ -83,8 +99,8 @@ function chainable(config: QueryConfig, log: CallLog): any {
     log.filters.push(`limit(${args[0]})`);
     return chain;
   };
-  chain.single = () => Promise.resolve(result);
-  chain.maybeSingle = () => Promise.resolve(result);
+  chain.single = () => Promise.resolve(resolve());
+  chain.maybeSingle = () => Promise.resolve(resolve());
 
   // Mutations — return the (thenable) chain so `.insert(...).select().single()`
   // works; awaiting directly still resolves to { data, error }.
@@ -125,7 +141,11 @@ function chainable(config: QueryConfig, log: CallLog): any {
   chain.like = filter("like");
   chain.ilike = filter("ilike");
   chain.order = filter("order");
-  chain.range = filter("range");
+  chain.range = (from: number, to: number) => {
+    log.filters.push(`range(${from}, ${to})`);
+    range = [from, to];
+    return chain;
+  };
   chain.count = filter("count");
 
   return chain;
@@ -156,7 +176,7 @@ export function createMockSupabase(
           error: options.errors?.[table] ?? null,
           count: options.counts?.[table] ?? null,
         };
-    return chainable(config, log);
+    return chainable(config, log, options.maxRows);
   };
 
   const supabaseMock: any = {

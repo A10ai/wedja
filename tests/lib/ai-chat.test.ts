@@ -204,7 +204,7 @@ describe("ai-chat: handlers", () => {
     });
     const r = await processChat(db(), "discrepancies");
     expect(r.type).toBe("list");
-    expect(r.message).toContain("Potential recovery: **EGP 12,346**");
+    expect(r.message).toContain("Rent at risk on open cases: **EGP 12,346**");
     expect(r.message).toContain("1. **B0** (U0) — reported EGP 1,000 vs estimated EGP 2,001 (-50.0% variance, 88% confidence)");
     expect(r.message).toContain("5. **B4**");
     expect(r.message).not.toContain("B5");

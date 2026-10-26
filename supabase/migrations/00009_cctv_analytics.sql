@@ -163,6 +163,13 @@ DECLARE
   v_rand NUMERIC;
   v_staff_id UUID := 'f0000000-0000-0000-0000-000000000001';
 BEGIN
+  -- Fresh database (`supabase db reset` runs migrations before seed.sql):
+  -- the seed property/zones do not exist yet, so skip this data section.
+  IF NOT EXISTS (SELECT 1 FROM zones WHERE property_id = 'a0000000-0000-0000-0000-000000000001') THEN
+    RAISE NOTICE '00009: seed property/zones not present, skipping seed data';
+    RETURN;
+  END IF;
+
 
   -- Collect zone and camera IDs
   SELECT array_agg(id) INTO v_zone_ids FROM zones WHERE property_id = v_prop AND type NOT IN ('parking');

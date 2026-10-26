@@ -70,6 +70,13 @@ DECLARE
   ];
 
 BEGIN
+  -- Fresh database (`supabase db reset` runs migrations before seed.sql):
+  -- the seed property/zones do not exist yet, so skip this data section.
+  IF NOT EXISTS (SELECT 1 FROM zones WHERE property_id = 'a0000000-0000-0000-0000-000000000001') THEN
+    RAISE NOTICE '00010: seed property/zones not present, skipping seed data';
+    RETURN;
+  END IF;
+
 
   -- Create temp table for the new tenant data
   CREATE TEMP TABLE _new_tenants (

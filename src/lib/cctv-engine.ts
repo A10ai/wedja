@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -200,12 +201,16 @@ export async function getPeopleCountLive(
 
     // Today's total from footfall_daily
     const today = todayStr();
-    const { data: dailyData } = await supabase
-      .from("footfall_daily")
-      .select("total_in")
-      .eq("property_id", propertyId)
-      .eq("zone_id", zone.id)
-      .eq("date", today);
+    const dailyData = await fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("total_in")
+        .eq("property_id", propertyId)
+        .eq("zone_id", zone.id)
+        .eq("date", today)
+        .order("id")
+        .range(from, to)
+    ).catch(() => null);
 
     const todayTotal = (dailyData || []).reduce(
       (sum: number, r: { total_in: number }) => sum + (r.total_in || 0),
@@ -234,11 +239,15 @@ export async function getVisitorFlow(
 ): Promise<VisitorFlowData> {
   const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
-  const { data } = await supabase
-    .from("visitor_flow")
-    .select("from_zone_id, to_zone_id, count, direction")
-    .eq("property_id", propertyId)
-    .gte("timestamp", since);
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("visitor_flow")
+      .select("from_zone_id, to_zone_id, count, direction")
+      .eq("property_id", propertyId)
+      .gte("timestamp", since)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   if (!data || data.length === 0) {
     return { paths: [], entry_points: [], total_movements: 0 };
@@ -310,12 +319,16 @@ export async function getDwellAnalysis(
   const dayStart = today + "T00:00:00";
   const dayEnd = today + "T23:59:59";
 
-  const { data } = await supabase
-    .from("dwell_readings")
-    .select("unit_id, zone_id, avg_dwell_seconds, max_dwell_seconds, people_stopped, people_passed, stop_rate")
-    .eq("property_id", propertyId)
-    .gte("timestamp", dayStart)
-    .lte("timestamp", dayEnd);
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("dwell_readings")
+      .select("unit_id, zone_id, avg_dwell_seconds, max_dwell_seconds, people_stopped, people_passed, stop_rate")
+      .eq("property_id", propertyId)
+      .gte("timestamp", dayStart)
+      .lte("timestamp", dayEnd)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   if (!data || data.length === 0) {
     return { units: [], avg_dwell_all: 0, top_dwell: [], bottom_dwell: [] };
@@ -419,13 +432,17 @@ export async function getQueueStatus(
   // Get latest queue per unit (last 3 hours)
   const since = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString();
 
-  const { data } = await supabase
-    .from("queue_readings")
-    .select("unit_id, queue_length, estimated_wait_minutes, alert_triggered, timestamp")
-    .eq("property_id", propertyId)
-    .gte("timestamp", since)
-    .in("unit_id", unitIds)
-    .order("timestamp", { ascending: false });
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("queue_readings")
+      .select("unit_id, queue_length, estimated_wait_minutes, alert_triggered, timestamp")
+      .eq("property_id", propertyId)
+      .gte("timestamp", since)
+      .in("unit_id", unitIds)
+      .order("timestamp", { ascending: false })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   if (!data || data.length === 0) {
     return { active_queues: [], total_queued: 0, alerts_count: 0, avg_wait_minutes: 0 };
@@ -557,11 +574,15 @@ export async function getDeadZones(
   if (!zones || zones.length === 0) return [];
 
   // Get footfall per zone today
-  const { data: dailyData } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, total_in")
-    .eq("property_id", propertyId)
-    .eq("date", today);
+  const dailyData = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, total_in")
+      .eq("property_id", propertyId)
+      .eq("date", today)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const footfallByZone: Record<string, number> = {};
   (dailyData || []).forEach((r: { zone_id: string; total_in: number }) => {
@@ -613,12 +634,16 @@ export async function getDemographics(
   const dayStart = today + "T00:00:00";
   const dayEnd = today + "T23:59:59";
 
-  const { data } = await supabase
-    .from("demographic_readings")
-    .select("group_type, estimated_age_range, count, timestamp")
-    .eq("property_id", propertyId)
-    .gte("timestamp", dayStart)
-    .lte("timestamp", dayEnd);
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("demographic_readings")
+      .select("group_type, estimated_age_range, count, timestamp")
+      .eq("property_id", propertyId)
+      .gte("timestamp", dayStart)
+      .lte("timestamp", dayEnd)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   if (!data || data.length === 0) {
     return { group_breakdown: [], age_breakdown: [], time_patterns: [] };
@@ -689,13 +714,17 @@ export async function getParkingStatus(
   const dayStart = today + "T00:00:00";
   const dayEnd = today + "T23:59:59";
 
-  const { data: todayData } = await supabase
-    .from("parking_readings")
-    .select("timestamp, occupied_spaces, occupancy_pct")
-    .eq("property_id", propertyId)
-    .gte("timestamp", dayStart)
-    .lte("timestamp", dayEnd)
-    .order("timestamp", { ascending: true });
+  const todayData = await fetchAll((from, to) =>
+    supabase
+      .from("parking_readings")
+      .select("timestamp, occupied_spaces, occupancy_pct")
+      .eq("property_id", propertyId)
+      .gte("timestamp", dayStart)
+      .lte("timestamp", dayEnd)
+      .order("timestamp", { ascending: true })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const hourly: { hour: number; occupied: number; pct: number }[] = [];
   const hourMap: Record<number, { occ: number; pct: number }> = {};
@@ -817,11 +846,15 @@ export async function getStoreConversion(
 ): Promise<StoreConversionData> {
   const today = todayStr(date);
 
-  const { data } = await supabase
-    .from("store_conversion")
-    .select("unit_id, passersby, entered, conversion_rate, avg_time_in_store_seconds")
-    .eq("property_id", propertyId)
-    .eq("date", today);
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("store_conversion")
+      .select("unit_id, passersby, entered, conversion_rate, avg_time_in_store_seconds")
+      .eq("property_id", propertyId)
+      .eq("date", today)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   if (!data || data.length === 0) {
     return { stores: [], avg_conversion_rate: 0, top_converters: [], bottom_converters: [] };

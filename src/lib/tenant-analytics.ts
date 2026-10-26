@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { CATEGORY_MODELS } from "./revenue-engine";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Tenant Analytics Engine
@@ -252,12 +253,16 @@ async function getSalesData(
   tenantIds: string[]
 ): Promise<Record<string, { total: number; count: number; monthly: Array<{ month: number; year: number; amount: number }> }>> {
   if (tenantIds.length === 0) return {};
-  const { data } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, period_month, period_year, reported_revenue_egp")
-    .in("tenant_id", tenantIds)
-    .order("period_year", { ascending: true })
-    .order("period_month", { ascending: true });
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("tenant_sales_reported")
+      .select("tenant_id, period_month, period_year, reported_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .order("period_year", { ascending: true })
+      .order("period_month", { ascending: true })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const result: Record<string, { total: number; count: number; monthly: Array<{ month: number; year: number; amount: number }> }> = {};
   (data || []).forEach((s: Record<string, any>) => {
@@ -280,12 +285,16 @@ async function getEstimatesData(
   tenantIds: string[]
 ): Promise<Record<string, { total: number; count: number; monthly: Array<{ month: number; year: number; amount: number }> }>> {
   if (tenantIds.length === 0) return {};
-  const { data } = await supabase
-    .from("revenue_estimates")
-    .select("tenant_id, period_month, period_year, estimated_revenue_egp")
-    .in("tenant_id", tenantIds)
-    .order("period_year", { ascending: true })
-    .order("period_month", { ascending: true });
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("revenue_estimates")
+      .select("tenant_id, period_month, period_year, estimated_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .order("period_year", { ascending: true })
+      .order("period_month", { ascending: true })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const result: Record<string, { total: number; count: number; monthly: Array<{ month: number; year: number; amount: number }> }> = {};
   (data || []).forEach((e: Record<string, any>) => {
@@ -313,11 +322,15 @@ async function getFootfallData(
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
   const startDate = sixMonthsAgo.toISOString().split("T")[0];
 
-  const { data } = await supabase
-    .from("footfall_daily")
-    .select("unit_id, total_in, avg_dwell_seconds, date")
-    .in("unit_id", unitIds)
-    .gte("date", startDate);
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("unit_id, total_in, avg_dwell_seconds, date")
+      .in("unit_id", unitIds)
+      .gte("date", startDate)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const result: Record<string, { total_in: number; days: number; dwell_sum: number; dwell_count: number }> = {};
   (data || []).forEach((r: Record<string, any>) => {
@@ -339,10 +352,14 @@ async function getPaymentData(
   leaseIds: string[]
 ): Promise<Record<string, { total: number; on_time: number; total_paid: number; total_due: number }>> {
   if (leaseIds.length === 0) return {};
-  const { data } = await supabase
-    .from("rent_transactions")
-    .select("lease_id, status, amount_paid, amount_due")
-    .in("lease_id", leaseIds);
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("rent_transactions")
+      .select("lease_id, status, amount_paid, amount_due")
+      .in("lease_id", leaseIds)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const result: Record<string, { total: number; on_time: number; total_paid: number; total_due: number }> = {};
   (data || []).forEach((t: Record<string, any>) => {

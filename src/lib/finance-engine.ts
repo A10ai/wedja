@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { calculatePercentageRent, getInflationHedgeAnalysis } from "./percentage-rent-engine";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Finance Engine
@@ -94,20 +95,28 @@ export async function getFinanceOverview(
   const [incomeRes, prevIncomeRes, expensesRes, prevExpensesRes, overdueRes] =
     await Promise.all([
       // Current month income
-      supabase
-        .from("rent_transactions")
-        .select("amount_paid, lease:leases!inner(property_id)")
-        .eq("period_month", m)
-        .eq("period_year", y)
-        .eq("leases.property_id", propertyId),
+      fetchAll((from, to) =>
+        supabase
+          .from("rent_transactions")
+          .select("amount_paid, lease:leases!inner(property_id)")
+          .eq("period_month", m)
+          .eq("period_year", y)
+          .eq("leases.property_id", propertyId)
+          .order("id")
+          .range(from, to)
+      ).then((data) => ({ data }), () => ({ data: null })),
 
       // Previous month income
-      supabase
-        .from("rent_transactions")
-        .select("amount_paid, lease:leases!inner(property_id)")
-        .eq("period_month", prevM)
-        .eq("period_year", prevY)
-        .eq("leases.property_id", propertyId),
+      fetchAll((from, to) =>
+        supabase
+          .from("rent_transactions")
+          .select("amount_paid, lease:leases!inner(property_id)")
+          .eq("period_month", prevM)
+          .eq("period_year", prevY)
+          .eq("leases.property_id", propertyId)
+          .order("id")
+          .range(from, to)
+      ).then((data) => ({ data }), () => ({ data: null })),
 
       // Current month expenses
       supabase
@@ -126,11 +135,15 @@ export async function getFinanceOverview(
         .lte("expense_date", prevRange.end),
 
       // Overdue rent
-      supabase
-        .from("rent_transactions")
-        .select("amount_due, amount_paid, lease:leases!inner(property_id)")
-        .eq("status", "overdue")
-        .eq("leases.property_id", propertyId),
+      fetchAll((from, to) =>
+        supabase
+          .from("rent_transactions")
+          .select("amount_due, amount_paid, lease:leases!inner(property_id)")
+          .eq("status", "overdue")
+          .eq("leases.property_id", propertyId)
+          .order("id")
+          .range(from, to)
+      ).then((data) => ({ data }), () => ({ data: null })),
     ]);
 
   const totalIncome = (incomeRes.data || []).reduce(
@@ -268,12 +281,16 @@ export async function getCashFlow(
     const range = getMonthRange(m, y);
 
     const [incomeRes, expenseRes] = await Promise.all([
-      supabase
-        .from("rent_transactions")
-        .select("amount_paid, lease:leases!inner(property_id)")
-        .eq("period_month", m)
-        .eq("period_year", y)
-        .eq("leases.property_id", propertyId),
+      fetchAll((from, to) =>
+        supabase
+          .from("rent_transactions")
+          .select("amount_paid, lease:leases!inner(property_id)")
+          .eq("period_month", m)
+          .eq("period_year", y)
+          .eq("leases.property_id", propertyId)
+          .order("id")
+          .range(from, to)
+      ).then((data) => ({ data }), () => ({ data: null })),
       supabase
         .from("expenses")
         .select("amount_egp")
@@ -376,12 +393,16 @@ export async function getProfitAndLoss(
   const range = getMonthRange(month, year);
 
   const [incomeRes, expenseRes] = await Promise.all([
-    supabase
-      .from("rent_transactions")
-      .select("amount_paid, min_rent_due, percentage_rent_due, lease:leases!inner(property_id)")
-      .eq("period_month", month)
-      .eq("period_year", year)
-      .eq("leases.property_id", propertyId),
+    fetchAll((from, to) =>
+      supabase
+        .from("rent_transactions")
+        .select("amount_paid, min_rent_due, percentage_rent_due, lease:leases!inner(property_id)")
+        .eq("period_month", month)
+        .eq("period_year", year)
+        .eq("leases.property_id", propertyId)
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
     supabase
       .from("expenses")
       .select("category, amount_egp")

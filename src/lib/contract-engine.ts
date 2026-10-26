@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Contract Analytics Engine
@@ -205,12 +206,16 @@ export async function getContractOverview(
   let totalPercentagePotential = 0;
 
   if (tenantIds.length > 0) {
-    const { data: salesData } = await supabase
-      .from("tenant_sales_reported")
-      .select("tenant_id, reported_revenue_egp, lease_id")
-      .in("tenant_id", tenantIds)
-      .order("period_year", { ascending: false })
-      .order("period_month", { ascending: false });
+    const salesData = await fetchAll((from, to) =>
+      supabase
+        .from("tenant_sales_reported")
+        .select("tenant_id, reported_revenue_egp, lease_id")
+        .in("tenant_id", tenantIds)
+        .order("period_year", { ascending: false })
+        .order("period_month", { ascending: false })
+        .order("id")
+        .range(from, to)
+    ).catch(() => null);
 
     // Get latest month of sales per tenant
     const latestSalesByTenant: Record<string, number> = {};
@@ -290,10 +295,14 @@ export async function getExpiringLeases(
 
   // Get payment history for compliance calculation
   const leaseIds = leases.map((l: Record<string, any>) => l.id);
-  const { data: transactions } = await supabase
-    .from("rent_transactions")
-    .select("lease_id, status")
-    .in("lease_id", leaseIds);
+  const transactions = await fetchAll((from, to) =>
+    supabase
+      .from("rent_transactions")
+      .select("lease_id, status")
+      .in("lease_id", leaseIds)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const complianceByLease: Record<string, { total: number; onTime: number }> = {};
   (transactions || []).forEach((t: Record<string, any>) => {
@@ -306,10 +315,14 @@ export async function getExpiringLeases(
 
   // Get sales data for revenue/sqm
   const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
-  const { data: salesData } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, reported_revenue_egp")
-    .in("tenant_id", tenantIds);
+  const salesData = await fetchAll((from, to) =>
+    supabase
+      .from("tenant_sales_reported")
+      .select("tenant_id, reported_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const avgSalesByTenant: Record<string, number> = {};
   const salesCountByTenant: Record<string, number> = {};
@@ -408,10 +421,14 @@ export async function getLeasePerformance(
   const tenantIds = activeLeases.map((l: Record<string, any>) => l.tenant_id);
 
   // Payment history
-  const { data: transactions } = await supabase
-    .from("rent_transactions")
-    .select("lease_id, amount_due, amount_paid, status")
-    .in("lease_id", leaseIds);
+  const transactions = await fetchAll((from, to) =>
+    supabase
+      .from("rent_transactions")
+      .select("lease_id, amount_due, amount_paid, status")
+      .in("lease_id", leaseIds)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const paymentByLease: Record<string, {
     totalDue: number; totalPaid: number; onTime: number; total: number;
@@ -427,10 +444,14 @@ export async function getLeasePerformance(
   });
 
   // Sales data
-  const { data: salesData } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, reported_revenue_egp")
-    .in("tenant_id", tenantIds);
+  const salesData = await fetchAll((from, to) =>
+    supabase
+      .from("tenant_sales_reported")
+      .select("tenant_id, reported_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const salesByTenant: Record<string, { total: number; count: number }> = {};
   (salesData || []).forEach((s: Record<string, any>) => {
@@ -556,10 +577,14 @@ export async function getRentVsSalesAnalysis(
   const tenantIds = activeLeases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get average reported sales per tenant
-  const { data: salesData } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, reported_revenue_egp")
-    .in("tenant_id", tenantIds);
+  const salesData = await fetchAll((from, to) =>
+    supabase
+      .from("tenant_sales_reported")
+      .select("tenant_id, reported_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const salesByTenant: Record<string, { total: number; count: number }> = {};
   (salesData || []).forEach((s: Record<string, any>) => {
@@ -571,12 +596,16 @@ export async function getRentVsSalesAnalysis(
   });
 
   // Get estimated revenue from revenue_estimates (latest period)
-  const { data: estimates } = await supabase
-    .from("revenue_estimates")
-    .select("tenant_id, estimated_revenue_egp, period_month, period_year")
-    .in("tenant_id", tenantIds)
-    .order("period_year", { ascending: false })
-    .order("period_month", { ascending: false });
+  const estimates = await fetchAll((from, to) =>
+    supabase
+      .from("revenue_estimates")
+      .select("tenant_id, estimated_revenue_egp, period_month, period_year")
+      .in("tenant_id", tenantIds)
+      .order("period_year", { ascending: false })
+      .order("period_month", { ascending: false })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const latestEstimateByTenant: Record<string, number> = {};
   (estimates || []).forEach((e: Record<string, any>) => {
@@ -716,10 +745,14 @@ export async function getContractAlerts(
   }
 
   // 3. Overdue rent alerts
-  const { data: overdueTransactions } = await supabase
-    .from("rent_transactions")
-    .select("lease_id, amount_due, amount_paid, lease:leases!inner(property_id, tenant:tenants(brand_name))")
-    .eq("status", "overdue");
+  const overdueTransactions = await fetchAll((from, to) =>
+    supabase
+      .from("rent_transactions")
+      .select("lease_id, amount_due, amount_paid, lease:leases!inner(property_id, tenant:tenants(brand_name))")
+      .eq("status", "overdue")
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const overdueForProperty = (overdueTransactions || []).filter(
     (t: Record<string, any>) => t.lease?.property_id === propertyId

@@ -30,7 +30,11 @@ export interface QueryCtx {
 
 export type Resolver = any | ((ctx: QueryCtx) => any);
 
-export function createRoutingSupabase(tables: Record<string, Resolver> = {}) {
+export function createRoutingSupabase(
+  tables: Record<string, Resolver> = {},
+  /** maxRows: cap each select like PostgREST `max_rows` (off by default). */
+  options: { maxRows?: number } = {}
+) {
   const ops: QueryCtx[] = [];
 
   const from = (table: string) => {
@@ -62,6 +66,15 @@ export function createRoutingSupabase(tables: Record<string, Resolver> = {}) {
         data = Array.isArray(data) ? (data[0] ?? null) : data;
       }
       const count = Array.isArray(data) ? data.length : data == null ? null : 1;
+      // `.range(from, to)` pages array data (inclusive, like PostgREST) so
+      // fetchAll() loops terminate and see every row.
+      const range = ctx.filters.find((x) => x.name === "range");
+      if (range && Array.isArray(data)) {
+        data = data.slice(range.args[0], range.args[1] + 1);
+      }
+      if (options.maxRows !== undefined && Array.isArray(data) && ctx.op === "select") {
+        data = data.slice(0, options.maxRows);
+      }
       return { data, error: null, count };
     };
 

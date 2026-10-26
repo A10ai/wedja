@@ -65,6 +65,13 @@ DECLARE
   v_anomaly_footfall UUID;
   v_anomaly_revenue UUID;
 BEGIN
+  -- Fresh database (`supabase db reset` runs migrations before seed.sql):
+  -- the seed property does not exist yet, so skip this data section.
+  IF NOT EXISTS (SELECT 1 FROM properties WHERE id = 'a0000000-0000-0000-0000-000000000001') THEN
+    RAISE NOTICE '00012: seed property not present, skipping seed data';
+    RETURN;
+  END IF;
+
   -- Get zone IDs
   SELECT id INTO v_zone_fashion FROM zones WHERE property_id = v_property_id AND type = 'retail' LIMIT 1;
   SELECT id INTO v_zone_food FROM zones WHERE property_id = v_property_id AND type = 'food' LIMIT 1;
@@ -127,7 +134,7 @@ BEGIN
   v_anomaly_revenue := gen_random_uuid();
   INSERT INTO anomalies (id, property_id, anomaly_type, severity, zone_id, unit_id, tenant_id, title, description,
     expected_value, actual_value, deviation_pct, impact_egp, data_source,
-    status, auto_detected, detection_confidence, created_at)
+    related_anomalies, status, auto_detected, detection_confidence, created_at)
   VALUES (
     v_anomaly_revenue, v_property_id, 'revenue_anomaly', 'high', v_zone_fashion, v_unit_adidas, v_tenant_adidas,
     'Adidas reported sales 40% below estimate for 3rd consecutive month — investigate',

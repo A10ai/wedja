@@ -4,6 +4,7 @@
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 export interface AuditEntry {
   user_id?: string;
@@ -62,7 +63,10 @@ export async function getAuditStats(supabase: SupabaseClient) {
   const [totalRes, todayRes, catRes] = await Promise.all([
     supabase.from("audit_log").select("id", { count: "exact", head: true }),
     supabase.from("audit_log").select("id", { count: "exact", head: true }).gte("created_at", today),
-    supabase.from("audit_log").select("category"),
+    // Tally every row, not just the first 1000 PostgREST returns per select.
+    fetchAll((from, to) =>
+      supabase.from("audit_log").select("category").order("id").range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
   ]);
 
   const byCategory: Record<string, number> = {};

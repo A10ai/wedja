@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { CATEGORY_MODELS } from "./revenue-engine";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Learning Engine
@@ -223,11 +224,15 @@ async function calibrateConversionRates(
   const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
 
   // Get footfall data
-  const { data: footfallData } = await supabase
-    .from("footfall_daily")
-    .select("unit_id, total_in, date")
-    .in("unit_id", unitIds)
-    .gte("date", startDate);
+  const footfallData = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("unit_id, total_in, date")
+      .in("unit_id", unitIds)
+      .gte("date", startDate)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Group footfall by unit by month
   const footfallByUnitMonth: Record<string, Record<string, number>> = {};
@@ -240,11 +245,15 @@ async function calibrateConversionRates(
   });
 
   // Get reported sales
-  const { data: salesData } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, period_month, period_year, reported_revenue_egp")
-    .in("tenant_id", tenantIds)
-    .gte("period_year", sixMonthsAgo.getFullYear());
+  const salesData = await fetchAll((from, to) =>
+    supabase
+      .from("tenant_sales_reported")
+      .select("tenant_id, period_month, period_year, reported_revenue_egp")
+      .in("tenant_id", tenantIds)
+      .gte("period_year", sixMonthsAgo.getFullYear())
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Group sales by tenant by month
   const salesByTenantMonth: Record<string, Record<string, number>> = {};
@@ -358,12 +367,16 @@ async function detectFootfallPatterns(
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const startDate = thirtyDaysAgo.toISOString().split("T")[0];
 
-  const { data: footfallData } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, date, total_in, peak_hour, peak_count")
-    .eq("property_id", propertyId)
-    .gte("date", startDate)
-    .order("date", { ascending: true });
+  const footfallData = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, date, total_in, peak_hour, peak_count")
+      .eq("property_id", propertyId)
+      .gte("date", startDate)
+      .order("date", { ascending: true })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   if (!footfallData || footfallData.length < 7) return { found };
 
@@ -531,11 +544,15 @@ async function detectEnergyPatterns(
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const startDate = thirtyDaysAgo.toISOString();
 
-  const { data: energyData } = await supabase
-    .from("energy_readings")
-    .select("zone_id, timestamp, consumption_kwh, cost_egp")
-    .gte("timestamp", startDate)
-    .order("timestamp", { ascending: true });
+  const energyData = await fetchAll((from, to) =>
+    supabase
+      .from("energy_readings")
+      .select("zone_id, timestamp, consumption_kwh, cost_egp")
+      .gte("timestamp", startDate)
+      .order("timestamp", { ascending: true })
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   if (!energyData || energyData.length < 10) return { found };
 
@@ -560,11 +577,15 @@ async function detectEnergyPatterns(
   if (propertyEnergy.length < 10) return { found };
 
   // Get footfall for correlation
-  const { data: footfallData } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, date, total_in")
-    .eq("property_id", propertyId)
-    .gte("date", thirtyDaysAgo.toISOString().split("T")[0]);
+  const footfallData = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, date, total_in")
+      .eq("property_id", propertyId)
+      .gte("date", thirtyDaysAgo.toISOString().split("T")[0])
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Daily footfall by zone
   const ffByZoneDate: Record<string, Record<string, number>> = {};

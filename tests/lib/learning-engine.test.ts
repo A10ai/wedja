@@ -307,7 +307,7 @@ describe("learning-engine: energy pattern detection", () => {
       energy_readings: energy,
       zones: [{ id: "z1", name: "Food Court", property_id: PROP }],
       // the footfall-pattern detector (ordered query) sees nothing; only the energy correlation does
-      footfall_daily: (ctx: any) => (ctx.filters.some((f: any) => f.name === "order") ? [] : footfall),
+      footfall_daily: (ctx: any) => (ctx.filters.some((f: any) => f.name === "order" && f.args[0] !== "id") ? [] : footfall),
       ai_patterns: patternsTable(),
     });
   }

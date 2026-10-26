@@ -580,7 +580,7 @@ describe("ai-engine: generateDailyBriefing", () => {
       leases: [{ end_date: "2026-11-15" }, { end_date: "2031-01-01" }],
     });
     const b = await generateDailyBriefing(db, PROP);
-    expect(b.sections.revenue.items[0]).toEqual({ text: "2 discrepancies flagged — EGP 1,235 potential recovery", alert: true });
+    expect(b.sections.revenue.items[0]).toEqual({ text: "2 discrepancies flagged — EGP 1,235 rent at risk", alert: true });
     expect(b.sections.revenue.items[1]).toEqual({ text: "EGP 1,250 overdue from 2 transactions", alert: true });
     expect(b.sections.contracts.items[0]).toEqual({ text: "1 leases expiring within 90 days", alert: false });
     expect(b.sections.maintenance.items).toEqual([
