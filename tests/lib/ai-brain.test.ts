@@ -2,23 +2,45 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import type { PropertySnapshot } from "@/lib/ai-brain";
 import { createRoutingSupabase } from "./helpers/routing-supabase-mock";
+import { createSettingsStore } from "./helpers/settings-store";
 
 // Hoisted so the same mock instances survive vi.resetModules().
-const { emitEvent, createNotification, logAudit, logger } = vi.hoisted(() => ({
+const { emitEvent, createNotification, logAudit, logger, anthropicCreate, anthropicCtor } = vi.hoisted(() => ({
   emitEvent: vi.fn(),
   createNotification: vi.fn(),
   logAudit: vi.fn(),
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
+  anthropicCreate: vi.fn(),
+  anthropicCtor: vi.fn(),
 }));
 vi.mock("@/lib/logger", () => ({ logger }));
 vi.mock("@/lib/event-bus", () => ({ emitEvent }));
 vi.mock("@/lib/notifications", () => ({ createNotification }));
 vi.mock("@/lib/audit", () => ({ logAudit }));
+// The official SDK is mocked: nothing in this file may reach the network.
+// Error classes stay real so `instanceof` checks in the code work.
+vi.mock("@anthropic-ai/sdk", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@anthropic-ai/sdk")>();
+  class MockAnthropic {
+    beta = { messages: { create: anthropicCreate } };
+    constructor(opts: unknown) {
+      anthropicCtor(opts);
+    }
+  }
+  return { ...actual, default: MockAnthropic, Anthropic: MockAnthropic };
+});
 
-// The module holds in-memory config state, so load a fresh copy per test.
+// Load a fresh module copy per test (keeps mocks/env changes isolated).
 async function loadBrain() {
   vi.resetModules();
   return await import("@/lib/ai-brain");
+}
+
+/** A routing Supabase mock with only an in-memory system_settings table. */
+function settingsDb(initial: Record<string, any> = {}) {
+  const store = createSettingsStore(initial);
+  const db = createRoutingSupabase({ system_settings: store.routing });
+  return Object.assign(db, { store });
 }
 
 function snap(overrides: Partial<{ [K in keyof PropertySnapshot]: Partial<PropertySnapshot[K]> }> = {}): PropertySnapshot {
@@ -59,10 +81,10 @@ afterEach(() => {
 });
 
 // ─────────────────────────────────────────────────────────────
-describe("ai-brain: config accessors", () => {
-  test("defaults: supervised, enabled, 30 min, zero counters", async () => {
+describe("ai-brain: persisted config (system_settings)", () => {
+  test("defaults when nothing is stored: supervised, enabled, 30 min, zero counters", async () => {
     const { getBrainConfig } = await loadBrain();
-    expect(getBrainConfig()).toEqual({
+    expect(await getBrainConfig(settingsDb())).toEqual({
       mode: "supervised",
       enabled: true,
       interval_minutes: 30,
@@ -73,41 +95,126 @@ describe("ai-brain: config accessors", () => {
     });
   });
 
-  test("getBrainConfig returns a copy — mutating it does not change internal state", async () => {
+  test("reads config + stats from system_settings for the property", async () => {
+    const { getBrainConfig, PROPERTY_ID } = await loadBrain();
+    const db = settingsDb({
+      brain_config: { mode: "autonomous", enabled: false, interval_minutes: 45 },
+      brain_stats: { last_cycle: "2026-10-26T10:00:00.000Z", total_cycles: 3, total_decisions: 9, total_executed: 2 },
+    });
+    expect(await getBrainConfig(db)).toEqual({
+      mode: "autonomous",
+      enabled: false,
+      interval_minutes: 45,
+      last_cycle: "2026-10-26T10:00:00.000Z",
+      total_cycles: 3,
+      total_decisions: 9,
+      total_executed: 2,
+    });
+    const reads = db.opsFor("system_settings", "select");
+    expect(reads.every((o: any) => o.eq("property_id") === PROPERTY_ID)).toBe(true);
+  });
+
+  test("a corrupt or unknown mode is treated as supervised (never autonomous)", async () => {
     const { getBrainConfig } = await loadBrain();
-    const c = getBrainConfig();
-    c.mode = "autonomous";
-    c.total_cycles = 999;
-    expect(getBrainConfig().mode).toBe("supervised");
-    expect(getBrainConfig().total_cycles).toBe(0);
+    const c = await getBrainConfig(settingsDb({ brain_config: { mode: "AUTONOMOUS", interval_minutes: "x" } }));
+    expect(c.mode).toBe("supervised");
+    expect(c.interval_minutes).toBe(30);
+  });
+
+  test("a read error falls back to safe defaults", async () => {
+    const { getBrainConfig } = await loadBrain();
+    const db = createRoutingSupabase({ system_settings: { __error: { message: "down" } } });
+    expect((await getBrainConfig(db)).mode).toBe("supervised");
+  });
+
+  test("updateBrainConfig persists (upsert) and is visible to a fresh module instance", async () => {
+    const db = settingsDb();
+    const a = await loadBrain();
+    await a.updateBrainConfig(db, { mode: "autonomous" }, { updatedBy: "user-1" });
+    const upsert = db.opsFor("system_settings", "upsert")[0];
+    expect(upsert.payload).toMatchObject({
+      property_id: a.PROPERTY_ID,
+      key: "brain_config",
+      value: { mode: "autonomous", enabled: true, interval_minutes: 30 },
+      updated_by: "user-1",
+    });
+    // Simulates another serverless instance: new module, same DB.
+    const b = await loadBrain();
+    expect((await b.getBrainConfig(db)).mode).toBe("autonomous");
+    expect(logAudit).toHaveBeenCalledWith(db, expect.objectContaining({ action: "brain_config_updated", user_id: "user-1" }));
   });
 
   test("updateBrainConfig clamps interval to [5,120]", async () => {
     const { updateBrainConfig } = await loadBrain();
-    expect(updateBrainConfig({ interval_minutes: 1 }).interval_minutes).toBe(5);
-    expect(updateBrainConfig({ interval_minutes: -50 }).interval_minutes).toBe(5);
-    expect(updateBrainConfig({ interval_minutes: 5 }).interval_minutes).toBe(5);
-    expect(updateBrainConfig({ interval_minutes: 120 }).interval_minutes).toBe(120);
-    expect(updateBrainConfig({ interval_minutes: 10_000 }).interval_minutes).toBe(120);
-    expect(updateBrainConfig({ interval_minutes: 45 }).interval_minutes).toBe(45);
+    const db = settingsDb();
+    expect((await updateBrainConfig(db, { interval_minutes: 1 })).interval_minutes).toBe(5);
+    expect((await updateBrainConfig(db, { interval_minutes: -50 })).interval_minutes).toBe(5);
+    expect((await updateBrainConfig(db, { interval_minutes: 5 })).interval_minutes).toBe(5);
+    expect((await updateBrainConfig(db, { interval_minutes: 120 })).interval_minutes).toBe(120);
+    expect((await updateBrainConfig(db, { interval_minutes: 10_000 })).interval_minutes).toBe(120);
+    expect((await updateBrainConfig(db, { interval_minutes: 45 })).interval_minutes).toBe(45);
   });
 
   test("partial update leaves other fields untouched; enabled=false is honoured (falsy)", async () => {
     const { updateBrainConfig, getBrainConfig } = await loadBrain();
-    updateBrainConfig({ mode: "autonomous" });
-    const after = updateBrainConfig({ enabled: false });
+    const db = settingsDb();
+    await updateBrainConfig(db, { mode: "autonomous" });
+    const after = await updateBrainConfig(db, { enabled: false });
     expect(after.mode).toBe("autonomous");
     expect(after.enabled).toBe(false);
     expect(after.interval_minutes).toBe(30);
-    expect(getBrainConfig().enabled).toBe(false);
+    expect((await getBrainConfig(db)).enabled).toBe(false);
   });
 
-  // BUG: NaN passes through Math.max/Math.min unchanged, so the interval becomes NaN
-  // instead of being clamped/rejected (src/lib/ai-brain.ts:149).
-  test.fails("updateBrainConfig with NaN interval keeps a finite interval", async () => {
+  test("updateBrainConfig with NaN interval keeps a finite interval", async () => {
     const { updateBrainConfig } = await loadBrain();
-    const c = updateBrainConfig({ interval_minutes: NaN });
+    const db = settingsDb({ brain_config: { interval_minutes: 40 } });
+    const c = await updateBrainConfig(db, { interval_minutes: NaN });
     expect(Number.isFinite(c.interval_minutes)).toBe(true);
+    expect(c.interval_minutes).toBe(40);
+    expect((await updateBrainConfig(db, { interval_minutes: Infinity })).interval_minutes).toBe(40);
+  });
+
+  test("updateBrainConfig throws when the write fails (no silent mode switch)", async () => {
+    const { updateBrainConfig } = await loadBrain();
+    const db = createRoutingSupabase({
+      system_settings: (ctx: any) => (ctx.op === "upsert" ? { __error: { message: "denied" } } : []),
+    });
+    await expect(updateBrainConfig(db, { mode: "autonomous" })).rejects.toThrow("Failed to save brain config");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+describe("ai-brain: job locks", () => {
+  test("acquire → busy → release → acquire again", async () => {
+    const { acquireJobLock, releaseJobLock } = await loadBrain();
+    const db = settingsDb();
+    const h1 = await acquireJobLock(db, "brain_cycle", 60_000);
+    expect(h1).toBeTruthy();
+    expect(db.store.rows.get("lock:brain_cycle").holder).toBe(h1);
+    expect(await acquireJobLock(db, "brain_cycle", 60_000)).toBeNull();
+    // A stranger cannot release someone else's lock
+    await releaseJobLock(db, "brain_cycle", "not-me");
+    expect(db.store.rows.has("lock:brain_cycle")).toBe(true);
+    await releaseJobLock(db, "brain_cycle", h1!);
+    expect(db.store.rows.has("lock:brain_cycle")).toBe(false);
+    expect(await acquireJobLock(db, "brain_cycle", 60_000)).toBeTruthy();
+  });
+
+  test("an expired lock is taken over", async () => {
+    const { acquireJobLock } = await loadBrain();
+    const db = settingsDb({
+      "lock:brain_cycle": { holder: "old", acquired_at: "2020-01-01T00:00:00.000Z", expires_at: "2020-01-01T00:05:00.000Z" },
+    });
+    const h = await acquireJobLock(db, "brain_cycle", 60_000);
+    expect(h).toBeTruthy();
+    expect(db.store.rows.get("lock:brain_cycle").holder).toBe(h);
+  });
+
+  test("a non-conflict insert error does not grant the lock", async () => {
+    const { acquireJobLock } = await loadBrain();
+    const db = createRoutingSupabase({ system_settings: { __error: { code: "42P01", message: "no table" } } });
+    expect(await acquireJobLock(db, "x", 1000)).toBeNull();
   });
 });
 
@@ -471,43 +578,66 @@ describe("ai-brain: gatherPropertySnapshot", () => {
 // runBrainCycle
 // ─────────────────────────────────────────────────────────────
 
-function cycleDb(extra: Record<string, any> = {}) {
+function cycleDb(extra: Record<string, any> = {}, settings: Record<string, any> = {}) {
   let n = 0;
+  const store = createSettingsStore(settings);
   const db = snapshotDb({
     brain_decisions: (ctx: any) => {
       if (ctx.op === "insert") return ctx.payload.map(() => ({ id: `bd-${++n}` }));
       return [];
     },
+    system_settings: store.routing,
     ...extra,
   });
-  return db;
+  return Object.assign(db, { store });
 }
 
-function mockClaude(body: any, ok = true) {
-  const fetchMock = vi.fn().mockResolvedValue({
-    ok,
-    status: ok ? 200 : 500,
-    text: async () => "boom",
-    json: async () => body,
-  });
-  vi.stubGlobal("fetch", fetchMock);
-  return fetchMock;
+/** A Messages API response carrying `payload` as the structured-output text. */
+function claudeResponse(payload: unknown, over: Record<string, any> = {}) {
+  return {
+    id: "msg_1",
+    type: "message",
+    role: "assistant",
+    model: "claude-opus-5-5",
+    stop_reason: "end_turn",
+    stop_details: null,
+    content: [
+      { type: "thinking", thinking: "", signature: "sig" },
+      { type: "text", text: typeof payload === "string" ? payload : JSON.stringify(payload) },
+    ],
+    usage: { input_tokens: 1, output_tokens: 1 },
+    ...over,
+  };
 }
+
+const validDecision = (over: Record<string, any> = {}) => ({
+  category: "revenue",
+  action: "Audit Aldo",
+  reasoning: "gap",
+  confidence: 88,
+  impact_estimate: "EGP 10k",
+  auto_executable: true,
+  ...over,
+});
 
 describe("ai-brain: runBrainCycle", () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
+    delete process.env.ANTHROPIC_MODEL;
+    // Belt and braces: any accidental raw HTTP call fails the test.
+    vi.stubGlobal("fetch", vi.fn(() => { throw new Error("network access in tests"); }));
   });
 
-  test("without API key: uses rules, never calls fetch, stores decisions and assigns IDs", async () => {
-    const fetchMock = mockClaude({});
+  test("without API key: uses rules, never calls the SDK, stores decisions with source/model and assigns IDs", async () => {
     const brain = await loadBrain();
     const db = cycleDb();
     const r = await brain.runBrainCycle(db);
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(anthropicCreate).not.toHaveBeenCalled();
     expect(r.source).toBe("rules");
+    expect(r.model).toBeNull();
+    expect(r.fallback_reason).toBe("ANTHROPIC_API_KEY not set");
     expect(r.cycle_id).toMatch(/^brain-\d+-[a-z0-9]+$/);
     expect(r.decisions.length).toBeGreaterThan(0);
     r.decisions.forEach((d, i) => {
@@ -516,28 +646,45 @@ describe("ai-brain: runBrainCycle", () => {
       expect(d.summary).toBe(r.summary);
       expect(d.mode).toBe("supervised");
       expect(d.executed).toBe(false);
+      expect(d.source).toBe("rules");
+      expect(d.model).toBeNull();
     });
     const inserts = db.opsFor("brain_decisions", "insert");
     expect(inserts).toHaveLength(1);
     expect(inserts[0].payload).toHaveLength(r.decisions.length);
+    expect(inserts[0].payload[0]).toMatchObject({
+      property_id: brain.PROPERTY_ID,
+      source: "rules",
+      model: null,
+      fallback_reason: "ANTHROPIC_API_KEY not set",
+    });
     // supervised mode never emits events
     expect(emitEvent).not.toHaveBeenCalled();
     expect(createNotification).toHaveBeenCalledTimes(1);
     // 1 cycle audit + 1 per decision
     expect(logAudit).toHaveBeenCalledTimes(1 + r.decisions.length);
 
-    const cfg = brain.getBrainConfig();
+    const cfg = await brain.getBrainConfig(db);
     expect(cfg.total_cycles).toBe(1);
     expect(cfg.total_decisions).toBe(r.decisions.length);
     expect(cfg.total_executed).toBe(0);
     expect(cfg.last_cycle).toBe(NOW.toISOString());
   });
 
-  test("autonomous mode auto-executes only auto_executable decisions with an event type", async () => {
-    const brain = await loadBrain();
-    brain.updateBrainConfig({ mode: "autonomous" });
-    (emitEvent as any).mockResolvedValue({ event: null, results: [] });
+  test("stats accumulate across cycles (persisted, not per-instance)", async () => {
     const db = cycleDb();
+    const r1 = await (await loadBrain()).runBrainCycle(db);
+    const brain2 = await loadBrain();
+    const r2 = await brain2.runBrainCycle(db);
+    const cfg = await brain2.getBrainConfig(db);
+    expect(cfg.total_cycles).toBe(2);
+    expect(cfg.total_decisions).toBe(r1.decisions.length + r2.decisions.length);
+  });
+
+  test("autonomous mode (persisted) auto-executes only auto_executable decisions with an event type", async () => {
+    const brain = await loadBrain();
+    (emitEvent as any).mockResolvedValue({ event: null, results: [] });
+    const db = cycleDb({}, { brain_config: { mode: "autonomous" } });
     const r = await brain.runBrainCycle(db);
 
     const executed = r.decisions.filter((d) => d.executed);
@@ -550,16 +697,36 @@ describe("ai-brain: runBrainCycle", () => {
     const updates = db.opsFor("brain_decisions", "update");
     expect(updates).toHaveLength(1);
     expect(updates[0].payload).toEqual({ executed: true, approved: true });
-    expect(brain.getBrainConfig().total_executed).toBe(1);
+    expect((await brain.getBrainConfig(db)).total_executed).toBe(1);
+  });
+
+  test("autonomous switched off mid-cycle (by another instance) → nothing auto-executes", async () => {
+    const brain = await loadBrain();
+    (emitEvent as any).mockResolvedValue({});
+    const store = createSettingsStore({ brain_config: { mode: "autonomous" } });
+    let reads = 0;
+    const db = cycleDb({
+      system_settings: (ctx: any) => {
+        // After the first config read, an owner flips the mode to supervised.
+        if (ctx.op === "select" && ctx.eq("key") === "brain_config" && ++reads === 2) {
+          store.rows.set("brain_config", { mode: "supervised" });
+        }
+        return store.routing(ctx);
+      },
+    });
+    const r = await brain.runBrainCycle(db);
+    expect(r.decisions.every((d) => d.mode === "autonomous")).toBe(true);
+    expect(r.decisions.some((d) => d.executed)).toBe(false);
+    expect(emitEvent).not.toHaveBeenCalled();
   });
 
   test("autonomous: an emitEvent failure is swallowed and the decision stays unexecuted", async () => {
     const brain = await loadBrain();
-    brain.updateBrainConfig({ mode: "autonomous" });
     (emitEvent as any).mockRejectedValue(new Error("bus down"));
-    const r = await brain.runBrainCycle(cycleDb());
+    const db = cycleDb({}, { brain_config: { mode: "autonomous" } });
+    const r = await brain.runBrainCycle(db);
     expect(r.decisions.every((d) => !d.executed)).toBe(true);
-    expect(brain.getBrainConfig().total_executed).toBe(0);
+    expect((await brain.getBrainConfig(db)).total_executed).toBe(0);
   });
 
   test("insert error: decisions still returned, but without IDs", async () => {
@@ -571,76 +738,121 @@ describe("ai-brain: runBrainCycle", () => {
     expect(r.decisions.every((d) => d.id === undefined)).toBe(true);
   });
 
-  test("uses Claude output when the API returns decisions (markdown-wrapped JSON)", async () => {
+  test("uses Claude via the SDK with the documented parameters", async () => {
     process.env.ANTHROPIC_API_KEY = "test-key";
-    const payload = {
-      decisions: [
-        { category: "revenue", action: "Audit Aldo", reasoning: "gap", confidence: 88, impact_estimate: "EGP 10k", auto_executable: true },
-        { category: "energy", action: "Dim lights", reasoning: "waste" },
-      ],
-      summary: "Two things.",
-    };
-    const fetchMock = mockClaude({
-      content: [{ type: "text", text: "```json\n" + JSON.stringify(payload) + "\n```" }],
-    });
+    anthropicCreate.mockResolvedValue(
+      claudeResponse({
+        decisions: [validDecision(), validDecision({ category: "energy", action: "Dim lights", reasoning: "waste", confidence: 40, impact_estimate: null, auto_executable: false })],
+        summary: "Two things.",
+      })
+    );
     const brain = await loadBrain();
-    const r = await brain.runBrainCycle(cycleDb());
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe("https://api.anthropic.com/v1/messages");
-    expect(init.headers["x-api-key"]).toBe("test-key");
+    const db = cycleDb();
+    const r = await brain.runBrainCycle(db);
+
+    expect(anthropicCtor).toHaveBeenCalledWith({ timeout: brain.ANTHROPIC_TIMEOUT_MS, maxRetries: brain.ANTHROPIC_MAX_RETRIES });
+    expect(anthropicCreate).toHaveBeenCalledTimes(1);
+    const params = anthropicCreate.mock.calls[0][0];
+    expect(params.model).toBe("claude-opus-5-5");
+    expect(params.max_tokens).toBe(16000);
+    expect(params.thinking).toEqual({ type: "adaptive" });
+    expect(params.output_config.effort).toBe("medium");
+    expect(params.output_config.format.type).toBe("json_schema");
+    expect(params.fallbacks).toBe("default");
+    expect(params.betas).toEqual(["server-side-fallback-2026-07-01"]);
+    expect(params).not.toHaveProperty("temperature");
+    expect(params.messages[0].content).toContain("Property Snapshot");
+
     expect(r.source).toBe("claude");
+    expect(r.model).toBe("claude-opus-5-5");
+    expect(r.fallback_reason).toBeNull();
     expect(r.summary).toBe("Two things.");
     expect(r.decisions).toHaveLength(2);
-    expect(r.decisions[0]).toMatchObject({ category: "revenue", confidence: 88, auto_executable: true, event_type: null });
-    // defaults applied for missing fields
-    expect(r.decisions[1]).toMatchObject({ confidence: 50, impact_estimate: null, auto_executable: false });
+    expect(r.decisions[0]).toMatchObject({ category: "revenue", confidence: 88, auto_executable: true, event_type: null, source: "claude", model: "claude-opus-5-5" });
+    expect(r.decisions[1]).toMatchObject({ confidence: 40, impact_estimate: null, auto_executable: false });
+    expect(db.opsFor("brain_decisions", "insert")[0].payload[0]).toMatchObject({ source: "claude", model: "claude-opus-5-5", fallback_reason: null });
   });
 
-  test("falls back to rules on non-OK response, unparsable text, or empty decision list", async () => {
+  test("ANTHROPIC_MODEL overrides the default; the served model (after a fallback) is recorded", async () => {
     process.env.ANTHROPIC_API_KEY = "k";
-    for (const setup of [
-      () => mockClaude({}, false),
-      () => mockClaude({ content: [{ type: "text", text: "no json here" }] }),
-      () => mockClaude({ content: [{ type: "text", text: '{"decisions": [], "summary": "x"}' }] }),
-      () => mockClaude({ content: [{ type: "tool_use" }] }),
-      () => vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline"))),
-    ]) {
+    process.env.ANTHROPIC_MODEL = "claude-sonnet-5-5";
+    anthropicCreate.mockResolvedValue(
+      claudeResponse({ decisions: [validDecision()], summary: "s" }, { model: "claude-opus-4-8" })
+    );
+    const brain = await loadBrain();
+    expect(brain.getAnthropicModel()).toBe("claude-sonnet-5-5");
+    const r = await brain.runBrainCycle(cycleDb());
+    expect(anthropicCreate.mock.calls[0][0].model).toBe("claude-sonnet-5-5");
+    expect(r.model).toBe("claude-opus-4-8");
+    expect(r.decisions[0].model).toBe("claude-opus-4-8");
+  });
+
+  test("default model id is claude-opus-5-5", async () => {
+    const brain = await loadBrain();
+    expect(brain.DEFAULT_ANTHROPIC_MODEL).toBe("claude-opus-5-5");
+    expect(brain.getAnthropicModel()).toBe("claude-opus-5-5");
+  });
+
+  test("falls back to rules — recording the reason — for every failure mode", async () => {
+    process.env.ANTHROPIC_API_KEY = "k";
+    const { NotFoundError, APIConnectionError } = await vi.importActual<typeof import("@anthropic-ai/sdk")>("@anthropic-ai/sdk");
+    const cases: Array<[() => void, RegExp]> = [
+      [() => anthropicCreate.mockResolvedValue(claudeResponse("no json here")), /not valid JSON/],
+      [() => anthropicCreate.mockResolvedValue(claudeResponse({ decisions: [], summary: "x" })), /no decisions/],
+      [() => anthropicCreate.mockResolvedValue(claudeResponse({ decisions: [validDecision({ category: "finance" })], summary: "x" })), /schema validation failed.*category/],
+      [() => anthropicCreate.mockResolvedValue(claudeResponse({ decisions: [validDecision({ reasoning: undefined })], summary: "x" })), /schema validation failed.*reasoning/],
+      [() => anthropicCreate.mockResolvedValue(claudeResponse({ decisions: [validDecision({ confidence: "high" })], summary: "x" })), /schema validation failed.*confidence/],
+      [() => anthropicCreate.mockResolvedValue(claudeResponse({ summary: "x" }, { stop_reason: "refusal", stop_details: { type: "refusal", category: "cyber", explanation: null }, content: [] })), /refused \(category: cyber\)/],
+      [() => anthropicCreate.mockResolvedValue(claudeResponse('{"decisions": [', { stop_reason: "max_tokens" })), /truncated/],
+      [() => anthropicCreate.mockRejectedValue(new NotFoundError(404, { type: "error", error: { type: "not_found_error", message: "model: claude-sonnet-4-20250514" } }, "model not found", new Headers())), /model not found/],
+      [() => anthropicCreate.mockRejectedValue(new APIConnectionError({ message: "offline" })), /connection error/],
+      [() => anthropicCreate.mockRejectedValue(new Error("weird")), /unexpected error: weird/],
+    ];
+    for (const [setup, reason] of cases) {
+      anthropicCreate.mockReset();
       setup();
       const brain = await loadBrain();
-      const r = await brain.runBrainCycle(cycleDb());
-      expect(r.source).toBe("rules");
+      const db = cycleDb();
+      const r = await brain.runBrainCycle(db);
+      expect(r.source, String(reason)).toBe("rules");
+      expect(r.fallback_reason, String(reason)).toMatch(reason);
+      expect(r.decisions.every((d) => d.source === "rules" && d.fallback_reason === r.fallback_reason)).toBe(true);
+      expect(db.opsFor("brain_decisions", "insert")[0].payload[0].source).toBe("rules");
     }
   });
 
-  // BUG: `(d.confidence as number) || 50` (src/lib/ai-brain.ts:515) turns a legitimate
-  // confidence of 0 from Claude into 50.
-  test.fails("Claude confidence 0 is preserved (not replaced by the 50 default)", async () => {
+  test("Claude confidence 0 is preserved (not replaced by the 50 default)", async () => {
     process.env.ANTHROPIC_API_KEY = "k";
-    mockClaude({
-      content: [{ type: "text", text: JSON.stringify({ decisions: [{ category: "revenue", action: "a", reasoning: "r", confidence: 0 }], summary: "s" }) }],
-    });
+    anthropicCreate.mockResolvedValue(claudeResponse({ decisions: [validDecision({ confidence: 0 })], summary: "s" }));
     const brain = await loadBrain();
     const r = await brain.runBrainCycle(cycleDb());
+    expect(r.source).toBe("claude");
     expect(r.decisions[0].confidence).toBe(0);
   });
 
-  // BUG: Claude confidences are not validated/clamped (src/lib/ai-brain.ts:515); values
-  // outside the documented 0-100 range are stored verbatim.
-  test.fails("Claude confidence is clamped to [0,100]", async () => {
+  test("Claude confidence is clamped to [0,100]", async () => {
     process.env.ANTHROPIC_API_KEY = "k";
-    mockClaude({
-      content: [{ type: "text", text: JSON.stringify({ decisions: [
-        { category: "revenue", action: "a", reasoning: "r", confidence: 150 },
-        { category: "revenue", action: "b", reasoning: "r", confidence: -20 },
-      ], summary: "s" }) }],
-    });
+    anthropicCreate.mockResolvedValue(
+      claudeResponse({ decisions: [validDecision({ confidence: 150 }), validDecision({ confidence: -20 })], summary: "s" })
+    );
     const brain = await loadBrain();
     const r = await brain.runBrainCycle(cycleDb());
-    for (const d of r.decisions) {
-      expect(d.confidence).toBeGreaterThanOrEqual(0);
-      expect(d.confidence).toBeLessThanOrEqual(100);
-    }
+    expect(r.source).toBe("claude");
+    expect(r.decisions.map((d) => d.confidence)).toEqual([100, 0]);
+  });
+
+  test("runBrainCycleExclusive returns null while another cycle holds the lock, and releases its own", async () => {
+    const brain = await loadBrain();
+    const busy = cycleDb({}, {
+      "lock:brain_cycle": { holder: "other", acquired_at: NOW.toISOString(), expires_at: new Date(NOW.getTime() + 60_000).toISOString() },
+    });
+    expect(await brain.runBrainCycleExclusive(busy)).toBeNull();
+    expect(busy.opsFor("brain_decisions", "insert")).toHaveLength(0);
+
+    const free = cycleDb();
+    const r = await brain.runBrainCycleExclusive(free);
+    expect(r?.decisions.length).toBeGreaterThan(0);
+    expect(free.store.rows.has("lock:brain_cycle")).toBe(false);
   });
 });
 
@@ -649,11 +861,13 @@ describe("ai-brain: decision actions", () => {
   test("approveDecision emits the event once and marks executed", async () => {
     const brain = await loadBrain();
     (emitEvent as any).mockResolvedValue({});
+    const store = createSettingsStore();
     const db = createRoutingSupabase({
       brain_decisions: (ctx: any) =>
         ctx.single
           ? { id: "d1", event_type: "rent.overdue", executed: false, action: "remind", event_payload: { x: 1 } }
           : [],
+      system_settings: store.routing,
     });
     expect(await brain.approveDecision(db, "d1")).toBe(true);
     expect(emitEvent).toHaveBeenCalledWith(
@@ -664,7 +878,7 @@ describe("ai-brain: decision actions", () => {
     );
     const updates = db.opsFor("brain_decisions", "update").map((o: any) => o.payload);
     expect(updates).toEqual([{ approved: true }, { executed: true }]);
-    expect(brain.getBrainConfig().total_executed).toBe(1);
+    expect((await brain.getBrainConfig(db)).total_executed).toBe(1);
   });
 
   test("approveDecision does not re-execute an already-executed or event-less decision", async () => {
@@ -690,9 +904,12 @@ describe("ai-brain: decision actions", () => {
   test("approveDecision still returns true if event emission throws", async () => {
     const brain = await loadBrain();
     (emitEvent as any).mockRejectedValue(new Error("x"));
-    const db = createRoutingSupabase({ brain_decisions: { id: "d", event_type: "lease.expiring", executed: false } });
+    const db = createRoutingSupabase({
+      brain_decisions: { id: "d", event_type: "lease.expiring", executed: false },
+      system_settings: createSettingsStore().routing,
+    });
     expect(await brain.approveDecision(db, "d")).toBe(true);
-    expect(brain.getBrainConfig().total_executed).toBe(0);
+    expect((await brain.getBrainConfig(db)).total_executed).toBe(0);
   });
 
   test("rejectDecision sets approved=false and reflects errors", async () => {

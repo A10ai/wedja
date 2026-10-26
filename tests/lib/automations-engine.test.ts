@@ -1,18 +1,38 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createScriptedSupabase, type QueryCtx } from "./helpers/scripted-supabase";
+import { createSettingsStore } from "./helpers/settings-store";
 
 const emitEvent = vi.fn(async () => ({}));
 const createNotification = vi.fn(async () => null);
+const { runRevenueVerification, trainFootfallModel, trainRevenueModel, runBrainCycle } = vi.hoisted(() => ({
+  runRevenueVerification: vi.fn(),
+  trainFootfallModel: vi.fn(),
+  trainRevenueModel: vi.fn(),
+  runBrainCycle: vi.fn(),
+}));
 
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() } }));
+vi.mock("@/lib/audit", () => ({ logAudit: vi.fn() }));
 vi.mock("@/lib/event-bus", () => ({ emitEvent: (...a: any[]) => (emitEvent as any)(...a) }));
 vi.mock("@/lib/notifications", () => ({
   createNotification: (...a: any[]) => (createNotification as any)(...a),
 }));
+vi.mock("@/lib/revenue-engine", () => ({
+  runRevenueVerification: (...a: any[]) => runRevenueVerification(...a),
+}));
+vi.mock("@/lib/prediction-model", () => ({
+  trainFootfallModel: (...a: any[]) => trainFootfallModel(...a),
+  trainRevenueModel: (...a: any[]) => trainRevenueModel(...a),
+}));
+// Nothing here may reach the network: the SDK is never constructed without a
+// key, and the brain cycle itself is stubbed for scheduler tests.
+vi.mock("@anthropic-ai/sdk", async (orig) => ({ ...(await orig<object>()), default: class {} }));
 
 type Engine = typeof import("@/lib/automations-engine");
 
-// Fresh module per test so the module-level registry / log never leak.
+// Fresh module per test so nothing module-level can leak between tests.
 async function load(): Promise<Engine> {
   vi.resetModules();
   return await import("@/lib/automations-engine");
@@ -26,6 +46,11 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   emitEvent.mockClear();
   createNotification.mockClear();
+  runRevenueVerification.mockReset();
+  runRevenueVerification.mockResolvedValue({ results: [] });
+  trainFootfallModel.mockReset().mockResolvedValue({ r_squared: 0.8, training_samples: 10 });
+  trainRevenueModel.mockReset().mockResolvedValue({ r_squared: 0.7, training_samples: 12 });
+  delete process.env.ANTHROPIC_API_KEY;
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -41,15 +66,41 @@ const ALL_IDS = [
   "auto-tenant-scorer",
 ];
 
+/**
+ * Scripted Supabase mock with a persistent in-memory system_settings table
+ * and system_events log; every other table is answered by `resolver`.
+ */
+function scripted(resolver: ((ctx: QueryCtx) => any) | Record<string, any> = () => [], settings: Record<string, any> = {}) {
+  const store = createSettingsStore(settings);
+  const events: any[] = [];
+  const sb = createScriptedSupabase((ctx: QueryCtx) => {
+    if (ctx.table === "system_settings") return store.scripted(ctx);
+    if (ctx.table === "system_events") {
+      if (ctx.op === "insert") {
+        events.unshift({ ...ctx.payload, created_at: new Date().toISOString() });
+        return [];
+      }
+      const types = ctx.filters.find((f) => f[0] === "in")?.[2] as string[] | undefined;
+      return events.filter((e) => !types || types.includes(e.type));
+    }
+    return typeof resolver === "function" ? resolver(ctx) : resolver[ctx.table] ?? null;
+  });
+  return Object.assign(sb, { store, events });
+}
+
 // An empty database: every automation goes down its "nothing to do" path.
-const emptyDb = () => createScriptedSupabase(() => []);
+const emptyDb = (settings: Record<string, any> = {}) => scripted(() => [], settings);
+
+/** Calls to business tables only (ignores state/log bookkeeping). */
+const dataCalls = (sb: any) =>
+  sb._calls.filter((c: QueryCtx) => c.table !== "system_settings" && c.table !== "system_events");
 
 // ── Registry / public API ───────────────────────────────────
 
 describe("automations-engine: registry", () => {
   test("getAutomations lists 7 automations in a stable order without the run fn", async () => {
     const eng = await load();
-    const list = eng.getAutomations();
+    const list = await eng.getAutomations(emptyDb());
     expect(list.map((a) => a.id)).toEqual(ALL_IDS);
     for (const a of list) {
       expect(a).not.toHaveProperty("run");
@@ -59,35 +110,43 @@ describe("automations-engine: registry", () => {
     }
   });
 
-  test("mutating a returned meta object does not change engine state", async () => {
+  test("mutating a returned meta object does not change stored state", async () => {
     const eng = await load();
-    const [first] = eng.getAutomations();
+    const sb = emptyDb();
+    const [first] = await eng.getAutomations(sb);
     first.enabled = false;
     first.actions_taken = 999;
-    const again = eng.getAutomations()[0];
+    const again = (await eng.getAutomations(sb))[0];
     expect(again.enabled).toBe(true);
     expect(again.actions_taken).toBe(0);
   });
 
-  test("toggleAutomation on unknown id returns null and changes nothing", async () => {
+  test("toggleAutomation on unknown id returns null and writes nothing", async () => {
     const eng = await load();
-    expect(eng.toggleAutomation("auto-does-not-exist", false)).toBeNull();
-    expect(eng.toggleAutomation("", false)).toBeNull();
-    expect(eng.getAutomations().every((a) => a.enabled)).toBe(true);
+    const sb = emptyDb();
+    expect(await eng.toggleAutomation(sb, "auto-does-not-exist", false)).toBeNull();
+    expect(await eng.toggleAutomation(sb, "", false)).toBeNull();
+    expect(sb.store.writes).toHaveLength(0);
+    expect((await eng.getAutomations(sb)).every((a) => a.enabled)).toBe(true);
   });
 
-  test("toggleAutomation disables then re-enables, persisting in module state", async () => {
+  test("toggleAutomation persists to system_settings and survives a fresh module (other instance)", async () => {
+    const sb = emptyDb();
     const eng = await load();
-    const meta = eng.toggleAutomation("auto-energy-optimizer", false);
+    const meta = await eng.toggleAutomation(sb, "auto-energy-optimizer", false, { updatedBy: "owner-1" });
     expect(meta).not.toBeNull();
     expect(meta!.enabled).toBe(false);
     expect(meta).not.toHaveProperty("run");
-    expect(eng.getAutomations().find((a) => a.id === "auto-energy-optimizer")!.enabled).toBe(false);
-    // others untouched
-    expect(eng.getAutomations().filter((a) => !a.enabled)).toHaveLength(1);
+    expect(sb.store.rows.get("automation:auto-energy-optimizer")).toMatchObject({ enabled: false });
+    expect(sb.store.writes.at(-1)).toMatchObject({ op: "upsert", updated_by: "owner-1" });
 
-    eng.toggleAutomation("auto-energy-optimizer", true);
-    expect(eng.getAutomations().every((a) => a.enabled)).toBe(true);
+    const other = await load();
+    const list = await other.getAutomations(sb);
+    expect(list.find((a) => a.id === "auto-energy-optimizer")!.enabled).toBe(false);
+    expect(list.filter((a) => !a.enabled)).toHaveLength(1);
+
+    await other.toggleAutomation(sb, "auto-energy-optimizer", true);
+    expect((await eng.getAutomations(sb)).every((a) => a.enabled)).toBe(true);
   });
 
   test("runAutomation on unknown id returns [] and never touches the database", async () => {
@@ -97,51 +156,74 @@ describe("automations-engine: registry", () => {
     expect(sb._calls).toHaveLength(0);
   });
 
-  test("runAutomation records last_run, accumulates actions_taken and replaces results", async () => {
+  test("runAutomation persists last_run, accumulates actions_taken, stores latest results and logs to system_events", async () => {
     const eng = await load();
     const sb = emptyDb();
     const r1 = await eng.runAutomation("auto-lease-monitor", sb);
     expect(r1).toHaveLength(1);
-    let meta = eng.getAutomations()[0];
+    let meta = (await eng.getAutomations(sb))[0];
     expect(meta.last_run).toBe(NOW.toISOString());
     expect(meta.actions_taken).toBe(1);
 
     await eng.runAutomation("auto-lease-monitor", sb);
-    meta = eng.getAutomations()[0];
+    meta = (await (await load()).getAutomations(sb))[0];
     expect(meta.actions_taken).toBe(2);
     expect(meta.results).toHaveLength(1); // replaced, not appended
+
+    expect(sb.events).toHaveLength(2);
+    expect(sb.events[0]).toMatchObject({
+      type: "automation.run",
+      source_system: "automations",
+      processed: true,
+      payload: { automation_id: "auto-lease-monitor", trigger: "manual", action_count: 1 },
+    });
   });
 
-  test("runAutomation converts a thrown error into a single error result and leaves last_run unset", async () => {
+  test("runAutomation converts a thrown error into a single error result, leaves last_run unset and logs automation.error", async () => {
     const eng = await load();
-    const sb = { from: () => { throw new Error("db down"); } } as any;
+    const sb = scripted((ctx) => {
+      if (ctx.table === "rent_transactions") throw new Error("db down");
+      return [];
+    });
     const res = await eng.runAutomation("auto-rent-collector", sb);
     expect(res).toHaveLength(1);
     expect(res[0].action).toBe("rent_collector");
-    expect(res[0].description).toBe("Error: db down");
-    const meta = eng.getAutomations().find((a) => a.id === "auto-rent-collector")!;
+    expect(res[0].description).toBe("Error in Rent Collector: db down");
+    const meta = (await eng.getAutomations(sb)).find((a) => a.id === "auto-rent-collector")!;
     expect(meta.last_run).toBeNull();
     expect(meta.actions_taken).toBe(0);
-    expect(eng.getAutomationLog()[0].description).toBe("Error: db down");
+    expect(sb.events[0].type).toBe("automation.error");
+    expect((await eng.getAutomationLog(sb))[0].description).toBe("Error in Rent Collector: db down");
   });
 
-  test("getAutomationLog is newest-first, capped at 200 and returns a copy", async () => {
+  test("a database that throws everywhere still returns the error result", async () => {
+    const eng = await load();
+    const sb = { from: () => { throw new Error("db down"); } } as any;
+    const res = await eng.runAutomation("auto-rent-collector", sb);
+    expect(res).toEqual([expect.objectContaining({ description: "Error in Rent Collector: db down" })]);
+  });
+
+  test("getAutomationLog is newest-first, flattened and capped at the limit", async () => {
     const eng = await load();
     const sb = emptyDb();
-    for (let i = 0; i < 205; i++) await eng.runAutomation("auto-lease-monitor", sb);
+    for (let i = 0; i < 4; i++) await eng.runAutomation("auto-lease-monitor", sb);
     await eng.runAutomation("auto-rent-collector", sb);
-    const log = eng.getAutomationLog();
-    expect(log).toHaveLength(200);
+    const log = await eng.getAutomationLog(sb, 3);
+    expect(log).toHaveLength(3);
     expect(log[0].action).toBe("rent_collector");
-    log.length = 0;
-    expect(eng.getAutomationLog()).toHaveLength(200);
+    expect((await eng.getAutomationLog(sb)).length).toBe(5);
+    const q = sb._calls.find((c: QueryCtx) => c.table === "system_events" && c.op === "select");
+    expect(q.has("in", "type")).toBe(true);
+    expect(q.arg("order", "created_at")).toEqual({ ascending: false });
   });
 
-  test("runAllAutomations skips disabled ones, counts only executed actions, notifies with enabled count", async () => {
+  test("runAllAutomations skips disabled ones (persisted flags), counts only executed actions, notifies with ran count", async () => {
     const eng = await load();
-    eng.toggleAutomation("auto-tenant-scorer", false);
-    eng.toggleAutomation("auto-rent-collector", false);
-    const out = await eng.runAllAutomations(emptyDb());
+    const sb = emptyDb({
+      "automation:auto-tenant-scorer": { enabled: false },
+      "automation:auto-rent-collector": { enabled: false },
+    });
+    const out = await eng.runAllAutomations(sb);
     expect(Object.keys(out.results).sort()).toEqual([...ALL_IDS].sort());
     expect(out.results["auto-tenant-scorer"][0].description).toBe("Tenant Scorer is disabled — skipped");
     // 5 enabled automations each produce exactly one "nothing to do" result on an empty DB
@@ -150,12 +232,14 @@ describe("automations-engine: registry", () => {
     const note = (createNotification.mock.calls[0] as any[])[1];
     expect(note.message).toBe("5 automations ran, 5 total actions taken");
     // Disabled automations do not get last_run stamped
-    expect(eng.getAutomations().find((a) => a.id === "auto-tenant-scorer")!.last_run).toBeNull();
+    expect((await eng.getAutomations(sb)).find((a) => a.id === "auto-tenant-scorer")!.last_run).toBeNull();
+    // Enabled state survives the run
+    expect(sb.store.rows.get("automation:auto-tenant-scorer").enabled).toBe(false);
   });
 
   test("runAllAutomations isolates a failing automation from the rest", async () => {
     const eng = await load();
-    const sb = createScriptedSupabase((ctx) => {
+    const sb = scripted((ctx) => {
       if (ctx.table === "maintenance_tickets") throw new Error("boom");
       return [];
     });
@@ -204,7 +288,7 @@ describe("automations-engine: lease monitor", () => {
 
   test("lease without zone gets neutral recommendation with ceil'd days left and formatted rent", async () => {
     const eng = await load();
-    const sb = createScriptedSupabase((ctx) => {
+    const sb = scripted((ctx) => {
       if (ctx.table === "leases") return [leaseRow({ units: { unit_number: "G-12", area_sqm: 100 } })];
       if (ctx.table === "tenant_sales_reported") return [{ reported_revenue_egp: 50000 }];
       return [];
@@ -219,7 +303,7 @@ describe("automations-engine: lease monitor", () => {
 
   test("missing tenant / unit info falls back to Unknown / N/A and unit area of 1 (no Infinity)", async () => {
     const eng = await load();
-    const sb = createScriptedSupabase((ctx) => {
+    const sb = scripted((ctx) => {
       if (ctx.table === "leases") return [leaseRow({ tenants: null, units: null, min_rent_monthly_egp: null })];
       if (ctx.table === "tenant_sales_reported") return [{ reported_revenue_egp: 1234 }];
       return [];
@@ -233,7 +317,7 @@ describe("automations-engine: lease monitor", () => {
 
   test("clear underperformer is recommended for non-renewal", async () => {
     const eng = await load();
-    const sb = createScriptedSupabase((ctx) => {
+    const sb = scripted((ctx) => {
       if (ctx.table === "leases" && ctx.has("in", "unit_id"))
         return [{ tenant_id: "T1", unit_id: "U1" }, { tenant_id: "T2", unit_id: "U2" }];
       if (ctx.table === "leases") return [leaseRow()];
@@ -254,7 +338,7 @@ describe("automations-engine: lease monitor", () => {
 
   test("clear top performer is flagged for priority renewal", async () => {
     const eng = await load();
-    const sb = createScriptedSupabase((ctx) => {
+    const sb = scripted((ctx) => {
       if (ctx.table === "leases" && ctx.has("in", "unit_id"))
         return [{ tenant_id: "T1", unit_id: "U1" }, { tenant_id: "T2", unit_id: "U2" }];
       if (ctx.table === "leases") return [leaseRow({ units: { ...leaseRow().units, area_sqm: 50 } })];
@@ -278,7 +362,7 @@ describe("automations-engine: lease monitor", () => {
   test.fails("tenant performing exactly at zone average is NOT an underperformer", async () => {
     const eng = await load();
     const monthly = Array.from({ length: 6 }, () => ({ tenant_id: "T1", reported_revenue_egp: 100000 }));
-    const sb = createScriptedSupabase((ctx) => {
+    const sb = scripted((ctx) => {
       if (ctx.table === "leases" && ctx.has("in", "unit_id")) return [{ tenant_id: "T1", unit_id: "U1" }];
       if (ctx.table === "leases") return [leaseRow()];
       if (ctx.table === "units") return [{ id: "U1", area_sqm: 100 }];
@@ -303,7 +387,7 @@ describe("automations-engine: rent collector", () => {
   });
 
   function rentDb(historyByLease: Record<string, number>) {
-    return createScriptedSupabase((ctx) => {
+    return scripted((ctx) => {
       if (ctx.table !== "rent_transactions") return [];
       if (ctx.has("in", "status"))
         return [
@@ -339,130 +423,128 @@ describe("automations-engine: rent collector", () => {
 
 // ── Revenue Verifier ────────────────────────────────────────
 
-function verifierDb(opts: {
-  category?: string;
-  reported?: number | null;
-  footfall?: number[];
-  zoneAreas?: number[];
-  unitArea?: number | null;
-  zoneId?: string | null;
-  existing?: any[];
-}) {
-  const o = {
+function vResult(over: Record<string, any> = {}) {
+  return {
+    tenant_id: "T1",
+    tenant_name: "Adidas",
+    brand_name: "Adidas",
     category: "fashion",
-    reported: 10000,
-    footfall: [4000, 3000, 3000],
-    zoneAreas: [100, 100],
-    unitArea: 100,
-    zoneId: "Z1",
-    existing: [],
-    ...opts,
+    unit_id: "U1",
+    unit_number: "G-01",
+    lease_id: "L1",
+    footfall: 10000,
+    reported_revenue_egp: 10000,
+    estimated_low_egp: 400000,
+    estimated_mid_egp: 550000,
+    estimated_high_egp: 700000,
+    variance_egp: 540000,
+    variance_pct: 98.2,
+    confidence: 0.82,
+    status: "flagged",
+    methodology: "m",
+    rent_at_risk_egp: 54000,
+    ...over,
   };
-  return createScriptedSupabase((ctx) => {
-    switch (ctx.table) {
-      case "tenants":
-        return [{ id: "T1", name: "Adidas", category: o.category, leases: [{ id: "L1", unit_id: "U1", units: { id: "U1", zone_id: o.zoneId, area_sqm: o.unitArea } }] }];
-      case "tenant_sales_reported":
-        return o.reported === null ? [] : [{ reported_revenue_egp: o.reported }];
-      case "footfall_daily":
-        return o.footfall.map((n) => ({ total_in: n }));
-      case "units":
-        return o.zoneAreas.map((a) => ({ area_sqm: a }));
-      case "discrepancies":
-        return ctx.op === "select" ? o.existing : null;
-      default:
-        return [];
-    }
-  });
 }
 
 describe("automations-engine: revenue verifier", () => {
-  test("no active tenants → single no-op result", async () => {
+  test("lastCompleteMonth is the previous month (and wraps January → December)", async () => {
+    const eng = await load();
+    expect(eng.lastCompleteMonth(new Date("2026-10-26T12:00:00Z"))).toEqual({ month: 9, year: 2026 });
+    expect(eng.lastCompleteMonth(new Date("2027-01-01T00:00:00Z"))).toEqual({ month: 12, year: 2026 });
+  });
+
+  test("delegates to the revenue engine for the most recent COMPLETE month", async () => {
+    const eng = await load();
+    const sb = emptyDb();
+    await eng.runAutomation("auto-revenue-verifier", sb);
+    expect(runRevenueVerification).toHaveBeenCalledTimes(1);
+    const [db, propertyId, month, year] = runRevenueVerification.mock.calls[0];
+    expect(db).toBe(sb);
+    expect(propertyId).toBe("a0000000-0000-0000-0000-000000000001");
+    expect([month, year]).toEqual([9, 2026]);
+    // The automation no longer touches discrepancies itself.
+    expect(dataCalls(sb)).toHaveLength(0);
+  });
+
+  test("no tenants → single no-op result, no events", async () => {
     const eng = await load();
     const r = await eng.runAutomation("auto-revenue-verifier", emptyDb());
-    expect(r).toEqual([expect.objectContaining({ description: "No active tenants to verify" })]);
-  });
-
-  test("flags large underreporting and inserts a discrepancy with bounded confidence", async () => {
-    const eng = await load();
-    const sb = verifierDb({});
-    const r = await eng.runAutomation("auto-revenue-verifier", sb);
-    // footfall 10000 * share 0.5 * 0.20 * 550 = 550,000 estimated
-    expect(r[0].description).toBe(
-      "Adidas (fashion) — reported EGP 10,000 vs estimated EGP 550,000 (98% variance)"
-    );
-    expect(r[0].impact).toBe("EGP 540,000 potential underreporting");
-    const insert = sb._calls.find((c: QueryCtx) => c.table === "discrepancies" && c.op === "insert");
-    expect(insert.payload).toMatchObject({
-      tenant_id: "T1",
-      unit_id: "U1",
-      period_month: 10,
-      period_year: 2026,
-      estimated_revenue_egp: 550000,
-      variance_egp: 540000,
-      variance_pct: 98,
-      confidence: 56, // 50 + 3 readings * 2
-      status: "flagged",
-    });
-    expect(r.at(-1)!.description).toBe("Revenue verification complete — 1 tenants flagged for underreporting");
-    expect(r.at(-1)!.impact).toBe("Total potential recovery: EGP 540,000");
-  });
-
-  test("confidence is capped at 90 with many footfall readings", async () => {
-    const eng = await load();
-    const sb = verifierDb({ footfall: Array.from({ length: 31 }, () => 500) });
-    await eng.runAutomation("auto-revenue-verifier", sb);
-    const insert = sb._calls.find((c: QueryCtx) => c.table === "discrepancies" && c.op === "insert");
-    expect(insert.payload.confidence).toBe(90);
-  });
-
-  test("updates an existing discrepancy instead of inserting a duplicate", async () => {
-    const eng = await load();
-    const sb = verifierDb({ existing: [{ id: "D9" }] });
-    await eng.runAutomation("auto-revenue-verifier", sb);
-    const writes = sb._calls.filter((c: QueryCtx) => c.table === "discrepancies" && c.op !== "select");
-    expect(writes).toHaveLength(1);
-    expect(writes[0].op).toBe("update");
-    expect(writes[0].eq("id")).toBe("D9");
-  });
-
-  test("reported revenue close to estimate is not flagged", async () => {
-    const eng = await load();
-    const r = await eng.runAutomation("auto-revenue-verifier", verifierDb({ reported: 500000 }));
-    expect(r).toHaveLength(1);
-    expect(r[0].description).toContain("0 tenants flagged");
+    expect(r).toEqual([expect.objectContaining({ description: "No active tenants to verify for 2026-09" })]);
     expect(emitEvent).not.toHaveBeenCalled();
   });
 
-  test("category is case-insensitive and unknown categories fall back to 'other'", async () => {
-    let eng = await load();
-    let r = await eng.runAutomation("auto-revenue-verifier", verifierDb({ category: "FASHION" }));
-    expect(r[0].description).toContain("(fashion)");
-    expect(r[0].description).toContain("estimated EGP 550,000");
+  test("flagged tenants → one result + one tenant.underreporting event each, sorted by variance; summary and notification", async () => {
+    runRevenueVerification.mockResolvedValue({
+      results: [
+        vResult({ tenant_id: "T2", tenant_name: "Aldo", variance_egp: 20000, variance_pct: 40, rent_at_risk_egp: 2000, reported_revenue_egp: 30000, estimated_mid_egp: 50000 }),
+        vResult(),
+        vResult({ tenant_id: "T3", tenant_name: "KFC", status: "ok", variance_egp: 100 }),
+        vResult({ tenant_id: "T4", tenant_name: "Kidzo", status: "missing_report", reported_revenue_egp: null }),
+        vResult({ tenant_id: "T5", tenant_name: "Zara", status: "insufficient_data" }),
+      ],
+    });
+    const eng = await load();
+    const sb = emptyDb();
+    const r = await eng.runAutomation("auto-revenue-verifier", sb);
 
-    eng = await load();
-    r = await eng.runAutomation("auto-revenue-verifier", verifierDb({ category: "pets" }));
-    // 5000 * 0.25 * 300 = 375,000
-    expect(r[0].description).toContain("estimated EGP 375,000");
+    expect(r).toHaveLength(3);
+    expect(r[0].description).toBe(
+      "Adidas (fashion, unit G-01) — 2026-09: reported EGP 10,000 vs estimated EGP 550,000 (98% variance, confidence 0.82)"
+    );
+    expect(r[0].impact).toBe("EGP 540,000 potential underreporting — EGP 54,000 percentage rent at risk");
+    expect(r[1].description).toContain("Aldo");
+    expect(r[2].description).toBe(
+      "Revenue verification 2026-09 complete — 5 tenants checked, 2 flagged, 1 missing reports, 1 with insufficient data"
+    );
+    expect(r[2].impact).toBe("EGP 56,000 percentage rent at risk (EGP 560,000 sales variance)");
+
+    expect(emitEvent).toHaveBeenCalledTimes(2);
+    expect((emitEvent as any).mock.calls.map((c: any[]) => c[0])).toEqual(["tenant.underreporting", "tenant.underreporting"]);
+    expect((emitEvent as any).mock.calls[0][1]).toBe("automations-engine");
+    expect((emitEvent as any).mock.calls[0][2]).toMatchObject({
+      tenant_id: "T1",
+      tenant_name: "Adidas",
+      lease_id: "L1",
+      period_month: 9,
+      period_year: 2026,
+      reported_revenue: 10000,
+      estimated_revenue: 550000,
+      variance_egp: 540000,
+      variance_pct: 98,
+      rent_at_risk_egp: 54000,
+      category: "fashion",
+    });
+
+    expect(createNotification).toHaveBeenCalledTimes(1);
+    const note = (createNotification.mock.calls[0] as any[])[1];
+    expect(note).toMatchObject({ type: "warning", category: "revenue" });
+    expect(note.title).toBe("Revenue verification 2026-09: 2 tenant(s) flagged");
+    expect(note.message).toContain("EGP 56,000 percentage rent at risk");
   });
 
-  test("zero zone area falls back to a 10% area share", async () => {
+  test("nothing flagged → only the summary, no events, no notification", async () => {
+    runRevenueVerification.mockResolvedValue({ results: [vResult({ status: "ok" }), vResult({ status: "missing_report" })] });
     const eng = await load();
-    const r = await eng.runAutomation("auto-revenue-verifier", verifierDb({ zoneAreas: [0] }));
-    // 10000 * 0.1 * 0.2 * 550 = 110,000
-    expect(r[0].description).toContain("estimated EGP 110,000");
-  });
-
-  test.each([
-    ["no reported sales", { reported: null }],
-    ["zero reported sales", { reported: 0 }],
-    ["no zone on unit", { zoneId: null }],
-    ["zero footfall", { footfall: [] }],
-  ])("skips tenant when %s", async (_name, opts) => {
-    const eng = await load();
-    const r = await eng.runAutomation("auto-revenue-verifier", verifierDb(opts as any));
+    const r = await eng.runAutomation("auto-revenue-verifier", emptyDb());
     expect(r).toHaveLength(1);
-    expect(r[0].description).toContain("0 tenants flagged");
+    expect(r[0].description).toContain("0 flagged, 1 missing reports");
+    expect(emitEvent).not.toHaveBeenCalled();
+    expect(createNotification).not.toHaveBeenCalled();
+  });
+
+  test("missing rent_at_risk_egp is treated as 0", async () => {
+    runRevenueVerification.mockResolvedValue({ results: [vResult({ rent_at_risk_egp: undefined })] });
+    const eng = await load();
+    const r = await eng.runAutomation("auto-revenue-verifier", emptyDb());
+    expect(r[0].impact).toContain("EGP 0 percentage rent at risk");
+  });
+
+  test("an engine failure becomes an error result", async () => {
+    runRevenueVerification.mockRejectedValue(new Error("estimates table missing"));
+    const eng = await load();
+    const r = await eng.runAutomation("auto-revenue-verifier", emptyDb());
+    expect(r).toEqual([expect.objectContaining({ description: "Error in Revenue Verifier: estimates table missing" })]);
   });
 });
 
@@ -484,7 +566,7 @@ describe("automations-engine: energy optimizer", () => {
       Z4: [{ consumption_kwh: 100, cost_egp: 200 }],
     };
     const foot: Record<string, number> = { Z1: 50, Z2: 100, Z3: 9999, Z4: 1000 };
-    const sb = createScriptedSupabase((ctx) => {
+    const sb = scripted((ctx) => {
       if (ctx.table === "zones") return ["Z1", "Z2", "Z3", "Z4"].map((id) => ({ id, name: `Zone ${id}` }));
       if (ctx.table === "energy_readings") return energy[ctx.eq("zone_id")];
       if (ctx.table === "footfall_daily") return [{ total_in: foot[ctx.eq("zone_id")] }];
@@ -508,7 +590,7 @@ describe("automations-engine: energy optimizer", () => {
 
   test("zero footfall with high cost counts as waste rather than dividing by zero", async () => {
     const eng = await load();
-    const sb = createScriptedSupabase((ctx) => {
+    const sb = scripted((ctx) => {
       if (ctx.table === "zones") return [{ id: "Z1", name: "Parking" }];
       if (ctx.table === "energy_readings") return [{ consumption_kwh: 100, cost_egp: 1000 }];
       return [];
@@ -540,7 +622,7 @@ describe("automations-engine: maintenance detector", () => {
       { id: "5", zone_id: "Z2", category: "electrical", priority: "emergency", status: "assigned", title: "Fresh", created_at: hoursAgo(10), zones: null },
       { id: "6", zone_id: "Z2", category: "plumbing", priority: "urgent", status: "completed", title: "Done", created_at: hoursAgo(200), zones: null },
     ];
-    const sb = createScriptedSupabase((ctx) => (ctx.table === "maintenance_tickets" ? tickets : []));
+    const sb = scripted((ctx) => (ctx.table === "maintenance_tickets" ? tickets : []));
     const r = await eng.runAutomation("auto-maintenance-detector", sb);
     expect(r.map((x) => x.description)).toEqual([
       "Pattern: 3 hvac tickets in Food Court within 30 days — possible systemic issue",
@@ -555,7 +637,7 @@ describe("automations-engine: maintenance detector", () => {
     const tickets = Array.from({ length: 3 }, (_, i) => ({
       id: String(i), zone_id: null, category: null, priority: "low", status: "open", title: null, created_at: NOW.toISOString(), zones: null,
     }));
-    const sb = createScriptedSupabase((ctx) => (ctx.table === "maintenance_tickets" ? tickets : []));
+    const sb = scripted((ctx) => (ctx.table === "maintenance_tickets" ? tickets : []));
     const r = await eng.runAutomation("auto-maintenance-detector", sb);
     expect(r[0].description).toBe("Pattern: 3 other tickets in Unknown Zone within 30 days — possible systemic issue");
   });
@@ -565,7 +647,7 @@ describe("automations-engine: maintenance detector", () => {
 
 describe("automations-engine: footfall analyzer", () => {
   function footDb(today: Record<string, number>, week: Record<string, { date: string; total_in: number }[]>, campaigns: any[] = []) {
-    return createScriptedSupabase((ctx) => {
+    return scripted((ctx) => {
       if (ctx.table === "zones") return Object.keys(week).map((id) => ({ id, name: `Zone ${id}` }));
       if (ctx.table === "marketing_campaigns") return campaigns;
       if (ctx.table === "footfall_daily" && ctx.has("eq", "date")) return [{ total_in: today[ctx.eq("zone_id")] ?? 0 }];
@@ -620,7 +702,7 @@ describe("automations-engine: tenant scorer", () => {
   function scorerDb(tenants: any[], per: Record<string, { sales?: number[]; payments?: string[]; disc?: boolean }>, zoneAreas: number[] = [1000]) {
     const leaseToTenant: Record<string, string> = {};
     tenants.forEach((t) => (t.leases || []).forEach((l: any) => (leaseToTenant[l.id] = t.id)));
-    return createScriptedSupabase((ctx) => {
+    return scripted((ctx) => {
       switch (ctx.table) {
         case "tenants":
           return tenants;

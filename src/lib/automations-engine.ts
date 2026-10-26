@@ -1,15 +1,32 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { emitEvent } from "@/lib/event-bus";
 import { createNotification } from "@/lib/notifications";
+import { logger } from "@/lib/logger";
+import { runRevenueVerification, type TenantVerificationResult } from "@/lib/revenue-engine";
+import { trainFootfallModel, trainRevenueModel } from "@/lib/prediction-model";
+import {
+  JOB_LOCK_TTL_MS,
+  PROPERTY_ID,
+  acquireJobLock,
+  getBrainConfig,
+  readSetting,
+  readSettingsByPrefix,
+  releaseJobLock,
+  runBrainCycleExclusive,
+  writeSetting,
+} from "@/lib/ai-brain";
 
 // ============================================================
 // Wedja Smart Automations Engine
 //
 // 7 rule-based automations that execute real operations against
 // Supabase data for Senzo Mall commercial property management.
+//
+// State (enabled flag, last_run, actions_taken, latest results) is
+// persisted per automation in system_settings ("automation:<id>");
+// every run is logged to system_events. Nothing lives in module
+// memory, so all serverless instances see the same state.
 // ============================================================
-
-const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
 
 // ── Types ───────────────────────────────────────────────────
 
@@ -29,15 +46,11 @@ export type AutomationType =
   | "footfall_analyzer"
   | "tenant_scorer";
 
-export interface Automation {
+interface AutomationDefinition {
   id: string;
   name: string;
   type: AutomationType;
   description: string;
-  enabled: boolean;
-  last_run: string | null;
-  actions_taken: number;
-  results: AutomationResult[];
   run: (supabase: SupabaseClient) => Promise<AutomationResult[]>;
 }
 
@@ -52,19 +65,17 @@ export interface AutomationMeta {
   results: AutomationResult[];
 }
 
-// ── In-memory state ────────────────────────────────────────
-
-const automationLog: AutomationResult[] = [];
-const MAX_LOG = 200;
-
-function logResult(result: AutomationResult): void {
-  automationLog.unshift(result);
-  if (automationLog.length > MAX_LOG) automationLog.length = MAX_LOG;
+/** Persisted state for one automation (system_settings value). */
+interface AutomationState {
+  enabled: boolean;
+  last_run: string | null;
+  actions_taken: number;
+  last_results: AutomationResult[];
 }
 
-export function getAutomationLog(): AutomationResult[] {
-  return [...automationLog];
-}
+const STATE_PREFIX = "automation:";
+const MAX_STORED_RESULTS = 5;
+export const AUTOMATION_EVENT_TYPES = ["automation.run", "automation.error"] as const;
 
 // ── Helper ──────────────────────────────────────────────────
 
@@ -96,7 +107,6 @@ async function runLeaseMonitor(supabase: SupabaseClient): Promise<AutomationResu
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
     return results;
   }
 
@@ -205,7 +215,6 @@ async function runLeaseMonitor(supabase: SupabaseClient): Promise<AutomationResu
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
 
     // Emit event
     await emitEvent("lease.expiring", "automations-engine", {
@@ -248,7 +257,6 @@ async function runRentCollector(supabase: SupabaseClient): Promise<AutomationRes
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
     return results;
   }
 
@@ -287,7 +295,6 @@ async function runRentCollector(supabase: SupabaseClient): Promise<AutomationRes
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
 
     // Emit rent.overdue event
     await emitEvent("rent.overdue", "automations-engine", {
@@ -319,197 +326,104 @@ async function runRentCollector(supabase: SupabaseClient): Promise<AutomationRes
     timestamp: ts(),
   };
   results.push(summary);
-  logResult(summary);
 
   return results;
 }
 
 // ── Automation 3: Revenue Verifier ──────────────────────────
 
+/**
+ * Most recent COMPLETE month (UTC). Tenants report sales in arrears, so the
+ * current month never has a full report yet.
+ */
+export function lastCompleteMonth(now: Date = new Date()): { month: number; year: number } {
+  const m = now.getUTCMonth(); // 0-11 → previous month as 1-12
+  return m === 0
+    ? { month: 12, year: now.getUTCFullYear() - 1 }
+    : { month: m, year: now.getUTCFullYear() };
+}
+
+type VerifierTenantResult = TenantVerificationResult & { rent_at_risk_egp?: number };
+
+/**
+ * Delegates to the revenue engine (single estimation model, thresholds and
+ * discrepancy persistence) and turns its flagged tenants into automation
+ * results + tenant.underreporting events.
+ */
 async function runRevenueVerifier(supabase: SupabaseClient): Promise<AutomationResult[]> {
-  const results: AutomationResult[] = [];
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
+  const { month, year } = lastCompleteMonth();
+  const period = `${year}-${String(month).padStart(2, "0")}`;
+  const run = await runRevenueVerification(supabase, PROPERTY_ID, month, year);
+  const all = (run.results || []) as VerifierTenantResult[];
 
-  // Category-based conversion rates and average ticket sizes
-  const categoryParams: Record<string, { conversion: number; avgTicket: number }> = {
-    fashion: { conversion: 0.20, avgTicket: 550 },
-    food: { conversion: 0.50, avgTicket: 175 },
-    entertainment: { conversion: 0.40, avgTicket: 140 },
-    grocery: { conversion: 0.70, avgTicket: 350 },
-    services: { conversion: 0.27, avgTicket: 275 },
-    electronics: { conversion: 0.15, avgTicket: 1200 },
-    other: { conversion: 0.25, avgTicket: 300 },
-  };
-
-  // Get tenants with their categories and units
-  const { data: tenants } = await supabase
-    .from("tenants")
-    .select("id, name, category, leases(id, unit_id, units(id, zone_id, area_sqm))")
-    .eq("status", "active");
-
-  if (!tenants || tenants.length === 0) {
-    const r: AutomationResult = {
+  if (all.length === 0) {
+    return [{
       action: "revenue_verifier",
-      description: "No active tenants to verify",
+      description: `No active tenants to verify for ${period}`,
       impact: "No verification needed",
       timestamp: ts(),
-    };
-    results.push(r);
-    logResult(r);
-    return results;
+    }];
   }
 
+  const results: AutomationResult[] = [];
+  const flagged = all
+    .filter((r) => r.status === "flagged")
+    .sort((a, b) => (b.variance_egp || 0) - (a.variance_egp || 0));
   let totalVariance = 0;
-  let flaggedCount = 0;
+  let totalRentAtRisk = 0;
 
-  for (const tenant of tenants) {
-    const tenantId = tenant.id as string;
-    const tenantName = (tenant.name as string) || "Unknown";
-    const category = ((tenant.category as string) || "other").toLowerCase();
-    const params = categoryParams[category] || categoryParams.other;
+  for (const r of flagged) {
+    const variance = Math.round(r.variance_egp || 0);
+    const rentAtRisk = Math.round(r.rent_at_risk_egp ?? 0);
+    totalVariance += variance;
+    totalRentAtRisk += rentAtRisk;
+    const reported = Math.round(r.reported_revenue_egp ?? 0);
+    const estimated = Math.round(r.estimated_mid_egp || 0);
 
-    // Get leases for this tenant
-    const leases = (tenant.leases as Array<Record<string, unknown>>) || [];
-    if (leases.length === 0) continue;
+    results.push({
+      action: "revenue_verifier",
+      description: `${r.tenant_name} (${r.category}, unit ${r.unit_number}) — ${period}: reported EGP ${reported.toLocaleString()} vs estimated EGP ${estimated.toLocaleString()} (${Math.round(r.variance_pct || 0)}% variance, confidence ${r.confidence})`,
+      impact: `EGP ${variance.toLocaleString()} potential underreporting — EGP ${rentAtRisk.toLocaleString()} percentage rent at risk`,
+      timestamp: ts(),
+    });
 
-    // Get reported sales for current month
-    const { data: salesData } = await supabase
-      .from("tenant_sales_reported")
-      .select("reported_revenue_egp")
-      .eq("tenant_id", tenantId)
-      .eq("period_month", currentMonth)
-      .eq("period_year", currentYear)
-      .limit(1);
-
-    const reportedRevenue = (salesData && salesData.length > 0)
-      ? (salesData[0] as Record<string, unknown>).reported_revenue_egp as number || 0
-      : 0;
-
-    if (reportedRevenue === 0) continue; // No reported data to verify
-
-    // Get unit zone IDs for footfall
-    const unitData = leases[0]?.units as Record<string, unknown> | null;
-    const zoneId = unitData?.zone_id as string | null;
-
-    if (!zoneId) continue;
-
-    // Get zone footfall for current month (using daily aggregates)
-    const monthStart = `${currentYear}-${String(currentMonth).padStart(2, "0")}-01`;
-    const { data: footfallData } = await supabase
-      .from("footfall_daily")
-      .select("total_in")
-      .eq("zone_id", zoneId)
-      .gte("date", monthStart);
-
-    const totalFootfall = (footfallData || []).reduce(
-      (sum: number, f: Record<string, unknown>) =>
-        sum + ((f.total_in as number) || 0),
-      0
-    );
-
-    if (totalFootfall === 0) continue;
-
-    // Estimate revenue: footfall * conversion * avg_ticket
-    // Weighted by tenant's unit area as proportion of zone
-    const unitArea = (unitData?.area_sqm as number) || 50;
-
-    // Get total zone area for proportion
-    const { data: zoneUnits } = await supabase
-      .from("units")
-      .select("area_sqm")
-      .eq("zone_id", zoneId)
-      .eq("status", "occupied");
-
-    const totalZoneArea = (zoneUnits || []).reduce(
-      (sum: number, u: Record<string, unknown>) =>
-        sum + ((u.area_sqm as number) || 0),
-      0
-    );
-
-    const areaShare = totalZoneArea > 0 ? unitArea / totalZoneArea : 0.1;
-    const estimatedFootfall = totalFootfall * areaShare;
-    const estimatedRevenue = estimatedFootfall * params.conversion * params.avgTicket;
-
-    if (estimatedRevenue === 0) continue;
-
-    const varianceEgp = estimatedRevenue - reportedRevenue;
-    const variancePct = (varianceEgp / estimatedRevenue) * 100;
-
-    // Flag if variance > 25%
-    if (variancePct > 25 && varianceEgp > 5000) {
-      flaggedCount++;
-      totalVariance += varianceEgp;
-
-      // Create or update discrepancy record
-      const { data: existing } = await supabase
-        .from("discrepancies")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .eq("period_month", currentMonth)
-        .eq("period_year", currentYear)
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        await supabase
-          .from("discrepancies")
-          .update({
-            estimated_revenue_egp: Math.round(estimatedRevenue),
-            reported_revenue_egp: Math.round(reportedRevenue),
-            variance_egp: Math.round(varianceEgp),
-            variance_pct: Math.round(variancePct),
-            status: "flagged",
-            flagged_at: ts(),
-          })
-          .eq("id", (existing[0] as Record<string, unknown>).id);
-      } else {
-        await supabase.from("discrepancies").insert({
-          property_id: PROPERTY_ID,
-          unit_id: unitData?.id || null,
-          tenant_id: tenantId,
-          period_month: currentMonth,
-          period_year: currentYear,
-          reported_revenue_egp: Math.round(reportedRevenue),
-          estimated_revenue_egp: Math.round(estimatedRevenue),
-          variance_egp: Math.round(varianceEgp),
-          variance_pct: Math.round(variancePct),
-          confidence: Math.min(90, 50 + (footfallData?.length || 0) * 2),
-          status: "flagged",
-          flagged_at: ts(),
-        });
-      }
-
-      const r: AutomationResult = {
-        action: "revenue_verifier",
-        description: `${tenantName} (${category}) — reported EGP ${reportedRevenue.toLocaleString()} vs estimated EGP ${Math.round(estimatedRevenue).toLocaleString()} (${Math.round(variancePct)}% variance)`,
-        impact: `EGP ${Math.round(varianceEgp).toLocaleString()} potential underreporting`,
-        timestamp: ts(),
-      };
-      results.push(r);
-      logResult(r);
-
-      // Emit underreporting event
-      await emitEvent("tenant.underreporting", "automations-engine", {
-        tenant_id: tenantId,
-        tenant_name: tenantName,
-        reported_revenue: Math.round(reportedRevenue),
-        estimated_revenue: Math.round(estimatedRevenue),
-        variance_egp: Math.round(varianceEgp),
-        variance_pct: Math.round(variancePct),
-        category,
-      }, supabase);
-    }
+    await emitEvent("tenant.underreporting", "automations-engine", {
+      tenant_id: r.tenant_id,
+      tenant_name: r.tenant_name,
+      unit_id: r.unit_id,
+      lease_id: r.lease_id,
+      period_month: month,
+      period_year: year,
+      reported_revenue: reported,
+      estimated_revenue: estimated,
+      variance_egp: variance,
+      variance_pct: Math.round(r.variance_pct || 0),
+      rent_at_risk_egp: rentAtRisk,
+      confidence: r.confidence,
+      category: r.category,
+    }, supabase);
   }
 
-  const summary: AutomationResult = {
+  const count = (status: string) => all.filter((r) => (r.status as string) === status).length;
+  const missing = count("missing_report");
+  const insufficient = count("insufficient_data");
+
+  if (flagged.length > 0) {
+    await createNotification(supabase, {
+      title: `Revenue verification ${period}: ${flagged.length} tenant(s) flagged`,
+      message: `${flagged.slice(0, 3).map((r) => r.tenant_name).join(", ")}${flagged.length > 3 ? ` and ${flagged.length - 3} more` : ""} — EGP ${totalRentAtRisk.toLocaleString()} percentage rent at risk (EGP ${totalVariance.toLocaleString()} sales variance).`,
+      type: "warning",
+      category: "revenue",
+      link: "/dashboard/discrepancies",
+    });
+  }
+
+  results.push({
     action: "revenue_verifier",
-    description: `Revenue verification complete — ${flaggedCount} tenants flagged for underreporting`,
-    impact: `Total potential recovery: EGP ${Math.round(totalVariance).toLocaleString()}`,
+    description: `Revenue verification ${period} complete — ${all.length} tenants checked, ${flagged.length} flagged, ${missing} missing reports, ${insufficient} with insufficient data`,
+    impact: `EGP ${totalRentAtRisk.toLocaleString()} percentage rent at risk (EGP ${totalVariance.toLocaleString()} sales variance)`,
     timestamp: ts(),
-  };
-  results.push(summary);
-  logResult(summary);
+  });
 
   return results;
 }
@@ -534,7 +448,6 @@ async function runEnergyOptimizer(supabase: SupabaseClient): Promise<AutomationR
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
     return results;
   }
 
@@ -593,7 +506,6 @@ async function runEnergyOptimizer(supabase: SupabaseClient): Promise<AutomationR
         timestamp: ts(),
       };
       results.push(r);
-      logResult(r);
 
       await emitEvent("energy.waste_detected", "automations-engine", {
         zone_id: zoneId,
@@ -615,7 +527,6 @@ async function runEnergyOptimizer(supabase: SupabaseClient): Promise<AutomationR
         timestamp: ts(),
       };
       results.push(r);
-      logResult(r);
     }
   }
 
@@ -626,7 +537,6 @@ async function runEnergyOptimizer(supabase: SupabaseClient): Promise<AutomationR
     timestamp: ts(),
   };
   results.push(summary);
-  logResult(summary);
 
   return results;
 }
@@ -653,7 +563,6 @@ async function runMaintenanceDetector(supabase: SupabaseClient): Promise<Automat
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
     return results;
   }
 
@@ -685,7 +594,6 @@ async function runMaintenanceDetector(supabase: SupabaseClient): Promise<Automat
         timestamp: ts(),
       };
       results.push(r);
-      logResult(r);
 
       await emitEvent("anomaly.detected", "automations-engine", {
         description: `Maintenance pattern: ${group.length} ${category} tickets in ${zoneName} within 30 days`,
@@ -722,7 +630,6 @@ async function runMaintenanceDetector(supabase: SupabaseClient): Promise<Automat
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
 
     await emitEvent("maintenance.created", "automations-engine", {
       ticket_id: (ticket as Record<string, unknown>).id,
@@ -741,7 +648,6 @@ async function runMaintenanceDetector(supabase: SupabaseClient): Promise<Automat
     timestamp: ts(),
   };
   results.push(summary);
-  logResult(summary);
 
   return results;
 }
@@ -767,7 +673,6 @@ async function runFootfallAnalyzer(supabase: SupabaseClient): Promise<Automation
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
     return results;
   }
 
@@ -832,7 +737,6 @@ async function runFootfallAnalyzer(supabase: SupabaseClient): Promise<Automation
         timestamp: ts(),
       };
       results.push(r);
-      logResult(r);
 
       await emitEvent("footfall.drop", "automations-engine", {
         zone_id: zoneId,
@@ -853,7 +757,6 @@ async function runFootfallAnalyzer(supabase: SupabaseClient): Promise<Automation
         timestamp: ts(),
       };
       results.push(r);
-      logResult(r);
 
       await emitEvent("footfall.spike", "automations-engine", {
         zone_id: zoneId,
@@ -874,7 +777,6 @@ async function runFootfallAnalyzer(supabase: SupabaseClient): Promise<Automation
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
   }
 
   return results;
@@ -901,7 +803,6 @@ async function runTenantScorer(supabase: SupabaseClient): Promise<AutomationResu
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
     return results;
   }
 
@@ -1035,7 +936,6 @@ async function runTenantScorer(supabase: SupabaseClient): Promise<AutomationResu
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
   }
 
   // Bottom 10
@@ -1048,7 +948,6 @@ async function runTenantScorer(supabase: SupabaseClient): Promise<AutomationResu
       timestamp: ts(),
     };
     results.push(r);
-    logResult(r);
   }
 
   const avgScore = scores.length > 0
@@ -1062,23 +961,18 @@ async function runTenantScorer(supabase: SupabaseClient): Promise<AutomationResu
     timestamp: ts(),
   };
   results.push(summary);
-  logResult(summary);
 
   return results;
 }
 
 // ── Automation Registry ─────────────────────────────────────
 
-const automations: Automation[] = [
+const automations: AutomationDefinition[] = [
   {
     id: "auto-lease-monitor",
     name: "Lease Monitor",
     type: "lease_monitor",
     description: "Flags expiring leases, checks tenant performance, recommends renewals or replacements",
-    enabled: true,
-    last_run: null,
-    actions_taken: 0,
-    results: [],
     run: runLeaseMonitor,
   },
   {
@@ -1086,10 +980,6 @@ const automations: Automation[] = [
     name: "Rent Collector",
     type: "rent_collector",
     description: "Identifies overdue rent, detects chronic late payers, creates finance notifications",
-    enabled: true,
-    last_run: null,
-    actions_taken: 0,
-    results: [],
     run: runRentCollector,
   },
   {
@@ -1097,10 +987,6 @@ const automations: Automation[] = [
     name: "Revenue Verifier",
     type: "revenue_verifier",
     description: "Cross-references reported sales with footfall estimates, flags underreporting discrepancies",
-    enabled: true,
-    last_run: null,
-    actions_taken: 0,
-    results: [],
     run: runRevenueVerifier,
   },
   {
@@ -1108,10 +994,6 @@ const automations: Automation[] = [
     name: "Energy Optimizer",
     type: "energy_optimizer",
     description: "Compares energy usage with footfall per zone, identifies waste and calculates savings",
-    enabled: true,
-    last_run: null,
-    actions_taken: 0,
-    results: [],
     run: runEnergyOptimizer,
   },
   {
@@ -1119,10 +1001,6 @@ const automations: Automation[] = [
     name: "Maintenance Detector",
     type: "maintenance_detector",
     description: "Detects ticket patterns by zone/category, escalates overdue urgent tickets",
-    enabled: true,
-    last_run: null,
-    actions_taken: 0,
-    results: [],
     run: runMaintenanceDetector,
   },
   {
@@ -1130,10 +1008,6 @@ const automations: Automation[] = [
     name: "Footfall Analyzer",
     type: "footfall_analyzer",
     description: "Compares zone footfall vs 7-day average, cross-references with active campaigns",
-    enabled: true,
-    last_run: null,
-    actions_taken: 0,
-    results: [],
     run: runFootfallAnalyzer,
   },
   {
@@ -1141,97 +1015,478 @@ const automations: Automation[] = [
     name: "Tenant Scorer",
     type: "tenant_scorer",
     description: "Scores all tenants on revenue, payment reliability, discrepancies, and footfall contribution",
-    enabled: true,
-    last_run: null,
-    actions_taken: 0,
-    results: [],
     run: runTenantScorer,
   },
 ];
 
+// ── State persistence ───────────────────────────────────────
+
+function sanitizeState(raw: Record<string, unknown> | null | undefined): AutomationState {
+  const r = raw || {};
+  return {
+    enabled: typeof r.enabled === "boolean" ? r.enabled : true,
+    last_run: typeof r.last_run === "string" ? r.last_run : null,
+    actions_taken:
+      typeof r.actions_taken === "number" && Number.isFinite(r.actions_taken) && r.actions_taken > 0
+        ? Math.floor(r.actions_taken)
+        : 0,
+    last_results: Array.isArray(r.last_results) ? (r.last_results as AutomationResult[]) : [],
+  };
+}
+
+async function loadStates(supabase: SupabaseClient): Promise<Map<string, AutomationState>> {
+  const rows = await readSettingsByPrefix(supabase, STATE_PREFIX);
+  const out = new Map<string, AutomationState>();
+  for (const def of automations) out.set(def.id, sanitizeState(rows.get(STATE_PREFIX + def.id)));
+  return out;
+}
+
+function toMeta(def: AutomationDefinition, state: AutomationState): AutomationMeta {
+  return {
+    id: def.id,
+    name: def.name,
+    type: def.type,
+    description: def.description,
+    enabled: state.enabled,
+    last_run: state.last_run,
+    actions_taken: state.actions_taken,
+    results: state.last_results,
+  };
+}
+
+/** Append a run (or failure) to the system_events log. Best effort. */
+async function logRun(
+  supabase: SupabaseClient,
+  def: AutomationDefinition,
+  results: AutomationResult[],
+  failed: boolean,
+  trigger: string
+): Promise<void> {
+  const { error } = await supabase.from("system_events").insert({
+    type: failed ? "automation.error" : "automation.run",
+    source_system: "automations",
+    payload: {
+      property_id: PROPERTY_ID,
+      automation_id: def.id,
+      automation_type: def.type,
+      name: def.name,
+      trigger,
+      action_count: failed ? 0 : results.length,
+      results,
+    },
+    processed: true,
+    results: [],
+  });
+  if (error) logger.error({ err: error, automationId: def.id }, "Failed to log automation run");
+}
+
+/**
+ * Execute one automation, persist its state and log the run.
+ * A thrown error becomes a single error result; last_run is left unchanged.
+ */
+async function executeAutomation(
+  supabase: SupabaseClient,
+  def: AutomationDefinition,
+  trigger: string
+): Promise<{ results: AutomationResult[]; failed: boolean }> {
+  let results: AutomationResult[];
+  let failed = false;
+  try {
+    results = await def.run(supabase);
+  } catch (err) {
+    failed = true;
+    results = [{
+      action: def.type,
+      description: `Error in ${def.name}: ${err instanceof Error ? err.message : "Unknown error"}`,
+      impact: "Automation failed — check logs",
+      timestamp: ts(),
+    }];
+  }
+
+  // Persistence is best effort: a logging failure must not hide the results.
+  try {
+    if (!failed) {
+      // Re-read just before writing so a concurrent toggle is not overwritten.
+      const state = sanitizeState(await readSetting(supabase, STATE_PREFIX + def.id));
+      await writeSetting(supabase, STATE_PREFIX + def.id, {
+        ...state,
+        last_run: ts(),
+        actions_taken: state.actions_taken + results.length,
+        last_results: results.slice(0, MAX_STORED_RESULTS),
+      });
+    }
+    await logRun(supabase, def, results, failed, trigger);
+  } catch (err) {
+    logger.error({ err, automationId: def.id }, "Failed to persist automation run");
+  }
+  return { results, failed };
+}
+
 // ── Public API ──────────────────────────────────────────────
 
-export function getAutomations(): AutomationMeta[] {
-  return automations.map(({ run: _run, ...meta }) => meta);
+export async function getAutomations(supabase: SupabaseClient): Promise<AutomationMeta[]> {
+  const states = await loadStates(supabase);
+  return automations.map((def) => toMeta(def, states.get(def.id)!));
 }
 
-export function toggleAutomation(id: string, enabled: boolean): AutomationMeta | null {
-  const automation = automations.find((a) => a.id === id);
-  if (!automation) return null;
-  automation.enabled = enabled;
-  const { run: _run, ...meta } = automation;
-  return meta;
+/** Persist an enabled flag. Returns null for an unknown id; throws if the write fails. */
+export async function toggleAutomation(
+  supabase: SupabaseClient,
+  id: string,
+  enabled: boolean,
+  opts: { updatedBy?: string | null } = {}
+): Promise<AutomationMeta | null> {
+  const def = automations.find((a) => a.id === id);
+  if (!def) return null;
+  const state = sanitizeState(await readSetting(supabase, STATE_PREFIX + id));
+  const next = { ...state, enabled };
+  const ok = await writeSetting(supabase, STATE_PREFIX + id, { ...next }, { updatedBy: opts.updatedBy });
+  if (!ok) throw new Error("Failed to save automation state");
+  return toMeta(def, next);
 }
 
+/** Newest-first flattened results from the system_events run log. */
+export async function getAutomationLog(
+  supabase: SupabaseClient,
+  limit: number = 100
+): Promise<AutomationResult[]> {
+  const { data, error } = await supabase
+    .from("system_events")
+    .select("payload, created_at")
+    .in("type", [...AUTOMATION_EVENT_TYPES])
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (error || !Array.isArray(data)) return [];
+  const out: AutomationResult[] = [];
+  for (const row of data as Array<{ payload?: { results?: unknown } }>) {
+    const results = row?.payload?.results;
+    if (Array.isArray(results)) out.push(...(results as AutomationResult[]));
+    if (out.length >= limit) break;
+  }
+  return out.slice(0, limit);
+}
+
+/** Run one automation now (manual trigger — runs even when disabled). */
 export async function runAutomation(
   id: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  trigger: string = "manual"
 ): Promise<AutomationResult[]> {
-  const automation = automations.find((a) => a.id === id);
-  if (!automation) return [];
-
-  try {
-    const runResults = await automation.run(supabase);
-    automation.last_run = new Date().toISOString();
-    automation.actions_taken += runResults.length;
-    automation.results = runResults;
-    return runResults;
-  } catch (err) {
-    const errorResult: AutomationResult = {
-      action: automation.type,
-      description: `Error: ${err instanceof Error ? err.message : "Unknown error"}`,
-      impact: "Automation failed — check logs",
-      timestamp: new Date().toISOString(),
-    };
-    logResult(errorResult);
-    return [errorResult];
-  }
+  const def = automations.find((a) => a.id === id);
+  if (!def) return [];
+  return (await executeAutomation(supabase, def, trigger)).results;
 }
 
 export async function runAllAutomations(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  trigger: string = "manual"
 ): Promise<{ total_actions: number; results: Record<string, AutomationResult[]> }> {
   const allResults: Record<string, AutomationResult[]> = {};
   let totalActions = 0;
+  let ranCount = 0;
+  const states = await loadStates(supabase);
 
-  for (const automation of automations) {
-    if (!automation.enabled) {
-      allResults[automation.id] = [{
-        action: automation.type,
-        description: `${automation.name} is disabled — skipped`,
+  for (const def of automations) {
+    if (!states.get(def.id)!.enabled) {
+      allResults[def.id] = [{
+        action: def.type,
+        description: `${def.name} is disabled — skipped`,
         impact: "No action",
-        timestamp: new Date().toISOString(),
+        timestamp: ts(),
       }];
       continue;
     }
-
-    try {
-      const runResults = await automation.run(supabase);
-      automation.last_run = new Date().toISOString();
-      automation.actions_taken += runResults.length;
-      automation.results = runResults;
-      allResults[automation.id] = runResults;
-      totalActions += runResults.length;
-    } catch (err) {
-      const errorResult: AutomationResult = {
-        action: automation.type,
-        description: `Error in ${automation.name}: ${err instanceof Error ? err.message : "Unknown error"}`,
-        impact: "Automation failed",
-        timestamp: new Date().toISOString(),
-      };
-      allResults[automation.id] = [errorResult];
-      logResult(errorResult);
-    }
+    ranCount++;
+    const { results, failed } = await executeAutomation(supabase, def, trigger);
+    allResults[def.id] = results;
+    if (!failed) totalActions += results.length;
   }
 
   // Create summary notification
   await createNotification(supabase, {
     title: `Smart Automations Complete`,
-    message: `${automations.filter((a) => a.enabled).length} automations ran, ${totalActions} total actions taken`,
+    message: `${ranCount} automations ran, ${totalActions} total actions taken`,
     type: "info",
     category: "automations",
     link: "/dashboard/ai/automations",
   });
 
   return { total_actions: totalActions, results: allResults };
+}
+
+// ── Scheduler (driven by Vercel Cron → /api/v1/ai/cron) ─────
+
+export type ScheduledJob = "cycle" | "automations";
+
+export interface SchedulerState {
+  /** Master switch for scheduled jobs (manual "run now" ignores it). */
+  enabled: boolean;
+  /** Minimum minutes between scheduler cycles. Cron fires hourly, so ≥ 60. */
+  interval_minutes: number;
+  last_run: string | null;
+  total_cycles: number;
+  automations_last_run: string | null;
+}
+
+const SCHEDULER_KEY = "scheduler";
+export const SCHEDULER_INTERVAL_MIN = 60;
+export const SCHEDULER_INTERVAL_MAX = 1440;
+/** Cron jitter allowance so an hourly cron is not skipped for being 1s early. */
+const DUE_SLACK_MS = 5 * 60 * 1000;
+
+function clampSchedulerInterval(v: unknown): number | null {
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  return Math.max(SCHEDULER_INTERVAL_MIN, Math.min(SCHEDULER_INTERVAL_MAX, Math.round(v)));
+}
+
+function sanitizeScheduler(raw: Record<string, unknown> | null): SchedulerState {
+  const r = raw || {};
+  return {
+    enabled: typeof r.enabled === "boolean" ? r.enabled : true,
+    interval_minutes: clampSchedulerInterval(r.interval_minutes) ?? SCHEDULER_INTERVAL_MIN,
+    last_run: typeof r.last_run === "string" ? r.last_run : null,
+    total_cycles:
+      typeof r.total_cycles === "number" && Number.isFinite(r.total_cycles) && r.total_cycles > 0
+        ? Math.floor(r.total_cycles)
+        : 0,
+    automations_last_run: typeof r.automations_last_run === "string" ? r.automations_last_run : null,
+  };
+}
+
+export async function getSchedulerState(supabase: SupabaseClient): Promise<SchedulerState> {
+  return sanitizeScheduler(await readSetting(supabase, SCHEDULER_KEY));
+}
+
+/** Persist enabled / interval changes. Throws if the write fails. */
+export async function updateSchedulerState(
+  supabase: SupabaseClient,
+  updates: { enabled?: boolean; interval_minutes?: number },
+  opts: { updatedBy?: string | null } = {}
+): Promise<SchedulerState> {
+  const state = await getSchedulerState(supabase);
+  const next = { ...state };
+  if (typeof updates.enabled === "boolean") next.enabled = updates.enabled;
+  const interval = clampSchedulerInterval(updates.interval_minutes);
+  if (interval !== null) next.interval_minutes = interval;
+  const ok = await writeSetting(supabase, SCHEDULER_KEY, { ...next }, { updatedBy: opts.updatedBy });
+  if (!ok) throw new Error("Failed to save scheduler state");
+  return next;
+}
+
+/** Shallow merge into the scheduler row, re-reading first (best effort). */
+async function patchSchedulerState(
+  supabase: SupabaseClient,
+  patch: (s: SchedulerState) => Partial<SchedulerState>
+): Promise<void> {
+  const state = await getSchedulerState(supabase);
+  await writeSetting(supabase, SCHEDULER_KEY, { ...state, ...patch(state) });
+}
+
+export interface ScheduledJobOutcome {
+  job: ScheduledJob;
+  status: "ran" | "skipped" | "locked";
+  reason?: string;
+  results?: Record<string, unknown>;
+}
+
+/**
+ * Run a scheduled job idempotently. Cron calls this with force=false (honours
+ * the scheduler switch and interval); an owner's "run now" passes force=true.
+ * A lock row in system_settings guarantees at most one run of a job at a time.
+ */
+export async function runScheduledJob(
+  supabase: SupabaseClient,
+  job: ScheduledJob,
+  opts: { force?: boolean; trigger?: "cron" | "manual" } = {}
+): Promise<ScheduledJobOutcome> {
+  const force = opts.force ?? false;
+  const trigger = opts.trigger ?? "cron";
+  const state = await getSchedulerState(supabase);
+
+  if (!force && !state.enabled) return { job, status: "skipped", reason: "scheduler disabled" };
+  if (!force && job === "cycle" && state.last_run) {
+    const elapsed = Date.now() - new Date(state.last_run).getTime();
+    if (elapsed + DUE_SLACK_MS < state.interval_minutes * 60_000) {
+      return { job, status: "skipped", reason: `not due (interval ${state.interval_minutes}m)` };
+    }
+  }
+
+  const lockName = job === "cycle" ? "scheduler_cycle" : "automations";
+  const holder = await acquireJobLock(supabase, lockName, JOB_LOCK_TTL_MS);
+  if (!holder) return { job, status: "locked", reason: "another run is in progress" };
+
+  try {
+    const results =
+      job === "cycle"
+        ? await executeSchedulerCycle(supabase, trigger)
+        : await executeAutomationsJob(supabase, trigger);
+    return { job, status: "ran", results };
+  } finally {
+    await releaseJobLock(supabase, lockName, holder);
+  }
+}
+
+/** Daily job: smart automations + ML model retraining. */
+async function executeAutomationsJob(
+  supabase: SupabaseClient,
+  trigger: string
+): Promise<Record<string, unknown>> {
+  const start = Date.now();
+  const results: Record<string, unknown> = { timestamp: ts(), trigger };
+
+  try {
+    const autoResult = await runAllAutomations(supabase, trigger);
+    results.automations = {
+      total_actions: autoResult.total_actions,
+      automation_count: Object.keys(autoResult.results).length,
+    };
+  } catch (err) {
+    results.automations_error = err instanceof Error ? err.message : "Automations failed";
+  }
+
+  try {
+    const [footfallModel, revenueModel] = await Promise.all([
+      trainFootfallModel(supabase),
+      trainRevenueModel(supabase),
+    ]);
+    results.predictions = {
+      footfall_r2: footfallModel.r_squared,
+      footfall_samples: footfallModel.training_samples,
+      revenue_r2: revenueModel.r_squared,
+      revenue_samples: revenueModel.training_samples,
+    };
+  } catch (err) {
+    results.predictions_error = err instanceof Error ? err.message : "ML retraining failed";
+  }
+
+  results.duration_ms = Date.now() - start;
+  await patchSchedulerState(supabase, () => ({ automations_last_run: results.timestamp as string }));
+  await supabase.from("system_events").insert({
+    type: "scheduler.automations_completed",
+    source_system: "scheduler",
+    payload: results,
+    processed: true,
+    results: [],
+  });
+  return results;
+}
+
+/** Hourly job: AI Brain cycle + operational checks. */
+async function executeSchedulerCycle(
+  supabase: SupabaseClient,
+  trigger: string
+): Promise<Record<string, unknown>> {
+  const start = Date.now();
+  const timestamp = ts();
+  const results: Record<string, unknown> = { timestamp, trigger };
+
+  try {
+    // 0. AI Brain cycle (if enabled; skipped if a manual cycle is running)
+    const brainConfig = await getBrainConfig(supabase);
+    if (brainConfig.enabled) {
+      try {
+        const brainResult = await runBrainCycleExclusive(supabase);
+        results.brain = brainResult
+          ? {
+              cycle_id: brainResult.cycle_id,
+              decisions: brainResult.decisions.length,
+              source: brainResult.source,
+              model: brainResult.model,
+              fallback_reason: brainResult.fallback_reason,
+              summary: brainResult.summary,
+              duration_ms: brainResult.duration_ms,
+            }
+          : { skipped: true, reason: "Brain cycle already running" };
+      } catch (err) {
+        results.brain_error = err instanceof Error ? err.message : "Brain cycle failed";
+      }
+    } else {
+      results.brain = { skipped: true, reason: "Brain disabled" };
+    }
+
+    // 1. Expiring leases (within 90 days)
+    const ninetyDaysOut = new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0];
+    const { data: expiringLeases } = await supabase
+      .from("leases")
+      .select("id, tenant_id, end_date, tenants(name)")
+      .eq("status", "active")
+      .lte("end_date", ninetyDaysOut);
+
+    if (expiringLeases && expiringLeases.length > 0) {
+      for (const lease of expiringLeases.slice(0, 3)) {
+        const tenantName = (lease.tenants as unknown as Record<string, unknown> | null)?.name || "Unknown";
+        await emitEvent("lease.expiring", "scheduler", {
+          lease_id: lease.id,
+          tenant_id: lease.tenant_id,
+          tenant_name: tenantName,
+          end_date: lease.end_date,
+        }, supabase);
+      }
+      results.expiring_leases = expiringLeases.length;
+    }
+
+    // 2. Overdue rent
+    const { data: overdueRent } = await supabase
+      .from("rent_transactions")
+      .select("id")
+      .eq("status", "overdue")
+      .limit(10);
+    results.overdue_rent = overdueRent?.length || 0;
+
+    // 3. Anomalies
+    const { data: activeAnomalies } = await supabase
+      .from("anomalies")
+      .select("id, severity")
+      .eq("status", "active");
+    results.active_anomalies = activeAnomalies?.length || 0;
+    results.critical_anomalies = (activeAnomalies || []).filter(
+      (a: Record<string, unknown>) => a.severity === "critical"
+    ).length;
+
+    // 4. Footfall today vs yesterday
+    const today = new Date().toISOString().split("T")[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const [{ data: todayFootfall }, { data: yesterdayFootfall }] = await Promise.all([
+      supabase.from("footfall_daily").select("total_in").eq("date", today),
+      supabase.from("footfall_daily").select("total_in").eq("date", yesterday),
+    ]);
+    const sum = (rows: Array<Record<string, unknown>> | null) =>
+      (rows || []).reduce((s: number, r) => s + ((r.total_in as number) || 0), 0);
+    const todayTotal = sum(todayFootfall);
+    const yesterdayTotal = sum(yesterdayFootfall);
+    if (yesterdayTotal > 0 && todayTotal < yesterdayTotal * 0.7) {
+      await emitEvent("footfall.drop", "scheduler", {
+        today_total: todayTotal,
+        yesterday_total: yesterdayTotal,
+        drop_pct: Math.round((1 - todayTotal / yesterdayTotal) * 100),
+      }, supabase);
+      results.footfall_alert = true;
+    }
+    results.footfall_today = todayTotal;
+
+    // 5. Energy today
+    const { data: energyToday } = await supabase
+      .from("energy_readings")
+      .select("consumption_kwh, cost_egp")
+      .gte("timestamp", today);
+    results.energy_kwh_today = Math.round(
+      (energyToday || []).reduce((s: number, r: Record<string, unknown>) => s + ((r.consumption_kwh as number) || 0), 0)
+    );
+    results.energy_cost_today = Math.round(
+      (energyToday || []).reduce((s: number, r: Record<string, unknown>) => s + ((r.cost_egp as number) || 0), 0)
+    );
+  } catch (err) {
+    results.error = err instanceof Error ? err.message : "Cycle failed";
+  }
+
+  results.duration_ms = Date.now() - start;
+  await patchSchedulerState(supabase, (s) => ({ last_run: timestamp, total_cycles: s.total_cycles + 1 }));
+  await supabase.from("system_events").insert({
+    type: "scheduler.cycle_completed",
+    source_system: "scheduler",
+    payload: results,
+    processed: true,
+    results: [],
+  });
+  return results;
 }

@@ -1,4 +1,14 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import Anthropic, {
+  APIConnectionError,
+  APIConnectionTimeoutError,
+  APIError,
+  AuthenticationError,
+  NotFoundError,
+  RateLimitError,
+} from "@anthropic-ai/sdk";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { z } from "zod";
 import { emitEvent } from "@/lib/event-bus";
 import { createNotification } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
@@ -12,22 +22,33 @@ import { logger } from "@/lib/logger";
 //   - Supervised: decisions require human approval
 //   - Autonomous: safe decisions auto-execute via Event Bus
 //
-// Uses Claude API when ANTHROPIC_API_KEY is set, otherwise
-// falls back to rule-based analysis.
+// Uses Claude (official @anthropic-ai/sdk) when ANTHROPIC_API_KEY
+// is set, otherwise — or when the model output fails validation —
+// falls back to rule-based analysis. Every stored decision records
+// its source ("claude" | "rules"), model id and fallback reason.
+//
+// Configuration and counters live in the `system_settings` table,
+// never in module memory: on Vercel each serverless instance has
+// its own memory, so a mode switch must be visible to all of them.
 // ============================================================
 
-const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
+export const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
 
 // ── Types ───────────────────────────────────────────────────
 
-export type BrainCategory =
-  | "revenue"
-  | "leasing"
-  | "operations"
-  | "energy"
-  | "tenant"
-  | "marketing"
-  | "maintenance";
+export const BRAIN_CATEGORIES = [
+  "revenue",
+  "leasing",
+  "operations",
+  "energy",
+  "tenant",
+  "marketing",
+  "maintenance",
+] as const;
+
+export type BrainCategory = (typeof BRAIN_CATEGORIES)[number];
+
+export type BrainSource = "claude" | "rules";
 
 export interface BrainDecision {
   id?: string;
@@ -45,6 +66,12 @@ export interface BrainDecision {
   event_payload: Record<string, unknown>;
   data_snapshot: Record<string, unknown>;
   summary: string | null;
+  /** Where the decision came from — lets the UI tell Claude from rules. */
+  source: BrainSource;
+  /** Model that produced the decision (null for rule-based decisions). */
+  model: string | null;
+  /** Why Claude was not used for this cycle (null when source = "claude"). */
+  fallback_reason: string | null;
   created_at?: string;
 }
 
@@ -118,37 +145,260 @@ export interface BrainCycleResult {
   snapshot: PropertySnapshot;
   decisions: BrainDecision[];
   summary: string;
-  source: "claude" | "rules";
+  source: BrainSource;
+  /** Model that served the cycle (null when rules were used). */
+  model: string | null;
+  /** Why the cycle fell back to rules (null when source = "claude"). */
+  fallback_reason: string | null;
   duration_ms: number;
 }
 
-// ── In-memory config (resets on deploy) ─────────────────────
+// ── System settings (durable, shared across instances) ──────
 
-const brainConfig: BrainConfig = {
+export const SETTINGS_TABLE = "system_settings";
+
+/** Read one system_settings value; null when missing or on error. */
+export async function readSetting<T = Record<string, unknown>>(
+  supabase: SupabaseClient,
+  key: string,
+  propertyId: string = PROPERTY_ID
+): Promise<T | null> {
+  const { data, error } = await supabase
+    .from(SETTINGS_TABLE)
+    .select("value")
+    .eq("property_id", propertyId)
+    .eq("key", key)
+    .maybeSingle();
+  if (error) {
+    logger.error({ err: error, key }, "Failed to read system setting");
+    return null;
+  }
+  const value = (data as { value?: unknown } | null)?.value;
+  return value && typeof value === "object" ? (value as T) : null;
+}
+
+/** Read every setting whose key starts with `prefix` (e.g. "automation:"). */
+export async function readSettingsByPrefix<T = Record<string, unknown>>(
+  supabase: SupabaseClient,
+  prefix: string,
+  propertyId: string = PROPERTY_ID
+): Promise<Map<string, T>> {
+  const out = new Map<string, T>();
+  const { data, error } = await supabase
+    .from(SETTINGS_TABLE)
+    .select("key, value")
+    .eq("property_id", propertyId)
+    .like("key", `${prefix}%`);
+  if (error) {
+    logger.error({ err: error, prefix }, "Failed to read system settings");
+    return out;
+  }
+  for (const row of (data || []) as Array<{ key: string; value: unknown }>) {
+    if (row && typeof row.key === "string" && row.value && typeof row.value === "object") {
+      out.set(row.key, row.value as T);
+    }
+  }
+  return out;
+}
+
+/** Upsert one system_settings value. Returns false on error. */
+export async function writeSetting(
+  supabase: SupabaseClient,
+  key: string,
+  value: Record<string, unknown>,
+  opts: { propertyId?: string; updatedBy?: string | null } = {}
+): Promise<boolean> {
+  const { error } = await supabase.from(SETTINGS_TABLE).upsert(
+    {
+      property_id: opts.propertyId ?? PROPERTY_ID,
+      key,
+      value,
+      updated_at: new Date().toISOString(),
+      updated_by: opts.updatedBy ?? null,
+    },
+    { onConflict: "property_id,key" }
+  );
+  if (error) {
+    logger.error({ err: error, key }, "Failed to write system setting");
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Take a job lock (row "lock:<job>" in system_settings) so a cron job never
+ * runs twice at once across instances or retries. Returns a holder token, or
+ * null when another holder has an unexpired lock. An expired lock is taken
+ * over with a single conditional UPDATE, so two contenders cannot both win.
+ */
+export async function acquireJobLock(
+  supabase: SupabaseClient,
+  job: string,
+  ttlMs: number,
+  propertyId: string = PROPERTY_ID
+): Promise<string | null> {
+  const key = `lock:${job}`;
+  const holder = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const now = new Date();
+  const value = {
+    holder,
+    acquired_at: now.toISOString(),
+    expires_at: new Date(now.getTime() + ttlMs).toISOString(),
+  };
+
+  const { error: insertError } = await supabase
+    .from(SETTINGS_TABLE)
+    .insert({ property_id: propertyId, key, value, updated_at: now.toISOString() });
+  if (!insertError) return holder;
+
+  // 23505 = unique_violation: a lock row exists — take it only if expired.
+  if ((insertError as { code?: string }).code !== "23505") {
+    logger.error({ err: insertError, job }, "Failed to acquire job lock");
+    return null;
+  }
+  const { data, error } = await supabase
+    .from(SETTINGS_TABLE)
+    .update({ value, updated_at: now.toISOString() })
+    .eq("property_id", propertyId)
+    .eq("key", key)
+    .lt("value->>expires_at", now.toISOString())
+    .select("key");
+  if (error) {
+    logger.error({ err: error, job }, "Failed to take over expired job lock");
+    return null;
+  }
+  return Array.isArray(data) && data.length > 0 ? holder : null;
+}
+
+/** Release a lock taken by acquireJobLock (only if we still hold it). */
+export async function releaseJobLock(
+  supabase: SupabaseClient,
+  job: string,
+  holder: string,
+  propertyId: string = PROPERTY_ID
+): Promise<void> {
+  const { error } = await supabase
+    .from(SETTINGS_TABLE)
+    .delete()
+    .eq("property_id", propertyId)
+    .eq("key", `lock:${job}`)
+    .eq("value->>holder", holder);
+  if (error) logger.error({ err: error, job }, "Failed to release job lock");
+}
+
+// ── Brain config (persisted) ────────────────────────────────
+
+const BRAIN_CONFIG_KEY = "brain_config";
+const BRAIN_STATS_KEY = "brain_stats";
+const INTERVAL_MIN = 5;
+const INTERVAL_MAX = 120;
+
+type BrainSettings = Pick<BrainConfig, "mode" | "enabled" | "interval_minutes">;
+type BrainStats = Pick<BrainConfig, "last_cycle" | "total_cycles" | "total_decisions" | "total_executed">;
+
+const DEFAULT_BRAIN_SETTINGS: BrainSettings = {
   mode: "supervised",
   enabled: true,
   interval_minutes: 30,
-  last_cycle: null,
-  total_cycles: 0,
-  total_decisions: 0,
-  total_executed: 0,
 };
+
+/** Clamp an interval to [5,120] minutes; non-finite input yields null. */
+export function clampBrainInterval(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return Math.max(INTERVAL_MIN, Math.min(INTERVAL_MAX, Math.round(value)));
+}
+
+function sanitizeBrainSettings(raw: Record<string, unknown> | null): BrainSettings {
+  const r = raw || {};
+  return {
+    // Anything other than an explicit "autonomous" is treated as supervised:
+    // a missing or corrupt row must never switch on auto-execution.
+    mode: r.mode === "autonomous" ? "autonomous" : "supervised",
+    enabled: typeof r.enabled === "boolean" ? r.enabled : DEFAULT_BRAIN_SETTINGS.enabled,
+    interval_minutes: clampBrainInterval(r.interval_minutes) ?? DEFAULT_BRAIN_SETTINGS.interval_minutes,
+  };
+}
+
+function nonNegInt(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
+function sanitizeBrainStats(raw: Record<string, unknown> | null): BrainStats {
+  const r = raw || {};
+  return {
+    last_cycle: typeof r.last_cycle === "string" ? r.last_cycle : null,
+    total_cycles: nonNegInt(r.total_cycles),
+    total_decisions: nonNegInt(r.total_decisions),
+    total_executed: nonNegInt(r.total_executed),
+  };
+}
 
 // ── Config accessors ────────────────────────────────────────
 
-export function getBrainConfig(): BrainConfig {
-  return { ...brainConfig };
+/** Load the brain config + counters from system_settings (defaults if absent). */
+export async function getBrainConfig(
+  supabase: SupabaseClient,
+  propertyId: string = PROPERTY_ID
+): Promise<BrainConfig> {
+  const [settings, stats] = await Promise.all([
+    readSetting(supabase, BRAIN_CONFIG_KEY, propertyId),
+    readSetting(supabase, BRAIN_STATS_KEY, propertyId),
+  ]);
+  return { ...sanitizeBrainSettings(settings), ...sanitizeBrainStats(stats) };
 }
 
-export function updateBrainConfig(
-  updates: Partial<Pick<BrainConfig, "mode" | "enabled" | "interval_minutes">>
-): BrainConfig {
-  if (updates.mode !== undefined) brainConfig.mode = updates.mode;
-  if (updates.enabled !== undefined) brainConfig.enabled = updates.enabled;
-  if (updates.interval_minutes !== undefined) {
-    brainConfig.interval_minutes = Math.max(5, Math.min(120, updates.interval_minutes));
-  }
-  return { ...brainConfig };
+/**
+ * Persist a change to mode / enabled / interval. Invalid values are ignored
+ * (a NaN interval keeps the previous interval). Throws if the write fails so
+ * callers never report a mode switch that did not happen.
+ */
+export async function updateBrainConfig(
+  supabase: SupabaseClient,
+  updates: Partial<BrainSettings>,
+  opts: { propertyId?: string; updatedBy?: string | null } = {}
+): Promise<BrainConfig> {
+  const propertyId = opts.propertyId ?? PROPERTY_ID;
+  const current = await getBrainConfig(supabase, propertyId);
+  const before = sanitizeBrainSettings(current as unknown as Record<string, unknown>);
+  const next: BrainSettings = { ...before };
+
+  if (updates.mode === "supervised" || updates.mode === "autonomous") next.mode = updates.mode;
+  if (typeof updates.enabled === "boolean") next.enabled = updates.enabled;
+  const interval = clampBrainInterval(updates.interval_minutes);
+  if (interval !== null) next.interval_minutes = interval;
+
+  const ok = await writeSetting(supabase, BRAIN_CONFIG_KEY, { ...next }, {
+    propertyId,
+    updatedBy: opts.updatedBy,
+  });
+  if (!ok) throw new Error("Failed to save brain config");
+
+  await logAudit(supabase, {
+    user_id: opts.updatedBy ?? undefined,
+    action: "brain_config_updated",
+    category: "ai_brain",
+    description: `Brain config changed: mode ${before.mode} → ${next.mode}, enabled ${before.enabled} → ${next.enabled}, interval ${before.interval_minutes} → ${next.interval_minutes}m`,
+    old_data: { ...before },
+    new_data: { ...next },
+  });
+
+  return { ...current, ...next };
+}
+
+/** Add to the persisted brain counters (best effort). */
+async function bumpBrainStats(
+  supabase: SupabaseClient,
+  delta: { cycles?: number; decisions?: number; executed?: number; last_cycle?: string },
+  propertyId: string = PROPERTY_ID
+): Promise<void> {
+  const stats = sanitizeBrainStats(await readSetting(supabase, BRAIN_STATS_KEY, propertyId));
+  const next: BrainStats = {
+    last_cycle: delta.last_cycle ?? stats.last_cycle,
+    total_cycles: stats.total_cycles + (delta.cycles ?? 0),
+    total_decisions: stats.total_decisions + (delta.decisions ?? 0),
+    total_executed: stats.total_executed + (delta.executed ?? 0),
+  };
+  await writeSetting(supabase, BRAIN_STATS_KEY, { ...next }, { propertyId });
 }
 
 // ── Data Gathering ──────────────────────────────────────────
@@ -439,25 +689,55 @@ export async function gatherPropertySnapshot(
 
 // ── Claude API Call ─────────────────────────────────────────
 
-async function callClaudeAPI(
-  snapshot: PropertySnapshot
-): Promise<{ decisions: BrainDecision[]; summary: string } | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
+/**
+ * Default model. Override with ANTHROPIC_MODEL (e.g. to pin a different
+ * Claude model). Note: the request below uses adaptive thinking and
+ * `output_config.effort`, which require a current (4.6+) Claude model.
+ */
+export const DEFAULT_ANTHROPIC_MODEL = "claude-opus-5-5";
 
-  const systemPrompt = `You are Wedja Brain — the AI that runs Senzo Mall, Hurghada.
-170,000 sqm, 166 tenants, 15,000+ daily visitors.
+export function getAnthropicModel(): string {
+  return process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL;
+}
+
+/** Per-request timeout (ms) and SDK retries (408/409/429/5xx + network). */
+export const ANTHROPIC_TIMEOUT_MS = 90_000;
+export const ANTHROPIC_MAX_RETRIES = 2;
+const MAX_CLAUDE_DECISIONS = 25;
+
+const BrainDecisionOutputSchema = z.object({
+  category: z.enum(BRAIN_CATEGORIES),
+  action: z.string().min(1),
+  reasoning: z.string().min(1),
+  confidence: z.number().describe("0-100, how sure you are"),
+  impact_estimate: z.string().nullable(),
+  auto_executable: z.boolean(),
+});
+
+/** Schema for the model's structured output; also validated client-side. */
+export const BrainOutputSchema = z.object({
+  decisions: z.array(BrainDecisionOutputSchema),
+  summary: z.string().min(1),
+});
+
+/** Clamp a confidence to [0,100]; 0 stays 0, non-finite → 0. */
+export function clampConfidence(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+const BRAIN_SYSTEM_PROMPT = `You are Wedja Brain — the AI that runs Senzo Mall, Hurghada.
+170,000 sqm, 166 tenants, 15,000+ daily visitors. All money is in EGP.
 
 Analyze the property snapshot and return ACTIONABLE decisions.
-Categories: revenue, leasing, operations, energy, tenant, marketing, maintenance
 
 For each decision provide:
-- category (one of: revenue, leasing, operations, energy, tenant, marketing, maintenance)
+- category (one of: ${BRAIN_CATEGORIES.join(", ")})
 - action (specific actionable step, 1-2 sentences)
-- reasoning (why this action matters, referencing data)
-- confidence (0-100, how sure you are)
-- impact_estimate (in EGP where possible, e.g. "EGP 50,000/month savings")
-- auto_executable (true ONLY for safe routine actions like sending reminders)
+- reasoning (why this action matters, referencing the snapshot data)
+- confidence (0-100, how sure you are; use low values when the data is thin)
+- impact_estimate (in EGP where possible, e.g. "EGP 50,000/month savings"; null if unknown)
+- auto_executable (true ONLY for safe routine actions like sending payment reminders)
 
 Focus on:
 - Revenue protection (underreporting detection, % rent optimization)
@@ -467,69 +747,132 @@ Focus on:
 - Marketing opportunities (seasonal events, campaigns)
 - Maintenance urgency and preventive scheduling
 
-Return ONLY valid JSON with no markdown formatting:
-{ "decisions": [...], "summary": "2-3 sentence executive summary" }`;
+Also give a 2-3 sentence executive summary.`;
 
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: `Property Snapshot (${snapshot.timestamp}):\n\n${JSON.stringify(snapshot, null, 2)}`,
-          },
-        ],
-      }),
-    });
+export type ClaudeAnalysis =
+  | { ok: true; decisions: BrainDecision[]; summary: string; model: string }
+  | { ok: false; reason: string; model: string | null };
 
-    if (!response.ok) {
-      logger.error({ status: response.status, body: await response.text() }, "Claude API error");
-      return null;
-    }
+function createAnthropicClient(): Anthropic {
+  return new Anthropic({
+    timeout: ANTHROPIC_TIMEOUT_MS,
+    maxRetries: ANTHROPIC_MAX_RETRIES,
+  });
+}
 
-    const result = await response.json();
-    const text =
-      result.content?.[0]?.type === "text" ? result.content[0].text : "";
+function describeClaudeError(err: unknown): string {
+  // Most specific first.
+  if (err instanceof NotFoundError) return `model not found (check ANTHROPIC_MODEL): ${err.message}`;
+  if (err instanceof AuthenticationError) return `authentication failed: ${err.message}`;
+  if (err instanceof RateLimitError) return `rate limited: ${err.message}`;
+  if (err instanceof APIConnectionTimeoutError) return "request timed out";
+  if (err instanceof APIConnectionError) return `connection error: ${err.message}`;
+  if (err instanceof APIError) return `API error ${err.status ?? ""}: ${err.message}`.replace("  ", " ");
+  return `unexpected error: ${err instanceof Error ? err.message : String(err)}`;
+}
 
-    // Parse JSON from response (handle potential markdown wrapping)
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      decisions: (parsed.decisions || []).map(
-        (d: Record<string, unknown>) => ({
-          cycle_id: "",
-          category: d.category as BrainCategory,
-          action: d.action as string,
-          reasoning: d.reasoning as string,
-          confidence: (d.confidence as number) || 50,
-          impact_estimate: (d.impact_estimate as string) || null,
-          auto_executable: (d.auto_executable as boolean) || false,
-          executed: false,
-          approved: null,
-          mode: "supervised" as const,
-          event_type: null,
-          event_payload: {},
-          data_snapshot: {},
-          summary: null,
-        })
-      ),
-      summary: parsed.summary || "Brain cycle completed.",
-    };
-  } catch (err) {
-    logger.error({ err: err }, "Claude API call failed:");
-    return null;
+/**
+ * Ask Claude for decisions. Never throws: any failure (no key, API error,
+ * refusal, truncation, invalid JSON, schema mismatch, empty list) comes back
+ * as { ok: false, reason } so the caller can fall back to rules and record why.
+ */
+export async function analyzeWithClaude(snapshot: PropertySnapshot): Promise<ClaudeAnalysis> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { ok: false, reason: "ANTHROPIC_API_KEY not set", model: null };
   }
+  const requestedModel = getAnthropicModel();
+
+  let response;
+  try {
+    const client = createAnthropicClient();
+    response = await client.beta.messages.create({
+      model: requestedModel,
+      max_tokens: 16000,
+      // Refusal fallback is enabled: if a safety classifier declines, the API
+      // re-runs the request on Anthropic's recommended fallback model.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      thinking: { type: "adaptive" },
+      output_config: {
+        effort: "medium",
+        // Structured outputs: the response text is JSON matching this schema.
+        format: betaZodOutputFormat(BrainOutputSchema),
+      },
+      system: BRAIN_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: `Property Snapshot (${snapshot.timestamp}):\n\n${JSON.stringify(snapshot, null, 2)}`,
+        },
+      ],
+    });
+  } catch (err) {
+    const reason = describeClaudeError(err);
+    logger.error({ err, model: requestedModel }, "Claude API call failed");
+    return { ok: false, reason, model: requestedModel };
+  }
+
+  // The served model may differ from the requested one after a fallback.
+  const model = typeof response.model === "string" && response.model ? response.model : requestedModel;
+
+  if (response.stop_reason === "refusal") {
+    const category = response.stop_details?.category ?? "unspecified";
+    logger.warn({ model, category }, "Claude declined the brain request");
+    return { ok: false, reason: `model refused (category: ${category})`, model };
+  }
+  if (response.stop_reason === "max_tokens") {
+    return { ok: false, reason: "model output truncated (max_tokens)", model };
+  }
+
+  const text = (response.content || [])
+    .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return { ok: false, reason: "model output is not valid JSON", model };
+  }
+
+  const parsed = BrainOutputSchema.safeParse(json);
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .slice(0, 3)
+      .map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`)
+      .join("; ");
+    logger.warn({ model, issues }, "Claude brain output failed validation");
+    return { ok: false, reason: `schema validation failed — ${issues}`, model };
+  }
+  if (parsed.data.decisions.length === 0) {
+    return { ok: false, reason: "model returned no decisions", model };
+  }
+
+  return {
+    ok: true,
+    model,
+    summary: parsed.data.summary,
+    decisions: parsed.data.decisions.slice(0, MAX_CLAUDE_DECISIONS).map((d) => ({
+      cycle_id: "",
+      category: d.category,
+      action: d.action,
+      reasoning: d.reasoning,
+      confidence: clampConfidence(d.confidence),
+      impact_estimate: d.impact_estimate,
+      auto_executable: d.auto_executable,
+      executed: false,
+      approved: null,
+      mode: "supervised" as const,
+      event_type: null,
+      event_payload: {},
+      data_snapshot: {},
+      summary: null,
+      source: "claude" as const,
+      model,
+      fallback_reason: null,
+    })),
+  };
 }
 
 // ── Rule-Based Analysis (Fallback) ──────────────────────────
@@ -547,6 +890,9 @@ export function runRuleBasedAnalysis(
     event_payload: {},
     data_snapshot: {},
     summary: null,
+    source: "rules",
+    model: null,
+    fallback_reason: null,
   };
 
   // Rule 1: Low occupancy
@@ -756,39 +1102,55 @@ export function runRuleBasedAnalysis(
 // ── Main Brain Cycle ────────────────────────────────────────
 
 export async function runBrainCycle(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  opts: { propertyId?: string } = {}
 ): Promise<BrainCycleResult> {
+  const propertyId = opts.propertyId ?? PROPERTY_ID;
   const start = Date.now();
   const cycleId = `brain-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  // 1. Gather snapshot
-  const snapshot = await gatherPropertySnapshot(supabase);
+  // 1. Load persisted config + gather snapshot
+  const [config, snapshot] = await Promise.all([
+    getBrainConfig(supabase, propertyId),
+    gatherPropertySnapshot(supabase),
+  ]);
 
-  // 2. Try Claude API, fallback to rules
+  // 2. Try Claude, fall back to rules (recording why)
   let result: { decisions: BrainDecision[]; summary: string };
-  let source: "claude" | "rules" = "rules";
+  let source: BrainSource = "rules";
+  let model: string | null = null;
+  let fallbackReason: string | null = null;
 
-  const claudeResult = await callClaudeAPI(snapshot);
-  if (claudeResult && claudeResult.decisions.length > 0) {
-    result = claudeResult;
+  const claude = await analyzeWithClaude(snapshot);
+  if (claude.ok) {
+    result = claude;
     source = "claude";
+    model = claude.model;
   } else {
     result = runRuleBasedAnalysis(snapshot);
+    fallbackReason = claude.reason;
+    if (process.env.ANTHROPIC_API_KEY) {
+      logger.warn({ reason: claude.reason, model: claude.model }, "Brain cycle fell back to rule-based analysis");
+    }
   }
 
   // 3. Finalize decisions
-  const mode = brainConfig.mode;
+  const mode = config.mode;
   const decisions: BrainDecision[] = result.decisions.map((d) => ({
     ...d,
     cycle_id: cycleId,
     mode,
     data_snapshot: snapshot as unknown as Record<string, unknown>,
     summary: result.summary,
+    source,
+    model,
+    fallback_reason: fallbackReason,
   }));
 
   // 4. Store decisions in brain_decisions table
   if (decisions.length > 0) {
     const rows = decisions.map((d) => ({
+      property_id: propertyId,
       cycle_id: d.cycle_id,
       category: d.category,
       action: d.action,
@@ -803,6 +1165,9 @@ export async function runBrainCycle(
       event_payload: d.event_payload,
       data_snapshot: d.data_snapshot,
       summary: d.summary,
+      source: d.source,
+      model: d.model,
+      fallback_reason: d.fallback_reason,
     }));
 
     const { data: inserted, error } = await supabase
@@ -820,11 +1185,16 @@ export async function runBrainCycle(
     }
   }
 
-  // 5. In autonomous mode, auto-execute safe decisions
+  // 5. In autonomous mode, auto-execute safe decisions. Re-read the mode
+  //    first: an owner may have switched autonomy off while we were thinking.
   let executedCount = 0;
-  if (mode === "autonomous") {
-    for (const decision of decisions) {
-      if (decision.auto_executable && decision.event_type) {
+  if (mode === "autonomous" && decisions.some((d) => d.auto_executable && d.event_type)) {
+    const live = await getBrainConfig(supabase, propertyId);
+    if (live.mode !== "autonomous") {
+      logger.info({ cycleId }, "Autonomous mode switched off mid-cycle — not auto-executing");
+    } else {
+      for (const decision of decisions) {
+        if (!decision.auto_executable || !decision.event_type) continue;
         try {
           await emitEvent(
             decision.event_type as Parameters<typeof emitEvent>[0],
@@ -858,24 +1228,40 @@ export async function runBrainCycle(
   // 6. Create notification
   await createNotification(supabase, {
     title: `Brain Cycle Complete — ${decisions.length} decision(s)`,
-    message: result.summary,
-    type: source === "claude" ? "info" : "info",
+    message:
+      source === "claude"
+        ? result.summary
+        : `${result.summary} (rule-based: ${fallbackReason ?? "Claude unavailable"})`,
+    type: "info",
     category: "ai-brain",
     link: "/dashboard/ai/brain",
   });
 
-  // 7. Update stats
-  brainConfig.last_cycle = new Date().toISOString();
-  brainConfig.total_cycles++;
-  brainConfig.total_decisions += decisions.length;
-  brainConfig.total_executed += executedCount;
+  // 7. Update persisted stats
+  await bumpBrainStats(
+    supabase,
+    {
+      cycles: 1,
+      decisions: decisions.length,
+      executed: executedCount,
+      last_cycle: new Date().toISOString(),
+    },
+    propertyId
+  );
 
   // Audit log
   await logAudit(supabase, {
     action: "brain_cycle_completed",
     category: "ai_brain",
-    description: `Brain cycle ${cycleId}: ${decisions.length} decisions (${source}). ${result.summary}`,
-    new_data: { cycle_id: cycleId, decisions_count: decisions.length, executed: executedCount, source },
+    description: `Brain cycle ${cycleId}: ${decisions.length} decisions (${source}${model ? `, ${model}` : ""}). ${result.summary}`,
+    new_data: {
+      cycle_id: cycleId,
+      decisions_count: decisions.length,
+      executed: executedCount,
+      source,
+      model,
+      fallback_reason: fallbackReason,
+    },
   });
 
   for (const d of decisions) {
@@ -885,7 +1271,13 @@ export async function runBrainCycle(
       resource_type: "brain_decision",
       resource_id: d.id,
       description: `[${d.category}] ${d.action} — ${d.reasoning}`,
-      new_data: { confidence: d.confidence, executed: d.executed, impact: d.impact_estimate },
+      new_data: {
+        confidence: d.confidence,
+        executed: d.executed,
+        impact: d.impact_estimate,
+        source: d.source,
+        model: d.model,
+      },
     });
   }
 
@@ -896,9 +1288,33 @@ export async function runBrainCycle(
     decisions,
     summary: result.summary,
     source,
+    model,
+    fallback_reason: fallbackReason,
     duration_ms: Date.now() - start,
   };
 }
+
+/** Lock TTL for scheduled/manual jobs; matches the routes' maxDuration (300s). */
+export const JOB_LOCK_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Run a brain cycle unless one is already running anywhere (lock row
+ * "lock:brain_cycle"). Returns null when another cycle holds the lock.
+ */
+export async function runBrainCycleExclusive(
+  supabase: SupabaseClient,
+  opts: { propertyId?: string } = {}
+): Promise<BrainCycleResult | null> {
+  const propertyId = opts.propertyId ?? PROPERTY_ID;
+  const holder = await acquireJobLock(supabase, "brain_cycle", JOB_LOCK_TTL_MS, propertyId);
+  if (!holder) return null;
+  try {
+    return await runBrainCycle(supabase, { propertyId });
+  } finally {
+    await releaseJobLock(supabase, "brain_cycle", holder, propertyId);
+  }
+}
+
 
 // ── Decision Actions ────────────────────────────────────────
 
@@ -933,7 +1349,7 @@ export async function approveDecision(
         .from("brain_decisions")
         .update({ executed: true })
         .eq("id", decisionId);
-      brainConfig.total_executed++;
+      await bumpBrainStats(supabase, { executed: 1 });
     } catch {
       // Event emission failed but approval stands
     }

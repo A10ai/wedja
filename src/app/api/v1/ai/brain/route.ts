@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getBrainConfig,
   updateBrainConfig,
-  runBrainCycle,
+  runBrainCycleExclusive,
   approveDecision,
   rejectDecision,
   getRecentDecisions,
@@ -12,14 +12,22 @@ import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { validateBody, formatZodErrors, aiBrainActionSchema } from "@/lib/validation";
 
+// A brain cycle calls Claude (90s timeout, 2 retries) — allow the full 300s.
+export const maxDuration = 300;
+
+/** Actions that change what the AI may do (or trigger it) are owner-only. */
+const OWNER_ACTIONS = new Set(["run_cycle", "update_config"]);
+
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);
   if (auth instanceof NextResponse) return auth;
 
   try {
     const supabase = createAdminClient();
-    const config = getBrainConfig();
-    const decisions = await getRecentDecisions(supabase, 50);
+    const [config, decisions] = await Promise.all([
+      getBrainConfig(supabase),
+      getRecentDecisions(supabase, 50),
+    ]);
 
     // Group decisions by cycle
     const cycleMap = new Map<string, typeof decisions>();
@@ -54,12 +62,21 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request);
+  // Parse the body before auth (no DB access) so the role can depend on the action.
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const action = typeof body?.action === "string" ? body.action : undefined;
+
+  const auth = await requireAuth(
+    request,
+    action && OWNER_ACTIONS.has(action) ? { roles: ["owner"] } : {}
+  );
   if (auth instanceof NextResponse) return auth;
 
+  if (!body) {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
   try {
-    const body = await request.json();
-    const { action } = body;
     const supabase = createAdminClient();
 
     const validation = validateBody(aiBrainActionSchema, body);
@@ -69,18 +86,28 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case "run_cycle": {
-        const result = await runBrainCycle(supabase);
+        const result = await runBrainCycleExclusive(supabase);
+        if (!result) {
+          return NextResponse.json(
+            { error: "A brain cycle is already running" },
+            { status: 409 }
+          );
+        }
         return NextResponse.json({ data: result });
       }
 
       case "update_config": {
-        const { mode, enabled, interval_minutes } = body;
-        const config = updateBrainConfig({ mode, enabled, interval_minutes });
+        const { mode, enabled, interval_minutes } = validation.data;
+        const config = await updateBrainConfig(
+          supabase,
+          { mode, enabled, interval_minutes },
+          { updatedBy: auth.id }
+        );
         return NextResponse.json({ data: { config } });
       }
 
       case "approve": {
-        const { decision_id } = body;
+        const { decision_id } = validation.data;
         if (!decision_id) {
           return NextResponse.json(
             { error: "decision_id required" },
@@ -94,7 +121,7 @@ export async function POST(request: NextRequest) {
       }
 
       case "reject": {
-        const { decision_id } = body;
+        const { decision_id } = validation.data;
         if (!decision_id) {
           return NextResponse.json(
             { error: "decision_id required" },

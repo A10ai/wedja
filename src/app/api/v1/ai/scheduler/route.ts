@@ -1,69 +1,119 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { emitEvent } from "@/lib/event-bus";
-import { runBrainCycle, getBrainConfig } from "@/lib/ai-brain";
-import { runAllAutomations } from "@/lib/automations-engine";
-import { trainFootfallModel, trainRevenueModel } from "@/lib/prediction-model";
+import {
+  getSchedulerState,
+  runScheduledJob,
+  updateSchedulerState,
+  SCHEDULER_INTERVAL_MIN,
+  SCHEDULER_INTERVAL_MAX,
+} from "@/lib/automations-engine";
 import { requireAuth } from "@/lib/api-auth";
+import { logAudit } from "@/lib/audit";
 
-// In-memory scheduler state (resets on deploy)
-let lastRun: string | null = null;
-let enabled = true;
-let intervalMs = 15 * 60 * 1000;
-let timer: ReturnType<typeof setInterval> | null = null;
-let totalCycles = 0;
+// ============================================================
+// Scheduler control. Jobs are fired by Vercel Cron
+// (vercel.json → GET /api/v1/ai/cron); this route only reads
+// and changes the persisted scheduler state, and lets an owner
+// run the jobs immediately. No timers live in this process.
+// ============================================================
 
-const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
+// "run_now" runs the brain cycle and the automations back to back.
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request);
   if (auth instanceof NextResponse) return auth;
 
-  return NextResponse.json({
-    data: {
-      enabled,
-      interval_minutes: intervalMs / 60000,
-      last_run: lastRun,
-      total_cycles: totalCycles,
-      is_running: timer !== null,
-    },
-  });
+  try {
+    const state = await getSchedulerState(createAdminClient());
+    return NextResponse.json({
+      data: {
+        ...state,
+        // Vercel Cron is always firing; "running" means the switch is on.
+        is_running: state.enabled,
+        schedule: {
+          cycle: "hourly (Vercel Cron)",
+          automations: "daily 04:15 UTC (Vercel Cron)",
+        },
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth(request);
+  // Every scheduler action (start/stop/run/interval) is owner-only.
+  const auth = await requireAuth(request, { roles: ["owner"] });
   if (auth instanceof NextResponse) return auth;
 
   try {
-    const body = await request.json();
-    const { action, interval_minutes } = body;
+    const body = (await request.json().catch(() => ({}))) as {
+      action?: string;
+      interval_minutes?: number;
+    };
+    const supabase = createAdminClient();
 
-    switch (action) {
-      case "start":
-        enabled = true;
-        if (!timer) {
-          timer = setInterval(() => { executeCycle(); }, intervalMs);
-        }
-        return NextResponse.json({ data: { message: `Scheduler started (every ${intervalMs / 60000}m)`, enabled: true } });
+    const audit = (action: string, description: string, data: Record<string, unknown>) =>
+      logAudit(supabase, {
+        user_id: auth.id,
+        user_email: auth.email ?? undefined,
+        action,
+        category: "scheduler",
+        description,
+        new_data: data,
+      });
 
-      case "stop":
-        enabled = false;
-        if (timer) { clearInterval(timer); timer = null; }
+    switch (body.action) {
+      case "start": {
+        const state = await updateSchedulerState(supabase, { enabled: true }, { updatedBy: auth.id });
+        await audit("scheduler_started", "Scheduler enabled", { enabled: true });
+        return NextResponse.json({
+          data: { message: `Scheduler started (every ${state.interval_minutes}m)`, enabled: true },
+        });
+      }
+
+      case "stop": {
+        await updateSchedulerState(supabase, { enabled: false }, { updatedBy: auth.id });
+        await audit("scheduler_stopped", "Scheduler disabled", { enabled: false });
         return NextResponse.json({ data: { message: "Scheduler stopped", enabled: false } });
+      }
 
       case "run_now": {
-        const result = await executeCycle();
-        return NextResponse.json({ data: result });
+        const cycle = await runScheduledJob(supabase, "cycle", { force: true, trigger: "manual" });
+        const automations = await runScheduledJob(supabase, "automations", {
+          force: true,
+          trigger: "manual",
+        });
+        await audit("scheduler_run_now", "Scheduler run manually", {
+          cycle: cycle.status,
+          automations: automations.status,
+        });
+        return NextResponse.json({
+          data: {
+            ...(cycle.results ?? {}),
+            automations_job: automations.results ?? { status: automations.status, reason: automations.reason },
+            jobs: { cycle: cycle.status, automations: automations.status },
+          },
+        });
       }
 
       case "set_interval": {
-        const mins = Math.max(5, Math.min(60, interval_minutes || 15));
-        intervalMs = mins * 60 * 1000;
-        if (timer) {
-          clearInterval(timer);
-          timer = setInterval(() => { executeCycle(); }, intervalMs);
-        }
-        return NextResponse.json({ data: { message: `Interval set to ${mins}m`, interval_minutes: mins } });
+        const requested = Number(body.interval_minutes);
+        const state = await updateSchedulerState(
+          supabase,
+          { interval_minutes: Number.isFinite(requested) ? requested : SCHEDULER_INTERVAL_MIN },
+          { updatedBy: auth.id }
+        );
+        await audit("scheduler_interval_set", `Scheduler interval set to ${state.interval_minutes}m`, {
+          interval_minutes: state.interval_minutes,
+        });
+        return NextResponse.json({
+          data: {
+            message: `Interval set to ${state.interval_minutes}m (allowed ${SCHEDULER_INTERVAL_MIN}–${SCHEDULER_INTERVAL_MAX}m; cron fires hourly)`,
+            interval_minutes: state.interval_minutes,
+          },
+        });
       }
 
       default:
@@ -71,159 +121,5 @@ export async function POST(request: NextRequest) {
     }
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
-}
-
-async function executeCycle() {
-  const start = Date.now();
-  const supabase = createAdminClient();
-  const timestamp = new Date().toISOString();
-
-  const results: Record<string, unknown> = { timestamp };
-
-  try {
-    // 0. Run AI Brain cycle (if enabled)
-    const brainConfig = getBrainConfig();
-    if (brainConfig.enabled) {
-      try {
-        const brainResult = await runBrainCycle(supabase);
-        results.brain = {
-          cycle_id: brainResult.cycle_id,
-          decisions: brainResult.decisions.length,
-          source: brainResult.source,
-          summary: brainResult.summary,
-          duration_ms: brainResult.duration_ms,
-        };
-      } catch (brainErr) {
-        results.brain_error = brainErr instanceof Error ? brainErr.message : "Brain cycle failed";
-      }
-    } else {
-      results.brain = { skipped: true, reason: "Brain disabled" };
-    }
-
-    // 0b. Run Smart Automations
-    try {
-      const autoResult = await runAllAutomations(supabase);
-      results.automations = {
-        total_actions: autoResult.total_actions,
-        automation_count: Object.keys(autoResult.results).length,
-      };
-    } catch (autoErr) {
-      results.automations_error = autoErr instanceof Error ? autoErr.message : "Automations failed";
-    }
-
-    // 0c. Retrain ML prediction models
-    try {
-      const [footfallModel, revenueModel] = await Promise.all([
-        trainFootfallModel(supabase),
-        trainRevenueModel(supabase),
-      ]);
-      results.predictions = {
-        footfall_r2: footfallModel.r_squared,
-        footfall_samples: footfallModel.training_samples,
-        revenue_r2: revenueModel.r_squared,
-        revenue_samples: revenueModel.training_samples,
-      };
-    } catch (predErr) {
-      results.predictions_error = predErr instanceof Error ? predErr.message : "ML retraining failed";
-    }
-
-    // 1. Check for expiring leases (within 90 days)
-    const ninetyDaysOut = new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0];
-    const { data: expiringLeases } = await supabase
-      .from("leases")
-      .select("id, tenant_id, end_date, tenants(name)")
-      .eq("status", "active")
-      .lte("end_date", ninetyDaysOut);
-
-    if (expiringLeases && expiringLeases.length > 0) {
-      for (const lease of expiringLeases.slice(0, 3)) {
-        const tenantName = (lease.tenants as Record<string, any>)?.name || "Unknown";
-        await emitEvent("lease.expiring", "scheduler", {
-          lease_id: lease.id,
-          tenant_id: lease.tenant_id,
-          tenant_name: tenantName,
-          end_date: lease.end_date,
-        }, supabase);
-      }
-      results.expiring_leases = expiringLeases.length;
-    }
-
-    // 2. Check for overdue rent
-    const { data: overdueRent } = await supabase
-      .from("rent_transactions")
-      .select("id, lease_id, amount_due, period_month, period_year")
-      .eq("status", "overdue")
-      .limit(10);
-
-    results.overdue_rent = overdueRent?.length || 0;
-
-    // 3. Check anomalies
-    const { data: activeAnomalies } = await supabase
-      .from("anomalies")
-      .select("id, severity")
-      .eq("status", "active");
-
-    const criticalCount = (activeAnomalies || []).filter((a: Record<string, any>) => a.severity === "critical").length;
-    results.active_anomalies = activeAnomalies?.length || 0;
-    results.critical_anomalies = criticalCount;
-
-    // 4. Check footfall trends (compare today vs yesterday)
-    const today = new Date().toISOString().split("T")[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
-
-    const { data: todayFootfall } = await supabase
-      .from("footfall_daily")
-      .select("total_in")
-      .eq("date", today);
-
-    const { data: yesterdayFootfall } = await supabase
-      .from("footfall_daily")
-      .select("total_in")
-      .eq("date", yesterday);
-
-    const todayTotal = (todayFootfall || []).reduce((s: number, r: Record<string, any>) => s + (r.total_in || 0), 0);
-    const yesterdayTotal = (yesterdayFootfall || []).reduce((s: number, r: Record<string, any>) => s + (r.total_in || 0), 0);
-
-    if (yesterdayTotal > 0 && todayTotal < yesterdayTotal * 0.7) {
-      await emitEvent("footfall.drop", "scheduler", {
-        today_total: todayTotal,
-        yesterday_total: yesterdayTotal,
-        drop_pct: Math.round((1 - todayTotal / yesterdayTotal) * 100),
-      }, supabase);
-      results.footfall_alert = true;
-    }
-
-    results.footfall_today = todayTotal;
-
-    // 5. Energy check
-    const { data: energyToday } = await supabase
-      .from("energy_readings")
-      .select("consumption_kwh, cost_egp")
-      .gte("timestamp", today);
-
-    const totalEnergy = (energyToday || []).reduce((s: number, r: Record<string, any>) => s + (r.consumption_kwh || 0), 0);
-    const totalCost = (energyToday || []).reduce((s: number, r: Record<string, any>) => s + (r.cost_egp || 0), 0);
-    results.energy_kwh_today = Math.round(totalEnergy);
-    results.energy_cost_today = Math.round(totalCost);
-
-    // 6. Log cycle
-    results.duration_ms = Date.now() - start;
-    lastRun = timestamp;
-    totalCycles++;
-
-    await supabase.from("system_events").insert({
-      type: "scheduler.cycle_completed",
-      source_system: "scheduler",
-      payload: results,
-      processed: true,
-      results: [],
-    });
-
-    return results;
-  } catch (e) {
-    results.error = e instanceof Error ? e.message : "Cycle failed";
-    results.duration_ms = Date.now() - start;
-    return results;
   }
 }
