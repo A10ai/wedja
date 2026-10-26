@@ -79,17 +79,45 @@ export function readAuthCookieValue(
   return joined || null;
 }
 
+export type StaffRole = "owner" | "manager" | "security" | "maintenance" | "viewer";
+
+export interface StaffMember {
+  id: string;
+  property_id: string;
+  name: string;
+  email: string;
+  role: StaffRole;
+}
+
+export type AuthUser = User & { staff: StaffMember };
+
+/** Roles allowed to change data when a route doesn't say otherwise. */
+export const WRITE_ROLES: StaffRole[] = ["owner", "manager"];
+export const ALL_ROLES: StaffRole[] = ["owner", "manager", "security", "maintenance", "viewer"];
+
+const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+interface RequireAuthOptions {
+  /**
+   * Roles allowed to call this handler. Defaults to every active staff
+   * member for reads and to owner/manager for any other method.
+   */
+  roles?: StaffRole[];
+}
+
 /**
- * Require authentication for an API route.
- * Returns the authenticated user, or a 401 NextResponse if unauthorized.
+ * Require an authenticated, active staff member for an API route.
+ * Returns the user with their staff record, or a 401/403 NextResponse.
  *
  * Usage:
  *   const auth = await requireAuth(req);
  *   if (auth instanceof NextResponse) return auth;
+ *   auth.staff.role // "owner" | "manager" | ...
  */
 export async function requireAuth(
-  req: NextRequest
-): Promise<NextResponse | User> {
+  req: NextRequest,
+  options: RequireAuthOptions = {}
+): Promise<NextResponse | AuthUser> {
   try {
     const cookieStore = cookies();
     const allCookies = cookieStore.getAll();
@@ -114,7 +142,44 @@ export async function requireAuth(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    return user;
+    // A valid Supabase session is not enough: the user must be an active
+    // staff member. Match on auth_user_id, falling back to email for staff
+    // rows that were created before accounts were linked.
+    const staffColumns = "id, property_id, name, email, role, status";
+    let { data: staff } = await supabase
+      .from("staff")
+      .select(staffColumns)
+      .eq("auth_user_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (!staff && user.email) {
+      ({ data: staff } = await supabase
+        .from("staff")
+        .select(staffColumns)
+        .ilike("email", user.email)
+        .eq("status", "active")
+        .maybeSingle());
+    }
+
+    if (!staff) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const allowed =
+      options.roles ?? (READ_METHODS.has(req.method.toUpperCase()) ? ALL_ROLES : WRITE_ROLES);
+    if (!allowed.includes(staff.role as StaffRole)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const member: StaffMember = {
+      id: staff.id,
+      property_id: staff.property_id,
+      name: staff.name,
+      email: staff.email,
+      role: staff.role as StaffRole,
+    };
+    return Object.assign(user, { staff: member });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

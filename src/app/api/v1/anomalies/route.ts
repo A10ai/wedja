@@ -77,7 +77,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth(req);
+  // Security staff acknowledge and resolve alerts
+  const auth = await requireAuth(req, { roles: ["owner", "manager", "security"] });
   if (auth instanceof NextResponse) return auth;
 
   try {

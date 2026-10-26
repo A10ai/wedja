@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { processChat } from "@/lib/ai-chat";
-import { requireAuth } from "@/lib/api-auth";
+import { requireAuth, ALL_ROLES } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { validateBody, formatZodErrors, aiChatSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth(req);
+  // Chat only reads data, so every staff role may use it
+  const auth = await requireAuth(req, { roles: ALL_ROLES });
   if (auth instanceof NextResponse) return auth;
 
   try {

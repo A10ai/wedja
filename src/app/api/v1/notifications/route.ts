@@ -7,7 +7,7 @@ import {
   markAllRead,
   getUnreadCount,
 } from "@/lib/notifications";
-import { requireAuth } from "@/lib/api-auth";
+import { requireAuth, ALL_ROLES } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { validateQuery, validateBody, formatZodErrors, notificationsQuerySchema, notificationActionSchema } from "@/lib/validation";
 
@@ -54,7 +54,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth(req);
+  // Everyone can mark their own notifications as read
+  const auth = await requireAuth(req, { roles: ALL_ROLES });
   if (auth instanceof NextResponse) return auth;
 
   try {
