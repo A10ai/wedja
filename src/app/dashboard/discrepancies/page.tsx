@@ -173,6 +173,14 @@ const STATUS_BADGE: Record<string, "error" | "warning" | "success" | "default"> 
   resolved: "success",
   dismissed: "default",
   ok: "success",
+  insufficient_data: "default",
+  missing_report: "warning",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  ok: "Within range",
+  insufficient_data: "Not enough footfall data",
+  missing_report: "Missing report",
 };
 
 const CONFIDENCE_BADGE: Record<string, "error" | "warning" | "default"> = {
@@ -440,8 +448,8 @@ export default function DiscrepanciesPage() {
                 {summary!.total_discrepancies === 1 ? "y" : "ies"} detected
               </p>
               <p className="text-sm text-text-secondary mt-0.5">
-                {formatCurrency(summary!.total_potential_recovery_egp)} potential
-                underreporting identified for{" "}
+                {formatCurrency(summary!.total_potential_recovery_egp)} rent at risk
+                on open cases for{" "}
                 {MONTH_NAMES[selectedMonth]} {selectedYear}
               </p>
             </div>
@@ -491,7 +499,7 @@ export default function DiscrepanciesPage() {
             </p>
             <p className="text-xs text-text-muted mt-1 flex items-center justify-center gap-1">
               <DollarSign size={12} />
-              Potential Recovery
+              Rent at risk (open cases)
             </p>
           </CardContent>
         </Card>
@@ -1057,8 +1065,8 @@ export default function DiscrepanciesPage() {
                                 <option value="dismissed">Dismissed</option>
                               </select>
                             ) : (
-                              <Badge variant={STATUS_BADGE[t.status] || "success"}>
-                                {t.status === "ok" ? "OK" : t.status}
+                              <Badge variant={STATUS_BADGE[t.status] || "default"}>
+                                {STATUS_LABEL[t.status] ?? t.status}
                               </Badge>
                             )}
                           </td>

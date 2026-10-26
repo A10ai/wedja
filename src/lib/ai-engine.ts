@@ -240,7 +240,7 @@ export async function generateCrossDataInsights(
       id: makeId(),
       type: "revenue_footfall",
       severity: ds.total_potential_recovery_egp > 200000 ? "critical" : ds.total_potential_recovery_egp > 50000 ? "warning" : "opportunity",
-      title: `${ds.total_discrepancies} tenants flagged for underreporting — total potential recovery: EGP ${Math.round(ds.total_potential_recovery_egp).toLocaleString()}/month`,
+      title: `${ds.total_discrepancies} tenants flagged for underreporting — rent at risk: EGP ${Math.round(ds.total_potential_recovery_egp).toLocaleString()}/month`,
       message: `Revenue verification detected ${ds.total_discrepancies} potential underreporting cases using footfall-to-sales cross-reference. High confidence flags: ${ds.by_confidence.high}. Total estimated variance: EGP ${Math.round(ds.total_variance_egp).toLocaleString()}.`,
       impact_egp: Math.round(ds.total_potential_recovery_egp * 12),
       confidence: 0.82,
@@ -1292,7 +1292,7 @@ export async function generateDailyBriefing(
   const revenueItems: BriefingSection["items"] = [];
   if (discrepancySummary && discrepancySummary.total_discrepancies > 0) {
     revenueItems.push({
-      text: `${discrepancySummary.total_discrepancies} discrepancies flagged — EGP ${Math.round(discrepancySummary.total_potential_recovery_egp).toLocaleString()} potential recovery`,
+      text: `${discrepancySummary.total_discrepancies} discrepancies flagged — EGP ${Math.round(discrepancySummary.total_potential_recovery_egp).toLocaleString()} rent at risk`,
       alert: discrepancySummary.by_confidence.high > 0,
     });
   } else {
