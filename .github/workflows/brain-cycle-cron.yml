@@ -1,0 +1,29 @@
+name: AI brain cycle cron
+
+# Vercel's Hobby plan allows daily crons only, so vercel.json runs the brain
+# cycle once a day as a floor. This workflow provides the hourly cadence.
+# Needs repository variable APP_URL (e.g. https://app.wedja.ai) and
+# repository secret CRON_SECRET; without them the job skips itself.
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    if: ${{ vars.APP_URL != '' }}
+    steps:
+      - name: Trigger the brain cycle
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          [ -n "$CRON_SECRET" ] || { echo "CRON_SECRET not set; skipping"; exit 0; }
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' "$APP_URL/api/v1/ai/cron?job=cycle" \
+            -H "Authorization: Bearer $CRON_SECRET" --max-time 300)
+          echo "status $code"; head -c 500 /tmp/body; echo
+          [ "$code" -ge 200 ] && [ "$code" -lt 300 ]

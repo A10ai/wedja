@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/v1/ai/cron?job=cycle",
-      "schedule": "7 * * * *"
+      "schedule": "7 3 * * *"
     },
     {
       "path": "/api/v1/ai/cron?job=automations",

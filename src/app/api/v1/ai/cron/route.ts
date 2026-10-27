@@ -7,8 +7,10 @@ import { logger } from "@/lib/logger";
 // ============================================================
 // Vercel Cron entry point (see vercel.json).
 //
-//   GET /api/v1/ai/cron?job=cycle        "7 * * * *"  hourly at :07 UTC
-//                                        — AI Brain + ops checks
+//   GET /api/v1/ai/cron?job=cycle        "7 3 * * *"  daily 03:07 UTC floor
+//                                        — AI Brain + ops checks; the hourly
+//                                        cadence comes from the GitHub Actions
+//                                        workflow brain-cycle-cron.yml
 //   GET /api/v1/ai/cron?job=automations  "15 4 * * *" daily 04:15 UTC
 //                                        = 06:15 Cairo (EET, UTC+2, winter)
 //                                        / 07:15 Cairo (EEST, UTC+3, summer DST)
