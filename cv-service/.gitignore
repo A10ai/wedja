@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.env
+test_output_*.jpg
+jde_unmatched.txt
+*.pt

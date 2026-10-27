@@ -94,6 +94,17 @@ CREATE INDEX idx_campaigns_dates ON campaigns(property_id, start_date, end_date)
 CREATE INDEX idx_seasonal_type ON seasonal_calendar(property_id, type);
 CREATE INDEX idx_tenant_promos ON tenant_promotions(tenant_id, start_date);
 
+-- Data section guarded so a fresh `supabase db reset` (migrations before seed.sql)
+-- does not fail on the missing seed property.
+DO $seed$
+BEGIN
+  -- Fresh database (`supabase db reset` runs migrations before seed.sql):
+  -- the seed property does not exist yet, so skip this data section.
+  IF NOT EXISTS (SELECT 1 FROM properties WHERE id = 'a0000000-0000-0000-0000-000000000001') THEN
+    RAISE NOTICE '00006: seed property not present, skipping seed data';
+    RETURN;
+  END IF;
+
 -- ============================================================
 -- Seed Data — Senzo Mall, Hurghada
 -- ============================================================
@@ -239,3 +250,4 @@ INSERT INTO tenant_promotions (property_id, tenant_id, title, promotion_type, st
 ('a0000000-0000-0000-0000-000000000001', (SELECT id FROM tenants WHERE brand_name = 'DeFacto' LIMIT 1), 'DeFacto Summer Clearance', 'clearance', '2026-06-15', '2026-07-15', 40, NULL, NULL, 'planned'),
 ('a0000000-0000-0000-0000-000000000001', (SELECT id FROM tenants WHERE brand_name = 'Aldo' LIMIT 1), 'Aldo Valentine''s Day Collection', 'seasonal', '2026-02-07', '2026-02-21', 15, 18, 22, 'completed'),
 ('a0000000-0000-0000-0000-000000000001', (SELECT id FROM tenants WHERE brand_name = 'Timberland' LIMIT 1), 'Timberland Winter Collection', 'new_collection', '2025-10-01', '2025-12-31', NULL, 10, 15, 'completed');
+END $seed$;

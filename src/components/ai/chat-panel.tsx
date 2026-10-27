@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Eye, X, Send, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatMessage } from "./format-message";
 
 interface ChatMessage {
   id: string;
@@ -93,67 +94,6 @@ export function AIChatPanel() {
     e.preventDefault();
     sendMessage(input);
   };
-
-  // Format markdown-like text simply
-  function formatMessage(text: string) {
-    return text.split("\n").map((line, i) => {
-      // Bold
-      let formatted = line.replace(
-        /\*\*(.*?)\*\*/g,
-        '<strong class="text-text-primary font-semibold">$1</strong>'
-      );
-      // List items
-      if (formatted.startsWith("- ") || formatted.startsWith("  - ")) {
-        const indent = formatted.startsWith("  - ") ? "ml-4" : "";
-        formatted = formatted.replace(/^-\s+|^\s+-\s+/, "");
-        return (
-          <div key={i} className={cn("flex gap-2 py-0.5", indent)}>
-            <span className="text-wedja-accent mt-0.5 shrink-0">&#8226;</span>
-            <span dangerouslySetInnerHTML={{ __html: formatted }} />
-          </div>
-        );
-      }
-      // Numbered items
-      const numMatch = formatted.match(/^(\d+)\.\s/);
-      if (numMatch) {
-        formatted = formatted.replace(/^\d+\.\s/, "");
-        return (
-          <div key={i} className="flex gap-2 py-0.5">
-            <span className="text-wedja-accent font-mono text-xs mt-0.5 shrink-0 w-4 text-right">
-              {numMatch[1]}.
-            </span>
-            <span dangerouslySetInnerHTML={{ __html: formatted }} />
-          </div>
-        );
-      }
-      // Labels like [CRITICAL]
-      formatted = formatted
-        .replace(
-          /\[CRITICAL\]/g,
-          '<span class="text-red-500 font-semibold text-xs">[CRITICAL]</span>'
-        )
-        .replace(
-          /\[WARNING\]/g,
-          '<span class="text-amber-500 font-semibold text-xs">[WARNING]</span>'
-        )
-        .replace(
-          /\[OPPORTUNITY\]/g,
-          '<span class="text-emerald-500 font-semibold text-xs">[OPPORTUNITY]</span>'
-        )
-        .replace(
-          /\[INFO\]/g,
-          '<span class="text-blue-500 font-semibold text-xs">[INFO]</span>'
-        );
-      if (formatted.trim() === "") return <div key={i} className="h-2" />;
-      return (
-        <div
-          key={i}
-          className="py-0.5"
-          dangerouslySetInnerHTML={{ __html: formatted }}
-        />
-      );
-    });
-  }
 
   return (
     <>

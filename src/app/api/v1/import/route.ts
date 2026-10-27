@@ -3,58 +3,23 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import * as XLSX from "xlsx";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 import { validateBody, formatZodErrors, importTypeSchema } from "@/lib/validation";
+import {
+  parseCSV,
+  parsePeriodMonth,
+  parsePeriodYear,
+  parseAmount,
+  createTenantMatcher,
+  changedFields,
+  isJdeRentRow,
+  periodKey,
+  JDE_SOURCE,
+} from "@/lib/import-utils";
 
 export const dynamic = "force-dynamic";
 
 const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
-
-function parseCSV(text: string): Record<string, string>[] {
-  const lines = text.trim().split("\n");
-  if (lines.length < 2) return [];
-
-  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
-  const rows: Record<string, string>[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
-    // Parse fields handling quoted values (fields with commas inside double quotes)
-    const values: string[] = [];
-    let current = "";
-    let inQuotes = false;
-
-    for (let c = 0; c < line.length; c++) {
-      const char = line[c];
-      if (char === '"') {
-        if (inQuotes && c + 1 < line.length && line[c + 1] === '"') {
-          // Escaped quote inside quoted field
-          current += '"';
-          c++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === "," && !inQuotes) {
-        values.push(current.trim());
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-    values.push(current.trim());
-
-    if (values.length !== headers.length) continue;
-
-    const row: Record<string, string> = {};
-    headers.forEach((h, idx) => {
-      row[h] = values[idx];
-    });
-    rows.push(row);
-  }
-
-  return rows;
-}
 
 function parseExcel(buffer: Buffer): Record<string, string>[] {
   const workbook = XLSX.read(buffer);
@@ -152,77 +117,292 @@ async function importLeases(
   return { imported, errors };
 }
 
-async function importSales(
-  supabase: ReturnType<typeof createAdminClient>,
-  rows: Record<string, string>[]
+// ── Idempotent period upsert (sales / rent / JDE) ─────────
+
+type Supabase = ReturnType<typeof createAdminClient>;
+
+interface ImportCounts {
+  imported: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+  warnings: string[];
+}
+
+function emptyCounts(): ImportCounts {
+  return { imported: 0, updated: 0, skipped: 0, errors: [], warnings: [] };
+}
+
+interface PeriodRow<T> {
+  /** Human label for messages, e.g. "Row 7" */
+  label: string;
+  values: T & { lease_id: string; period_year: number; period_month: number };
+}
+
+interface PeriodTableSpec<T> {
+  table: "rent_transactions" | "tenant_sales_reported";
+  /** Columns fetched for the existence check (must include the compare fields). */
+  selectCols: string;
+  /** Fields compared to decide between update and skip. */
+  compareFields: readonly (keyof T & string)[];
+  /** Which existing rows count as "the same row" (e.g. JDE vs manual rent). */
+  matches: (existing: Record<string, unknown>) => boolean;
+  /** Extra columns written on update when something changed. */
+  onUpdate?: (row: T) => Record<string, unknown>;
+}
+
+const EXISTENCE_BATCH = 200;
+
+/**
+ * Insert-or-update rows keyed by (lease_id, period_year, period_month).
+ * One existence query (`.in()` on lease ids and years) per batch; rows whose
+ * compare fields are unchanged are skipped, changed rows are updated, the rest
+ * are bulk-inserted. If the existence check fails the batch is NOT inserted,
+ * so a failed lookup can never create duplicates.
+ */
+async function upsertPeriodRows<T extends Record<string, unknown>>(
+  supabase: Supabase,
+  spec: PeriodTableSpec<T>,
+  rows: PeriodRow<T>[],
+  counts: ImportCounts
 ) {
-  const errors: string[] = [];
-  let imported = 0;
+  for (let start = 0; start < rows.length; start += EXISTENCE_BATCH) {
+    const batch = rows.slice(start, start + EXISTENCE_BATCH);
+    const leaseIds = Array.from(new Set(batch.map((r) => r.values.lease_id)));
+    const years = Array.from(new Set(batch.map((r) => r.values.period_year)));
+
+    // Paged: 200 leases × 12 months of history easily passes PostgREST's
+    // 1000-row cap, and a missed existing row would be imported twice.
+    let existingRows: Record<string, unknown>[];
+    try {
+      existingRows = await fetchAll<Record<string, unknown>>((from, to) =>
+        supabase
+          .from(spec.table)
+          .select(spec.selectCols)
+          .in("lease_id", leaseIds)
+          .in("period_year", years)
+          .order("created_at", { ascending: true })
+          .order("id", { ascending: true })
+          .range(from, to) as unknown as PromiseLike<{
+          data: Record<string, unknown>[] | null;
+          error: { message: string } | null;
+        }>
+      );
+    } catch (lookupError) {
+      const message = lookupError instanceof Error ? lookupError.message : String(lookupError);
+      for (const r of batch) {
+        counts.errors.push(`${r.label}: could not check for an existing row (${message}); not imported`);
+      }
+      continue;
+    }
+
+    // Oldest matching row per key wins; extra legacy duplicates are reported.
+    const existingByKey = new Map<string, Record<string, unknown>>();
+    const dupCount = new Map<string, number>();
+    for (const ex of existingRows) {
+      if (!spec.matches(ex)) continue;
+      const key = periodKey(String(ex.lease_id), Number(ex.period_year), Number(ex.period_month));
+      if (!existingByKey.has(key)) existingByKey.set(key, ex);
+      dupCount.set(key, (dupCount.get(key) ?? 0) + 1);
+    }
+
+    const toInsert: PeriodRow<T>[] = [];
+    for (const r of batch) {
+      const key = periodKey(r.values.lease_id, r.values.period_year, r.values.period_month);
+      const ex = existingByKey.get(key);
+      if (!ex) {
+        toInsert.push(r);
+        continue;
+      }
+      const n = dupCount.get(key) ?? 1;
+      if (n > 1) {
+        counts.warnings.push(
+          `${r.label}: ${n} existing ${spec.table} rows for ${r.values.period_month}/${r.values.period_year}; compared with the oldest`
+        );
+      }
+      const changed = changedFields(ex, r.values, spec.compareFields);
+      if (!changed) {
+        counts.skipped++;
+        continue;
+      }
+      const { error } = await supabase
+        .from(spec.table)
+        .update({ ...changed, ...(spec.onUpdate ? spec.onUpdate(r.values) : {}) })
+        .eq("id", ex.id as string);
+      if (error) counts.errors.push(`${r.label}: ${error.message}`);
+      else counts.updated++;
+    }
+
+    if (toInsert.length === 0) continue;
+    const { error: bulkError } = await supabase.from(spec.table).insert(toInsert.map((r) => r.values));
+    if (!bulkError) {
+      counts.imported += toInsert.length;
+      continue;
+    }
+    // Bulk insert is all-or-nothing; retry row by row for per-row errors.
+    for (const r of toInsert) {
+      const { error } = await supabase.from(spec.table).insert(r.values);
+      if (error) counts.errors.push(`${r.label}: ${error.message}`);
+      else counts.imported++;
+    }
+  }
+}
+
+/** Keep the last occurrence of each period key in a file; report the rest. */
+function dedupeWithinFile<T>(rows: PeriodRow<T>[], counts: ImportCounts): PeriodRow<T>[] {
+  const lastByKey = new Map<string, PeriodRow<T>>();
+  for (const r of rows) {
+    const key = periodKey(r.values.lease_id, r.values.period_year, r.values.period_month);
+    const prev = lastByKey.get(key);
+    if (prev) {
+      counts.skipped++;
+      counts.warnings.push(`${prev.label}: same lease and period as ${r.label} in this file; ${r.label} used`);
+    }
+    lastByKey.set(key, r);
+  }
+  return Array.from(lastByKey.values());
+}
+
+async function importSales(supabase: Supabase, rows: Record<string, string>[]) {
+  const counts = emptyCounts();
+  const valid: PeriodRow<{
+    lease_id: string;
+    tenant_id: string;
+    period_month: number;
+    period_year: number;
+    reported_revenue_egp: number;
+    submission_date: string;
+    verified: boolean;
+  }>[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const sale = {
       lease_id: row.lease_id,
       tenant_id: row.tenant_id,
-      period_month: parseInt(row.period_month || row.month || "0"),
-      period_year: parseInt(row.period_year || row.year || "0"),
-      reported_revenue_egp: parseFloat(row.reported_revenue_egp || row.revenue || "0"),
+      period_month: parsePeriodMonth(row.period_month || row.month),
+      period_year: parsePeriodYear(row.period_year || row.year),
+      reported_revenue_egp: parseAmount(row.reported_revenue_egp || row.revenue),
       submission_date: row.submission_date || new Date().toISOString().split("T")[0],
       verified: false,
     };
 
     if (!sale.lease_id || !sale.tenant_id || !sale.period_month || !sale.period_year) {
-      errors.push(`Row ${i + 2}: Missing required fields`);
+      counts.errors.push(`Row ${i + 2}: Missing or invalid required fields (lease_id, tenant_id, period_month 1-12, period_year)`);
       continue;
     }
-
-    const { error } = await supabase.from("tenant_sales_reported").insert(sale);
-    if (error) {
-      errors.push(`Row ${i + 2}: ${error.message}`);
-    } else {
-      imported++;
+    if (sale.reported_revenue_egp === null) {
+      counts.errors.push(`Row ${i + 2}: Invalid reported_revenue_egp (must be a non-negative number)`);
+      continue;
     }
+    valid.push({
+      label: `Row ${i + 2}`,
+      values: {
+        ...sale,
+        period_month: sale.period_month,
+        period_year: sale.period_year,
+        reported_revenue_egp: sale.reported_revenue_egp,
+      },
+    });
   }
 
-  return { imported, errors };
+  await upsertPeriodRows(
+    supabase,
+    {
+      table: "tenant_sales_reported",
+      selectCols: "id, lease_id, tenant_id, period_month, period_year, reported_revenue_egp",
+      compareFields: ["reported_revenue_egp", "tenant_id"],
+      matches: () => true,
+      // A changed figure is a new submission and must be re-verified.
+      onUpdate: (r) => ({ submission_date: r.submission_date, verified: false }),
+    },
+    dedupeWithinFile(valid, counts),
+    counts
+  );
+  return counts;
 }
 
-async function importRent(
-  supabase: ReturnType<typeof createAdminClient>,
-  rows: Record<string, string>[]
-) {
-  const errors: string[] = [];
-  let imported = 0;
+async function importRent(supabase: Supabase, rows: Record<string, string>[]) {
+  const counts = emptyCounts();
+  const valid: PeriodRow<{
+    lease_id: string;
+    period_month: number;
+    period_year: number;
+    min_rent_due: number;
+    percentage_rent_due: number;
+    amount_due: number;
+    amount_paid: number;
+    payment_date: string | null;
+    payment_method: string | null;
+    status: string;
+    source: string;
+  }>[] = [];
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const transaction = {
       lease_id: row.lease_id,
-      period_month: parseInt(row.period_month || row.month || "0"),
-      period_year: parseInt(row.period_year || row.year || "0"),
-      min_rent_due: parseFloat(row.min_rent_due || "0"),
-      percentage_rent_due: parseFloat(row.percentage_rent_due || "0"),
-      amount_due: parseFloat(row.amount_due || "0"),
-      amount_paid: parseFloat(row.amount_paid || "0"),
+      period_month: parsePeriodMonth(row.period_month || row.month),
+      period_year: parsePeriodYear(row.period_year || row.year),
+      min_rent_due: parseAmount(row.min_rent_due || "0"),
+      percentage_rent_due: parseAmount(row.percentage_rent_due || "0"),
+      amount_due: parseAmount(row.amount_due),
+      amount_paid: parseAmount(row.amount_paid || "0"),
       payment_date: row.payment_date || null,
       payment_method: row.payment_method || null,
       status: row.status || "overdue",
     };
 
     if (!transaction.lease_id || !transaction.period_month || !transaction.period_year) {
-      errors.push(`Row ${i + 2}: Missing required fields`);
+      counts.errors.push(`Row ${i + 2}: Missing or invalid required fields (lease_id, period_month 1-12, period_year)`);
       continue;
     }
-
-    const { error } = await supabase.from("rent_transactions").insert(transaction);
-    if (error) {
-      errors.push(`Row ${i + 2}: ${error.message}`);
-    } else {
-      imported++;
+    if (
+      transaction.amount_due === null ||
+      transaction.amount_paid === null ||
+      transaction.min_rent_due === null ||
+      transaction.percentage_rent_due === null
+    ) {
+      counts.errors.push(`Row ${i + 2}: Invalid amount (must be a non-negative number)`);
+      continue;
     }
+    valid.push({
+      label: `Row ${i + 2}`,
+      values: {
+        ...transaction,
+        period_month: transaction.period_month,
+        period_year: transaction.period_year,
+        min_rent_due: transaction.min_rent_due,
+        percentage_rent_due: transaction.percentage_rent_due,
+        amount_due: transaction.amount_due,
+        amount_paid: transaction.amount_paid,
+        source: "csv_import",
+      },
+    });
   }
 
-  return { imported, errors };
+  await upsertPeriodRows(
+    supabase,
+    {
+      table: "rent_transactions",
+      selectCols:
+        "id, lease_id, period_month, period_year, min_rent_due, percentage_rent_due, amount_due, amount_paid, payment_date, payment_method, status, source",
+      compareFields: [
+        "min_rent_due",
+        "percentage_rent_due",
+        "amount_due",
+        "amount_paid",
+        "payment_date",
+        "payment_method",
+        "status",
+      ],
+      // Manual rent rows are a separate ledger from JDE-imported rows.
+      matches: (ex) => !isJdeRentRow(ex),
+    },
+    dedupeWithinFile(valid, counts),
+    counts
+  );
+  return counts;
 }
 
 async function importExpenses(
@@ -263,17 +443,10 @@ async function importExpenses(
 
 // ── JDE Revenue Import ─────────────────────────────────────
 
-function normalizeForMatch(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-async function importJDERevenue(
-  supabase: ReturnType<typeof createAdminClient>,
-  buffer: Buffer
-) {
+async function importJDERevenue(supabase: Supabase, buffer: Buffer) {
   const workbook = XLSX.read(buffer);
-  const errors: string[] = [];
-  let imported = 0;
+  const counts = emptyCounts();
+  const errors = counts.errors;
   let matched = 0;
   let unmatched = 0;
   let total_parsed = 0;
@@ -285,7 +458,7 @@ async function importJDERevenue(
   const rawData: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
 
   if (rawData.length < 4) {
-    return { imported: 0, errors: ["File too short"], total_parsed: 0, matched: 0, unmatched: 0 };
+    return { ...emptyCounts(), errors: ["File too short"], total_parsed: 0, matched: 0, unmatched: 0 };
   }
 
   // Find header row (row with "Customer Number" or "Customer Name")
@@ -298,7 +471,7 @@ async function importJDERevenue(
     }
   }
   if (headerIdx < 0) {
-    return { imported: 0, errors: ["Could not find header row"], total_parsed: 0, matched: 0, unmatched: 0 };
+    return { ...emptyCounts(), errors: ["Could not find header row"], total_parsed: 0, matched: 0, unmatched: 0 };
   }
 
   // Detect month columns (columns 3-14 typically have dates like "2025-01-01" or month values)
@@ -314,7 +487,7 @@ async function importJDERevenue(
   }
 
   if (monthCols.length === 0) {
-    return { imported: 0, errors: ["Could not detect month columns"], total_parsed: 0, matched: 0, unmatched: 0 };
+    return { ...emptyCounts(), errors: ["Could not detect month columns"], total_parsed: 0, matched: 0, unmatched: 0 };
   }
 
   // Fetch tenants and leases
@@ -322,37 +495,29 @@ async function importJDERevenue(
   const { data: leases } = await supabase.from("leases").select("id, tenant_id").eq("status", "active");
 
   if (!tenants || !leases) {
-    return { imported: 0, errors: ["Failed to fetch tenants/leases"], total_parsed: 0, matched: 0, unmatched: 0 };
+    return { ...emptyCounts(), errors: ["Failed to fetch tenants/leases"], total_parsed: 0, matched: 0, unmatched: 0 };
   }
 
-  // Build lookup maps
-  const tenantByNorm: Record<string, { id: string; brand_name: string }> = {};
-  for (const t of tenants) {
-    const norm = normalizeForMatch(t.brand_name || t.name || "");
-    if (norm) tenantByNorm[norm] = { id: t.id, brand_name: t.brand_name || t.name };
-  }
+  const findTenant = createTenantMatcher(tenants);
   const leaseByTenant: Record<string, string> = {};
   for (const l of leases) {
     leaseByTenant[l.tenant_id] = l.id;
   }
 
-  // Match function
-  function findTenant(jdeName: string): { id: string; brand_name: string } | null {
-    const norm = normalizeForMatch(jdeName);
-    if (!norm) return null;
-    // Exact
-    if (tenantByNorm[norm]) return tenantByNorm[norm];
-    // Contains
-    for (const [key, val] of Object.entries(tenantByNorm)) {
-      if (key.includes(norm) || norm.includes(key)) return val;
-    }
-    // First word (min 4 chars)
-    const firstWord = norm.slice(0, Math.max(4, norm.indexOf(" ") > 0 ? norm.indexOf(" ") : norm.length));
-    for (const [key, val] of Object.entries(tenantByNorm)) {
-      if (key.startsWith(firstWord) || firstWord.startsWith(key.slice(0, 4))) return val;
-    }
-    return null;
-  }
+  const jdeByKey = new Map<
+    string,
+    PeriodRow<{
+      lease_id: string;
+      period_month: number;
+      period_year: number;
+      min_rent_due: number;
+      percentage_rent_due: number;
+      amount_due: number;
+      amount_paid: number;
+      status: string;
+      source: string;
+    }>
+  >();
 
   // Process data rows
   for (let r = headerIdx + 1; r < rawData.length; r++) {
@@ -374,32 +539,49 @@ async function importJDERevenue(
       continue;
     }
 
-    // Insert monthly transactions
+    // Collect monthly amounts; several JDE customers can map to one lease,
+    // in which case their amounts for the same month are summed.
     for (const mc of monthCols) {
       const amount = parseFloat(String(row[mc.col] || "0").replace(/,/g, ""));
       if (!amount || amount <= 0) continue;
-
-      const { error } = await supabase.from("rent_transactions").insert({
-        lease_id: leaseId,
-        period_month: mc.month,
-        period_year: mc.year,
-        min_rent_due: 0,
-        percentage_rent_due: 0,
-        amount_due: amount,
-        amount_paid: amount,
-        status: "paid",
-        payment_method: "jde_import",
-      });
-
-      if (error) {
-        errors.push(`Row ${r + 1} ${mc.month}/${mc.year}: ${error.message}`);
+      const key = periodKey(leaseId, mc.year, mc.month);
+      const prev = jdeByKey.get(key);
+      if (prev) {
+        prev.values.amount_due += amount;
+        prev.values.amount_paid += amount;
+        counts.warnings.push(`${prev.label} and row ${r + 1} (${custName}) map to the same lease for ${mc.month}/${mc.year}; amounts summed`);
       } else {
-        imported++;
+        jdeByKey.set(key, {
+          label: `Row ${r + 1} ${mc.month}/${mc.year}`,
+          values: {
+            lease_id: leaseId,
+            period_month: mc.month,
+            period_year: mc.year,
+            min_rent_due: 0,
+            percentage_rent_due: 0,
+            amount_due: amount,
+            amount_paid: amount,
+            status: "paid",
+            source: JDE_SOURCE,
+          },
+        });
       }
     }
   }
 
-  return { imported, errors: errors.slice(0, 50), total_parsed, matched, unmatched };
+  await upsertPeriodRows(
+    supabase,
+    {
+      table: "rent_transactions",
+      selectCols: "id, lease_id, period_month, period_year, amount_due, amount_paid, status, payment_method, source",
+      compareFields: ["amount_due", "amount_paid", "status"],
+      matches: isJdeRentRow,
+    },
+    Array.from(jdeByKey.values()),
+    counts
+  );
+
+  return { ...counts, errors: errors.slice(0, 50), total_parsed, matched, unmatched };
 }
 
 const VALID_TYPES = ["tenants", "leases", "sales", "rent", "expenses", "jde_revenue"];
@@ -494,7 +676,11 @@ export async function POST(req: NextRequest) {
       const result = await importJDERevenue(supabase, buffer);
       return NextResponse.json({
         imported: result.imported,
+        updated: result.updated,
+        skipped: result.skipped,
+        rows_imported: result.imported + result.updated,
         errors: result.errors,
+        warnings: result.warnings.slice(0, 50),
         total_rows: result.total_parsed,
         matched: result.matched,
         unmatched: result.unmatched,
@@ -519,7 +705,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let result;
+    let result: { imported: number; errors: string[]; updated?: number; skipped?: number; warnings?: string[] };
     switch (type) {
       case "tenants":
         result = await importTenants(supabase, rows);
@@ -540,9 +726,15 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid type" }, { status: 400 });
     }
 
+    const updated = result.updated ?? 0;
     return NextResponse.json({
       imported: result.imported,
+      updated,
+      skipped: result.skipped ?? 0,
+      // The import page reads rows_imported: new + updated rows.
+      rows_imported: result.imported + updated,
       errors: result.errors,
+      warnings: (result.warnings ?? []).slice(0, 50),
       total_rows: rows.length,
     });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Anomaly Detection Engine — The Watchdog
@@ -182,12 +183,16 @@ async function detectFootfallAnomalies(
   if (!zones || zones.length === 0) return details;
 
   // Get today's footfall per zone
-  const { data: todayData } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, total_in")
-    .eq("property_id", propertyId)
-    .eq("date", today)
-    .not("zone_id", "is", null);
+  const todayData = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, total_in")
+      .eq("property_id", propertyId)
+      .eq("date", today)
+      .not("zone_id", "is", null)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Get 4-week same-day-of-week baseline
   const baselineDates: string[] = [];
@@ -197,12 +202,16 @@ async function detectFootfallAnomalies(
     baselineDates.push(d.toISOString().split("T")[0]);
   }
 
-  const { data: baselineData } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, total_in, date")
-    .eq("property_id", propertyId)
-    .in("date", baselineDates)
-    .not("zone_id", "is", null);
+  const baselineData = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, total_in, date")
+      .eq("property_id", propertyId)
+      .in("date", baselineDates)
+      .not("zone_id", "is", null)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Aggregate today per zone
   const todayByZone: Record<string, number> = {};
@@ -309,21 +318,29 @@ async function detectEnergyAnomalies(
   const zoneIds = zones.map((z) => z.id);
 
   // Get today's energy readings
-  const { data: todayReadings } = await supabase
-    .from("energy_readings")
-    .select("zone_id, consumption_kwh, cost_egp, timestamp")
-    .in("zone_id", zoneIds)
-    .gte("timestamp", today + "T00:00:00")
-    .lt("timestamp", today + "T23:59:59");
+  const todayReadings = await fetchAll((from, to) =>
+    supabase
+      .from("energy_readings")
+      .select("zone_id, consumption_kwh, cost_egp, timestamp")
+      .in("zone_id", zoneIds)
+      .gte("timestamp", today + "T00:00:00")
+      .lt("timestamp", today + "T23:59:59")
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Get 7-day baseline for same hours
   const weekAgo = daysAgoStr(7);
-  const { data: baselineReadings } = await supabase
-    .from("energy_readings")
-    .select("zone_id, consumption_kwh, timestamp")
-    .in("zone_id", zoneIds)
-    .gte("timestamp", weekAgo + "T00:00:00")
-    .lt("timestamp", today + "T00:00:00");
+  const baselineReadings = await fetchAll((from, to) =>
+    supabase
+      .from("energy_readings")
+      .select("zone_id, consumption_kwh, timestamp")
+      .in("zone_id", zoneIds)
+      .gte("timestamp", weekAgo + "T00:00:00")
+      .lt("timestamp", today + "T00:00:00")
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Aggregate today by zone
   const todayByZone: Record<string, { kwh: number; cost: number }> = {};
@@ -342,12 +359,16 @@ async function detectEnergyAnomalies(
   });
 
   // Also get footfall for energy-vs-footfall correlation
-  const { data: footfallToday } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, total_in")
-    .eq("property_id", propertyId)
-    .eq("date", today)
-    .not("zone_id", "is", null);
+  const footfallToday = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, total_in")
+      .eq("property_id", propertyId)
+      .eq("date", today)
+      .not("zone_id", "is", null)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const footfallByZone: Record<string, number> = {};
   (footfallToday || []).forEach((r: Record<string, any>) => {
@@ -355,13 +376,17 @@ async function detectEnergyAnomalies(
   });
 
   // Get footfall baseline for comparison
-  const { data: footfallBaseline } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, total_in")
-    .eq("property_id", propertyId)
-    .gte("date", weekAgo)
-    .lt("date", today)
-    .not("zone_id", "is", null);
+  const footfallBaseline = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, total_in")
+      .eq("property_id", propertyId)
+      .gte("date", weekAgo)
+      .lt("date", today)
+      .not("zone_id", "is", null)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const footfallBaselineByZone: Record<string, { total: number; days: number }> = {};
   (footfallBaseline || []).forEach((r: Record<string, any>) => {
@@ -524,14 +549,16 @@ async function detectRevenueAnomalies(
       const prevMonth = currentMonth === 1 ? 12 : currentMonth - 1;
       const prevYear = currentMonth === 1 ? currentYear - 1 : currentYear;
 
-      const { data: prevOverdue } = await supabase
+      // Only the number of rows is needed: count server-side instead of
+      // fetching ids (a plain select is capped at 1000 rows by PostgREST).
+      const { count: prevOverdueCount } = await supabase
         .from("rent_transactions")
-        .select("id")
+        .select("id", { count: "exact", head: true })
         .eq("period_month", prevMonth)
         .eq("period_year", prevYear)
         .in("status", ["overdue", "partial"]);
 
-      const isPattern = prevOverdue && prevOverdue.length >= 3;
+      const isPattern = (prevOverdueCount || 0) >= 3;
 
       const totalOverdue = overdueRent.reduce((s: number, r: Record<string, any>) => s + Number(r.amount_due || 0), 0);
 
@@ -540,7 +567,7 @@ async function detectRevenueAnomalies(
         anomaly_type: "rent_delay_pattern",
         severity: overdueRent.length >= 8 ? "critical" : overdueRent.length >= 5 ? "high" : "medium",
         title: `${overdueRent.length} tenants with overdue rent — ${isPattern ? "recurring pattern" : "this month"}`,
-        description: `${overdueRent.length} tenants have overdue or partial rent payments for ${currentMonth}/${currentYear}, totaling EGP ${totalOverdue.toLocaleString()}. ${isPattern ? "This is a recurring pattern — " + (prevOverdue?.length || 0) + " were overdue last month as well." : "Check if this is due to a system/posting delay or genuine payment issues."}`,
+        description: `${overdueRent.length} tenants have overdue or partial rent payments for ${currentMonth}/${currentYear}, totaling EGP ${totalOverdue.toLocaleString()}. ${isPattern ? "This is a recurring pattern — " + (prevOverdueCount || 0) + " were overdue last month as well." : "Check if this is due to a system/posting delay or genuine payment issues."}`,
         expected_value: 0,
         actual_value: overdueRent.length,
         deviation_pct: null,
@@ -723,22 +750,30 @@ async function detectParkingAnomalies(
   // Near capacity (> 90%)
   if (occupancy >= 90) {
     // Check if mall footfall justifies the parking load
-    const { data: footfall } = await supabase
-      .from("footfall_daily")
-      .select("total_in")
-      .eq("property_id", propertyId)
-      .eq("date", today);
+    const footfall = await fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("total_in")
+        .eq("property_id", propertyId)
+        .eq("date", today)
+        .order("id")
+        .range(from, to)
+    ).catch(() => null);
 
     const totalFootfall = (footfall || []).reduce((s: number, r: Record<string, any>) => s + (r.total_in || 0), 0);
 
     // Compare with 4-week average
     const weekAgo = daysAgoStr(28);
-    const { data: avgFootfall } = await supabase
-      .from("footfall_daily")
-      .select("total_in, date")
-      .eq("property_id", propertyId)
-      .gte("date", weekAgo)
-      .lt("date", today);
+    const avgFootfall = await fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("total_in, date")
+        .eq("property_id", propertyId)
+        .gte("date", weekAgo)
+        .lt("date", today)
+        .order("id")
+        .range(from, to)
+    ).catch(() => null);
 
     const dailyTotals: Record<string, number> = {};
     (avgFootfall || []).forEach((r: Record<string, any>) => {
@@ -857,22 +892,30 @@ async function detectCorrelationBreaks(
   const zoneIds = zones.map((z) => z.id);
 
   // This week footfall
-  const { data: thisWeekFootfall } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, total_in")
-    .eq("property_id", propertyId)
-    .gte("date", weekAgo)
-    .lte("date", today)
-    .not("zone_id", "is", null);
+  const thisWeekFootfall = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, total_in")
+      .eq("property_id", propertyId)
+      .gte("date", weekAgo)
+      .lte("date", today)
+      .not("zone_id", "is", null)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Last week footfall
-  const { data: lastWeekFootfall } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, total_in")
-    .eq("property_id", propertyId)
-    .gte("date", twoWeeksAgo)
-    .lt("date", weekAgo)
-    .not("zone_id", "is", null);
+  const lastWeekFootfall = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, total_in")
+      .eq("property_id", propertyId)
+      .gte("date", twoWeeksAgo)
+      .lt("date", weekAgo)
+      .not("zone_id", "is", null)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const thisWeekByZone: Record<string, number> = {};
   (thisWeekFootfall || []).forEach((r: Record<string, any>) => {
@@ -885,19 +928,27 @@ async function detectCorrelationBreaks(
   });
 
   // This week energy
-  const { data: thisWeekEnergy } = await supabase
-    .from("energy_readings")
-    .select("zone_id, consumption_kwh")
-    .in("zone_id", zoneIds)
-    .gte("timestamp", weekAgo + "T00:00:00")
-    .lte("timestamp", today + "T23:59:59");
+  const thisWeekEnergy = await fetchAll((from, to) =>
+    supabase
+      .from("energy_readings")
+      .select("zone_id, consumption_kwh")
+      .in("zone_id", zoneIds)
+      .gte("timestamp", weekAgo + "T00:00:00")
+      .lte("timestamp", today + "T23:59:59")
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
-  const { data: lastWeekEnergy } = await supabase
-    .from("energy_readings")
-    .select("zone_id, consumption_kwh")
-    .in("zone_id", zoneIds)
-    .gte("timestamp", twoWeeksAgo + "T00:00:00")
-    .lt("timestamp", weekAgo + "T00:00:00");
+  const lastWeekEnergy = await fetchAll((from, to) =>
+    supabase
+      .from("energy_readings")
+      .select("zone_id, consumption_kwh")
+      .in("zone_id", zoneIds)
+      .gte("timestamp", twoWeeksAgo + "T00:00:00")
+      .lt("timestamp", weekAgo + "T00:00:00")
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const thisWeekEnergyByZone: Record<string, number> = {};
   (thisWeekEnergy || []).forEach((r: Record<string, any>) => {

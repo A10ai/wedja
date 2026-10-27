@@ -900,7 +900,7 @@ async function handleDiscrepancies(
     .join("\n");
 
   return {
-    message: `**${summary.total_discrepancies} tenants flagged for potential underreporting this month.**\n\nPotential recovery: **${fmtEGP(summary.total_potential_recovery_egp)}**\nHigh confidence flags: ${summary.by_confidence.high}\n\nTop flagged tenants:\n${topList}`,
+    message: `**${summary.total_discrepancies} tenants flagged for potential underreporting this month.**\n\nRent at risk on open cases: **${fmtEGP(summary.total_potential_recovery_egp)}**\nHigh confidence flags: ${summary.by_confidence.high}\n\nTop flagged tenants:\n${topList}`,
     data: summary,
     type: "list",
   };

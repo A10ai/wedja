@@ -121,7 +121,7 @@ Wedja is a 55,000-line AI property management platform for Senzo Mall, Hurghada 
 
 | Email | Role | Status |
 |-------|------|--------|
-| admin@wedja.ai | owner | active (password: Wedja2026!) |
+| admin@wedja.ai | owner | active |
 | arshad@wedja.ai | viewer | active (password not reset) |
 | ayman@wedja.ai | manager | active (password not reset) |
 | nahla@wedja.ai | manager | active (password not reset) |

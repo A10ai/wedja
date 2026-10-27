@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Revenue Verification Engine
@@ -21,7 +22,22 @@ import { SupabaseClient } from "@supabase/supabase-js";
 // MODEL VERSION: 1.0.0 — Initial category-based estimation
 // ============================================================
 
-const MODEL_VERSION = "1.0.0";
+const MODEL_VERSION = "1.1.0";
+
+/** Share of the period's days that must have store footfall before we judge a report. */
+export const MIN_FOOTFALL_COVERAGE = 0.8;
+
+/**
+ * Learned conversion rates are calibrated from the tenants' own reported
+ * sales (learning-engine.ts), so a tenant that underreports consistently
+ * teaches the model to expect its low figures and its flag disappears.
+ * Keep them out of verification until they are calibrated on verified data
+ * (POS feeds or audited months). Set REVENUE_USE_LEARNED_RATES=true only for
+ * experiments.
+ */
+function learnedRatesEnabled(): boolean {
+  return process.env.REVENUE_USE_LEARNED_RATES === "true";
+}
 const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
 
 // ── Category Revenue Models ─────────────────────────────────
@@ -71,9 +87,29 @@ export interface TenantVerificationResult {
   variance_egp: number;
   variance_pct: number;
   confidence: number;
-  status: "flagged" | "investigating" | "resolved" | "dismissed" | "ok";
+  /**
+   * flagged           reported sales are below the conservative (low) estimate
+   * ok                reported sales are within or above the estimated range
+   * insufficient_data footfall covers less than MIN_FOOTFALL_COVERAGE of the period
+   * missing_report    no sales report for the period
+   * investigating/resolved/dismissed  a person already handled this flag
+   */
+  status: VerificationStatus;
+  /** Share of days in the period with footfall data (0-1). */
+  footfall_coverage: number;
+  /** Extra rent owed if true sales were at least the conservative estimate. */
+  rent_at_risk_egp: number;
   methodology: string;
 }
+
+export type VerificationStatus =
+  | "flagged"
+  | "investigating"
+  | "resolved"
+  | "dismissed"
+  | "ok"
+  | "insufficient_data"
+  | "missing_report";
 
 export interface VerificationRunResult {
   property_id: string;
@@ -223,14 +259,240 @@ export function estimateRevenue(
 }
 
 /**
+ * Monthly rent under "minimum rent or percentage of sales, whichever is
+ * higher". percentageRate is stored as a percent (10 = 10%).
+ */
+export function rentDue(minRent: number, percentageRate: number, sales: number): number {
+  return Math.max(minRent || 0, (sales * (percentageRate || 0)) / 100);
+}
+
+/**
+ * Rent the mall would be owed if true sales were at least `estimatedSales`,
+ * beyond what the reported sales already generate. Zero when the minimum rent
+ * covers both, or when the lease has no percentage clause.
+ */
+export function rentAtRisk(
+  minRent: number,
+  percentageRate: number,
+  reportedSales: number,
+  estimatedSales: number
+): number {
+  if (!percentageRate || estimatedSales <= reportedSales) return 0;
+  const gap =
+    rentDue(minRent, percentageRate, estimatedSales) - rentDue(minRent, percentageRate, reportedSales);
+  return Math.max(0, Math.round(gap));
+}
+
+export interface LeaseAssessment {
+  estimate: RevenueEstimate;
+  status: VerificationStatus;
+  coverage: number;
+  variance_egp: number;
+  variance_pct: number;
+  rent_at_risk_egp: number;
+}
+
+/**
+ * Judge one lease's reported sales for one period. Pure — shared by the
+ * verification run and the report so both screens always agree.
+ *
+ * A flag needs the report to fall below the conservative LOW estimate: the
+ * category range is 3–8x wide, so "below the midpoint" flags many honest
+ * tenants. Variance against the midpoint is kept for information only.
+ */
+export function assessLease(input: {
+  footfall: number;
+  footfallDays: number;
+  periodDays: number;
+  category: string;
+  reportedRevenue: number | null;
+  minRent: number;
+  percentageRate: number;
+  learnedRate?: { rate: number; confidence: number; source: "learned" | "default" };
+}): LeaseAssessment {
+  const estimate = estimateRevenue(input.footfall, input.category, input.footfallDays, input.learnedRate);
+  const coverage = input.periodDays > 0 ? Math.min(1, input.footfallDays / input.periodDays) : 0;
+  const result: LeaseAssessment = {
+    estimate,
+    status: "ok",
+    coverage,
+    variance_egp: 0,
+    variance_pct: 0,
+    rent_at_risk_egp: 0,
+  };
+
+  if (input.reportedRevenue === null) {
+    result.status = "missing_report";
+    return result;
+  }
+  // Missing footfall makes the estimate too low and would hide
+  // underreporting; don't judge the report either way.
+  if (coverage < MIN_FOOTFALL_COVERAGE || estimate.low_egp <= 0) {
+    result.status = "insufficient_data";
+    return result;
+  }
+
+  result.variance_egp = estimate.mid_egp - input.reportedRevenue;
+  result.variance_pct = Math.round((result.variance_egp / estimate.mid_egp) * 10000) / 100;
+  if (input.reportedRevenue < estimate.low_egp) {
+    result.status = "flagged";
+    result.rent_at_risk_egp = rentAtRisk(
+      input.minRent,
+      input.percentageRate,
+      input.reportedRevenue,
+      estimate.low_egp
+    );
+  }
+  return result;
+}
+
+function daysInMonth(month: number, year: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+type LeaseRow = Record<string, any>;
+
+interface PeriodInputs {
+  leases: LeaseRow[];
+  tenantIds: string[];
+  periodDays: number;
+  footfallByUnit: Record<string, { total: number; days: number }>;
+  reportedFor: (lease: LeaseRow) => number | null;
+}
+
+/** Load everything needed to assess every active lease for one month. */
+async function loadPeriodInputs(
+  supabase: SupabaseClient,
+  propertyId: string,
+  month: number,
+  year: number
+): Promise<PeriodInputs> {
+  const { data: leaseRows } = await supabase
+    .from("leases")
+    .select(
+      "id, unit_id, tenant_id, min_rent_monthly_egp, percentage_rate, tenants!inner(id, name, brand_name, category), units!inner(id, unit_number)"
+    )
+    .eq("property_id", propertyId)
+    .eq("status", "active");
+  const leases = (leaseRows || []) as LeaseRow[];
+  const periodDays = daysInMonth(month, year);
+  if (leases.length === 0) {
+    return { leases, tenantIds: [], periodDays, footfallByUnit: {}, reportedFor: () => null };
+  }
+
+  const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+  const endDate =
+    month === 12 ? `${year + 1}-01-01` : `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const unitIds = leases.map((l) => l.unit_id);
+  const tenantIds = leases.map((l) => l.tenant_id);
+
+  // Paged: a month of daily rows for ~170 units exceeds PostgREST's 1000-row cap
+  const footfallData = await fetchAll<LeaseRow>((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("id, unit_id, total_in, date")
+      .in("unit_id", unitIds)
+      .gte("date", startDate)
+      .lt("date", endDate)
+      .order("id")
+      .range(from, to)
+  );
+
+  // One value per unit per day: duplicate rows for the same day (re-entered
+  // manual counts, retried pushes) must not double the estimate.
+  const dailyByUnit: Record<string, Map<string, number>> = {};
+  footfallData.forEach((r) => {
+    const days = (dailyByUnit[r.unit_id] ??= new Map());
+    days.set(r.date, Math.max(days.get(r.date) ?? 0, r.total_in || 0));
+  });
+  const footfallByUnit: Record<string, { total: number; days: number }> = {};
+  for (const [unitId, days] of Object.entries(dailyByUnit)) {
+    let total = 0;
+    days.forEach((v) => (total += v));
+    footfallByUnit[unitId] = { total, days: days.size };
+  }
+
+  const { data: salesData } = await supabase
+    .from("tenant_sales_reported")
+    .select("lease_id, tenant_id, reported_revenue_egp")
+    .in("tenant_id", tenantIds)
+    .eq("period_month", month)
+    .eq("period_year", year);
+
+  // Match sales to the lease (unit), not the tenant: a tenant with two units
+  // reports per unit, and comparing one unit's footfall with the other unit's
+  // sales flags honest tenants. Rows without lease_id fall back to the tenant
+  // only when that tenant has a single active lease.
+  const leasesPerTenant: Record<string, number> = {};
+  leases.forEach((l) => {
+    leasesPerTenant[l.tenant_id] = (leasesPerTenant[l.tenant_id] || 0) + 1;
+  });
+  const salesByLease: Record<string, number> = {};
+  const salesByTenant: Record<string, number> = {};
+  (salesData || []).forEach((row: LeaseRow) => {
+    const amount = Number(row.reported_revenue_egp || 0);
+    if (row.lease_id) {
+      salesByLease[row.lease_id] = (salesByLease[row.lease_id] || 0) + amount;
+    } else if (leasesPerTenant[row.tenant_id] === 1) {
+      salesByTenant[row.tenant_id] = (salesByTenant[row.tenant_id] || 0) + amount;
+    }
+  });
+
+  return {
+    leases,
+    tenantIds,
+    periodDays,
+    footfallByUnit,
+    reportedFor: (lease) => salesByLease[lease.id] ?? salesByTenant[lease.tenant_id] ?? null,
+  };
+}
+
+function toResult(lease: LeaseRow, footfall: number, reported: number | null, a: LeaseAssessment): TenantVerificationResult {
+  return {
+    tenant_id: lease.tenant_id,
+    tenant_name: lease.tenants.name,
+    brand_name: lease.tenants.brand_name,
+    category: lease.tenants.category,
+    unit_id: lease.unit_id,
+    unit_number: lease.units.unit_number,
+    lease_id: lease.id,
+    footfall,
+    reported_revenue_egp: reported,
+    estimated_low_egp: a.estimate.low_egp,
+    estimated_mid_egp: a.estimate.mid_egp,
+    estimated_high_egp: a.estimate.high_egp,
+    variance_egp: Math.round(a.variance_egp),
+    variance_pct: a.variance_pct,
+    confidence: a.estimate.confidence,
+    status: a.status,
+    footfall_coverage: Math.round(a.coverage * 10000) / 10000,
+    rent_at_risk_egp: a.rent_at_risk_egp,
+    methodology: a.estimate.methodology,
+  };
+}
+
+function discrepancyReasoning(r: TenantVerificationResult, footfallDays: number, periodDays: number, minRent: number, pctRate: number): string {
+  const reported = Math.round(r.reported_revenue_egp ?? 0);
+  return [
+    `Reported EGP ${reported.toLocaleString()} is EGP ${Math.round(r.estimated_low_egp - reported).toLocaleString()} below the conservative estimate of EGP ${r.estimated_low_egp.toLocaleString()}`,
+    `(range EGP ${r.estimated_low_egp.toLocaleString()}–${r.estimated_high_egp.toLocaleString()}, midpoint ${r.estimated_mid_egp.toLocaleString()})`,
+    `from ${r.footfall.toLocaleString()} visitors over ${footfallDays}/${periodDays} days.`,
+    pctRate
+      ? `Lease: minimum rent EGP ${minRent.toLocaleString()} or ${pctRate}% of sales; extra rent if sales were at least the conservative estimate: EGP ${r.rent_at_risk_egp.toLocaleString()}.`
+      : "The lease has no percentage-rent clause, so no extra rent is at stake.",
+    "Treat as a lead to request POS data, not as proof.",
+  ].join(" ");
+}
+
+/**
  * Run full revenue verification for a property and period.
  *
  * For each tenant with an active lease:
- * 1. Sum their monthly footfall from footfall_daily
- * 2. Get their reported sales from tenant_sales_reported
+ * 1. Sum the unit's footfall for the month (one value per day)
+ * 2. Get the lease's reported sales
  * 3. Estimate revenue using the category model
- * 4. Compare reported vs estimated
- * 5. Flag discrepancies and store results in the database
+ * 4. Flag reports below the conservative estimate, with the rent at stake
+ * 5. Store estimates and flags; keep flags a person already handled
  */
 export async function runRevenueVerification(
   supabase: SupabaseClient,
@@ -238,16 +500,14 @@ export async function runRevenueVerification(
   month: number,
   year: number
 ): Promise<VerificationRunResult> {
-  // 1. Get all tenants with active leases
-  const { data: leases } = await supabase
-    .from("leases")
-    .select(
-      "id, unit_id, tenant_id, tenants!inner(id, name, brand_name, category), units!inner(id, unit_number)"
-    )
-    .eq("property_id", propertyId)
-    .eq("status", "active");
+  const { leases, tenantIds, periodDays, footfallByUnit, reportedFor } = await loadPeriodInputs(
+    supabase,
+    propertyId,
+    month,
+    year
+  );
 
-  if (!leases || leases.length === 0) {
+  if (leases.length === 0) {
     return {
       property_id: propertyId,
       month,
@@ -261,54 +521,9 @@ export async function runRevenueVerification(
     };
   }
 
-  // 2. Calculate date range for the month
-  const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
-  const endDate =
-    month === 12
-      ? `${year + 1}-01-01`
-      : `${year}-${String(month + 1).padStart(2, "0")}-01`;
-
-  // 3. Get footfall for all units in this period
-  const unitIds = leases.map((l: Record<string, any>) => l.unit_id);
-
-  const { data: footfallData } = await supabase
-    .from("footfall_daily")
-    .select("unit_id, total_in, date")
-    .in("unit_id", unitIds)
-    .gte("date", startDate)
-    .lt("date", endDate);
-
-  // Group footfall by unit
-  const footfallByUnit: Record<string, { total: number; days: number }> = {};
-  (footfallData || []).forEach((r: Record<string, any>) => {
-    if (!footfallByUnit[r.unit_id]) {
-      footfallByUnit[r.unit_id] = { total: 0, days: 0 };
-    }
-    footfallByUnit[r.unit_id].total += r.total_in || 0;
-    footfallByUnit[r.unit_id].days += 1;
-  });
-
-  // 4. Get reported sales for this period
-  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
-
-  const { data: salesData } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, reported_revenue_egp")
-    .in("tenant_id", tenantIds)
-    .eq("period_month", month)
-    .eq("period_year", year);
-
-  const salesByTenant: Record<string, number> = {};
-  (salesData || []).forEach((s: Record<string, any>) => {
-    salesByTenant[s.tenant_id] = s.reported_revenue_egp;
-  });
-
-  // 5. Process each tenant
-  const results: TenantVerificationResult[] = [];
-  let totalDiscrepancies = 0;
-  let totalVariance = 0;
-
-  // Clear previous estimates and discrepancies for this period
+  // Replace this period's estimates, and only the machine flags: discrepancies
+  // a person has picked up (investigating / resolved / dismissed) keep their
+  // status and notes.
   await supabase
     .from("revenue_estimates")
     .delete()
@@ -321,71 +536,61 @@ export async function runRevenueVerification(
     .delete()
     .in("tenant_id", tenantIds)
     .eq("period_month", month)
-    .eq("period_year", year);
+    .eq("period_year", year)
+    .eq("status", "flagged");
 
-  // 5a. Load learned conversion rates for all tenants
-  const { data: learnedParams } = await supabase
-    .from("ai_learned_params")
-    .select("entity_id, learned_value, confidence, sample_count")
-    .eq("property_id", propertyId)
-    .eq("param_type", "conversion_rate")
-    .eq("param_key", "conversion_rate")
-    .gt("confidence", 50);
-
-  const learnedRates: Record<
-    string,
-    { rate: number; confidence: number; source: "learned" | "default"; sample_count: number }
-  > = {};
-  (learnedParams || []).forEach((p: Record<string, any>) => {
-    if (p.entity_id) {
-      learnedRates[p.entity_id] = {
-        rate: p.learned_value,
-        confidence: p.confidence,
-        source: "learned",
-        sample_count: p.sample_count,
-      };
-    }
+  const { data: handled } = await supabase
+    .from("discrepancies")
+    .select("unit_id, tenant_id, status")
+    .in("tenant_id", tenantIds)
+    .eq("period_month", month)
+    .eq("period_year", year)
+    .neq("status", "flagged");
+  const handledStatus: Record<string, VerificationStatus> = {};
+  (handled || []).forEach((d: Record<string, any>) => {
+    handledStatus[`${d.unit_id}:${d.tenant_id}`] = d.status;
   });
 
-  for (const lease of leases) {
-    const tenant = (lease as Record<string, any>).tenants;
-    const unit = (lease as Record<string, any>).units;
-    const unitFootfall = footfallByUnit[lease.unit_id] || {
-      total: 0,
-      days: 0,
-    };
-    const reportedRevenue = salesByTenant[lease.tenant_id] ?? null;
-
-    // Check for learned conversion rate
-    const learnedRate = learnedRates[lease.tenant_id] || undefined;
-
-    // Estimate revenue — using learned rate if available
-    const estimate = estimateRevenue(
-      unitFootfall.total,
-      tenant.category,
-      unitFootfall.days,
-      learnedRate
-    );
-
-    // Calculate variance (positive = underreporting, negative = overreporting)
-    let varianceEgp = 0;
-    let variancePct = 0;
-    let status: TenantVerificationResult["status"] = "ok";
-
-    if (reportedRevenue !== null && estimate.mid_egp > 0) {
-      varianceEgp = estimate.mid_egp - reportedRevenue;
-      variancePct =
-        estimate.mid_egp > 0 ? (varianceEgp / estimate.mid_egp) * 100 : 0;
-
-      // Determine flag status
-      if (reportedRevenue < estimate.low_egp) {
-        status = "flagged"; // HIGH confidence discrepancy
-      } else if (reportedRevenue < estimate.mid_egp) {
-        status = "flagged"; // MEDIUM confidence — still flagged but lower confidence
+  // Learned conversion rates (off by default — see learnedRatesEnabled)
+  const learnedRates: Record<string, { rate: number; confidence: number; source: "learned" | "default" }> = {};
+  if (learnedRatesEnabled()) {
+    const { data: learnedParams } = await supabase
+      .from("ai_learned_params")
+      .select("entity_id, learned_value, confidence, sample_count")
+      .eq("property_id", propertyId)
+      .eq("param_type", "conversion_rate")
+      .eq("param_key", "conversion_rate")
+      .gt("confidence", 50);
+    (learnedParams || []).forEach((p: Record<string, any>) => {
+      if (p.entity_id) {
+        learnedRates[p.entity_id] = { rate: p.learned_value, confidence: p.confidence, source: "learned" };
       }
-    }
+    });
+  }
 
-    // Store revenue estimate
+  const results: TenantVerificationResult[] = [];
+  let totalDiscrepancies = 0;
+  let totalVariance = 0;
+
+  for (const lease of leases) {
+    const unitFootfall = footfallByUnit[lease.unit_id] || { total: 0, days: 0 };
+    const reportedRevenue = reportedFor(lease);
+    const minRent = Number(lease.min_rent_monthly_egp || 0);
+    const pctRate = Number(lease.percentage_rate || 0);
+
+    const assessment = assessLease({
+      footfall: unitFootfall.total,
+      footfallDays: unitFootfall.days,
+      periodDays,
+      category: lease.tenants.category,
+      reportedRevenue,
+      minRent,
+      percentageRate: pctRate,
+      learnedRate: learnedRates[lease.tenant_id],
+    });
+    const result = toResult(lease, unitFootfall.total, reportedRevenue, assessment);
+    const { estimate } = assessment;
+
     await supabase.from("revenue_estimates").insert({
       unit_id: lease.unit_id,
       tenant_id: lease.tenant_id,
@@ -398,63 +603,46 @@ export async function runRevenueVerification(
       factors_json: {
         footfall: unitFootfall.total,
         footfall_days: unitFootfall.days,
-        category: tenant.category,
+        period_days: periodDays,
+        coverage: result.footfall_coverage,
+        category: lease.tenants.category,
         low_egp: estimate.low_egp,
         mid_egp: estimate.mid_egp,
         high_egp: estimate.high_egp,
-        conversion_range: CATEGORY_MODELS[tenant.category]?.conversion || [
-          0.2, 0.35,
-        ],
-        ticket_range: CATEGORY_MODELS[tenant.category]?.avg_ticket || [
-          150, 400,
-        ],
+        conversion_range: CATEGORY_MODELS[lease.tenants.category]?.conversion || [0.2, 0.35],
+        ticket_range: CATEGORY_MODELS[lease.tenants.category]?.avg_ticket || [150, 400],
       },
     });
 
-    // Store discrepancy if flagged
-    if (status === "flagged" && reportedRevenue !== null) {
-      // Adjust confidence: if reported < low_estimate, higher confidence
-      const discrepancyConfidence =
-        reportedRevenue < estimate.low_egp
-          ? Math.min(estimate.confidence + 0.1, 0.98) // boost for extreme cases
-          : estimate.confidence * 0.85; // lower for mid-range flags
-
-      await supabase.from("discrepancies").insert({
+    const handledAs = handledStatus[`${lease.unit_id}:${lease.tenant_id}`];
+    if (result.status === "flagged" && handledAs) {
+      result.status = handledAs;
+    } else if (result.status === "flagged") {
+      const { error: insertError } = await supabase.from("discrepancies").insert({
         unit_id: lease.unit_id,
         tenant_id: lease.tenant_id,
         period_month: month,
         period_year: year,
         reported_revenue_egp: reportedRevenue,
         estimated_revenue_egp: estimate.mid_egp,
-        variance_egp: varianceEgp,
-        variance_pct: Math.round(variancePct * 100) / 100,
-        confidence: Math.round(discrepancyConfidence * 10000) / 10000,
+        estimated_low_egp: estimate.low_egp,
+        variance_egp: result.variance_egp,
+        variance_pct: result.variance_pct,
+        rent_at_risk_egp: result.rent_at_risk_egp,
+        footfall_coverage: result.footfall_coverage,
+        confidence: Math.round(estimate.confidence * 10000) / 10000,
+        model_version: MODEL_VERSION,
+        reasoning: discrepancyReasoning(result, unitFootfall.days, periodDays, minRent, pctRate),
         status: "flagged",
       });
-
+      if (insertError) {
+        throw new Error(`Failed to store discrepancy for tenant ${lease.tenant_id}: ${insertError.message}`);
+      }
       totalDiscrepancies++;
-      totalVariance += varianceEgp;
+      totalVariance += result.variance_egp;
     }
 
-    results.push({
-      tenant_id: lease.tenant_id,
-      tenant_name: tenant.name,
-      brand_name: tenant.brand_name,
-      category: tenant.category,
-      unit_id: lease.unit_id,
-      unit_number: unit.unit_number,
-      lease_id: lease.id,
-      footfall: unitFootfall.total,
-      reported_revenue_egp: reportedRevenue,
-      estimated_low_egp: estimate.low_egp,
-      estimated_mid_egp: estimate.mid_egp,
-      estimated_high_egp: estimate.high_egp,
-      variance_egp: varianceEgp,
-      variance_pct: Math.round(variancePct * 100) / 100,
-      confidence: estimate.confidence,
-      status,
-      methodology: estimate.methodology,
-    });
+    results.push(result);
   }
 
   // Sort by variance descending (worst offenders first)
@@ -466,7 +654,7 @@ export async function runRevenueVerification(
     year,
     run_at: new Date().toISOString(),
     total_tenants: leases.length,
-    total_with_sales: Object.keys(salesByTenant).length,
+    total_with_sales: results.filter((r) => r.reported_revenue_egp !== null).length,
     total_discrepancies: totalDiscrepancies,
     total_variance_egp: totalVariance,
     results,
@@ -546,10 +734,12 @@ export async function getDiscrepancySummary(
       byStatus[d.status as keyof typeof byStatus]++;
   });
 
-  // Potential recovery: sum of variance where confidence > 0.6
+  // Potential recovery is RENT, not sales: the extra rent owed on open cases
+  // if true sales were at least the conservative estimate. Rows written
+  // before rent_at_risk_egp existed contribute nothing until re-verified.
   const potentialRecovery = discrepancies
-    .filter((d: Record<string, any>) => (d.confidence || 0) > 0.6)
-    .reduce((sum: number, d: Record<string, any>) => sum + (d.variance_egp || 0), 0);
+    .filter((d: Record<string, any>) => d.status === "flagged" || d.status === "investigating")
+    .reduce((sum: number, d: Record<string, any>) => sum + Number(d.rent_at_risk_egp || 0), 0);
 
   // Top 10 discrepancies
   const topDiscrepancies = discrepancies.slice(0, 10).map((d: Record<string, any>) => ({
@@ -736,6 +926,8 @@ export async function getTenantRevenueProfile(
 
 /**
  * Generate a complete verification report for a property and period.
+ * Uses the same assessment as runRevenueVerification, and shows the status a
+ * person gave to any flag that was already handled.
  */
 export async function getVerificationReport(
   supabase: SupabaseClient,
@@ -743,16 +935,14 @@ export async function getVerificationReport(
   month: number,
   year: number
 ): Promise<VerificationReport> {
-  // Get all tenants with active leases
-  const { data: leases } = await supabase
-    .from("leases")
-    .select(
-      "id, unit_id, tenant_id, tenants!inner(id, name, brand_name, category), units!inner(id, unit_number)"
-    )
-    .eq("property_id", propertyId)
-    .eq("status", "active");
+  const { leases, tenantIds, periodDays, footfallByUnit, reportedFor } = await loadPeriodInputs(
+    supabase,
+    propertyId,
+    month,
+    year
+  );
 
-  if (!leases || leases.length === 0) {
+  if (leases.length === 0) {
     return {
       summary: {
         total_tenants: 0,
@@ -770,163 +960,67 @@ export async function getVerificationReport(
     };
   }
 
-  // Get date range
-  const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
-  const endDate =
-    month === 12
-      ? `${year + 1}-01-01`
-      : `${year}-${String(month + 1).padStart(2, "0")}-01`;
-
-  const unitIds = leases.map((l: Record<string, any>) => l.unit_id);
-  const tenantIds = leases.map((l: Record<string, any>) => l.tenant_id);
-
-  // Get footfall
-  const { data: footfallData } = await supabase
-    .from("footfall_daily")
-    .select("unit_id, total_in, date")
-    .in("unit_id", unitIds)
-    .gte("date", startDate)
-    .lt("date", endDate);
-
-  const footfallByUnit: Record<string, { total: number; days: number }> = {};
-  (footfallData || []).forEach((r: Record<string, any>) => {
-    if (!footfallByUnit[r.unit_id]) {
-      footfallByUnit[r.unit_id] = { total: 0, days: 0 };
-    }
-    footfallByUnit[r.unit_id].total += r.total_in || 0;
-    footfallByUnit[r.unit_id].days += 1;
-  });
-
-  // Get reported sales
-  const { data: salesData } = await supabase
-    .from("tenant_sales_reported")
-    .select("tenant_id, reported_revenue_egp")
-    .in("tenant_id", tenantIds)
-    .eq("period_month", month)
-    .eq("period_year", year);
-
-  const salesByTenant: Record<string, number> = {};
-  (salesData || []).forEach((s: Record<string, any>) => {
-    salesByTenant[s.tenant_id] = s.reported_revenue_egp;
-  });
-
-  // Get existing discrepancies (with their status)
   const { data: existingDiscrepancies } = await supabase
     .from("discrepancies")
-    .select("tenant_id, status, confidence")
+    .select("unit_id, tenant_id, status")
     .in("tenant_id", tenantIds)
     .eq("period_month", month)
     .eq("period_year", year);
-
-  const discrepancyMap: Record<string, { status: string; confidence: number }> =
-    {};
+  const statusByLease: Record<string, VerificationStatus> = {};
   (existingDiscrepancies || []).forEach((d: Record<string, any>) => {
-    discrepancyMap[d.tenant_id] = {
-      status: d.status,
-      confidence: d.confidence,
-    };
+    statusByLease[`${d.unit_id}:${d.tenant_id}`] = d.status;
   });
 
-  // Build results
   const tenants: TenantVerificationResult[] = [];
   let totalReported = 0;
   let totalEstimated = 0;
   let totalVariance = 0;
   let totalDiscrepancies = 0;
   let highConfidenceFlags = 0;
+  let potentialRecovery = 0;
 
   for (const lease of leases) {
-    const tenant = (lease as Record<string, any>).tenants;
-    const unit = (lease as Record<string, any>).units;
-    const unitFootfall = footfallByUnit[lease.unit_id] || {
-      total: 0,
-      days: 0,
-    };
-    const reportedRevenue = salesByTenant[lease.tenant_id] ?? null;
+    const unitFootfall = footfallByUnit[lease.unit_id] || { total: 0, days: 0 };
+    const reportedRevenue = reportedFor(lease);
+    const assessment = assessLease({
+      footfall: unitFootfall.total,
+      footfallDays: unitFootfall.days,
+      periodDays,
+      category: lease.tenants.category,
+      reportedRevenue,
+      minRent: Number(lease.min_rent_monthly_egp || 0),
+      percentageRate: Number(lease.percentage_rate || 0),
+    });
+    const result = toResult(lease, unitFootfall.total, reportedRevenue, assessment);
 
-    const estimate = estimateRevenue(
-      unitFootfall.total,
-      tenant.category,
-      unitFootfall.days
-    );
-
-    let varianceEgp = 0;
-    let variancePct = 0;
-    let status: TenantVerificationResult["status"] = "ok";
-
-    if (reportedRevenue !== null && estimate.mid_egp > 0) {
-      varianceEgp = estimate.mid_egp - reportedRevenue;
-      variancePct = (varianceEgp / estimate.mid_egp) * 100;
-
-      totalReported += reportedRevenue;
-      totalEstimated += estimate.mid_egp;
-
-      // Use existing discrepancy status if present
-      const existing = discrepancyMap[lease.tenant_id];
-      if (existing) {
-        status = existing.status as TenantVerificationResult["status"];
-        if (existing.confidence >= 0.75) highConfidenceFlags++;
-        totalDiscrepancies++;
-        totalVariance += varianceEgp;
-      } else if (reportedRevenue < estimate.low_egp) {
-        status = "flagged";
-        highConfidenceFlags++;
-        totalDiscrepancies++;
-        totalVariance += varianceEgp;
-      } else if (reportedRevenue < estimate.mid_egp * 0.85) {
-        status = "flagged";
-        totalDiscrepancies++;
-        totalVariance += varianceEgp;
+    if (result.status === "flagged") {
+      result.status = statusByLease[`${lease.unit_id}:${lease.tenant_id}`] ?? "flagged";
+      totalDiscrepancies++;
+      totalVariance += result.variance_egp;
+      if (result.confidence >= 0.75) highConfidenceFlags++;
+      if (result.status === "flagged" || result.status === "investigating") {
+        potentialRecovery += result.rent_at_risk_egp;
       }
     }
-
-    tenants.push({
-      tenant_id: lease.tenant_id,
-      tenant_name: tenant.name,
-      brand_name: tenant.brand_name,
-      category: tenant.category,
-      unit_id: lease.unit_id,
-      unit_number: unit.unit_number,
-      lease_id: lease.id,
-      footfall: unitFootfall.total,
-      reported_revenue_egp: reportedRevenue,
-      estimated_low_egp: estimate.low_egp,
-      estimated_mid_egp: estimate.mid_egp,
-      estimated_high_egp: estimate.high_egp,
-      variance_egp: Math.round(varianceEgp),
-      variance_pct: Math.round(variancePct * 100) / 100,
-      confidence: estimate.confidence,
-      status,
-      methodology: estimate.methodology,
-    });
+    if (reportedRevenue !== null && result.status !== "insufficient_data") {
+      totalReported += reportedRevenue;
+      totalEstimated += result.estimated_mid_egp;
+    }
+    tenants.push(result);
   }
 
-  // Sort by variance descending
   tenants.sort((a, b) => b.variance_egp - a.variance_egp);
 
+  const judged = tenants.filter(
+    (t) => t.reported_revenue_egp !== null && t.status !== "insufficient_data"
+  );
   const avgVariancePct =
-    tenants.filter((t) => t.reported_revenue_egp !== null).length > 0
-      ? tenants
-          .filter((t) => t.reported_revenue_egp !== null)
-          .reduce((sum, t) => sum + t.variance_pct, 0) /
-        tenants.filter((t) => t.reported_revenue_egp !== null).length
-      : 0;
-
-  // Potential recovery: variance where confidence > 0.6 and status is not resolved/dismissed
-  const potentialRecovery = tenants
-    .filter(
-      (t) =>
-        t.confidence > 0.6 &&
-        t.status !== "resolved" &&
-        t.status !== "dismissed" &&
-        t.variance_egp > 0
-    )
-    .reduce((sum, t) => sum + t.variance_egp, 0);
+    judged.length > 0 ? judged.reduce((sum, t) => sum + t.variance_pct, 0) / judged.length : 0;
 
   return {
     summary: {
       total_tenants: leases.length,
-      tenants_with_sales: Object.keys(salesByTenant).length,
+      tenants_with_sales: tenants.filter((t) => t.reported_revenue_egp !== null).length,
       total_discrepancies: totalDiscrepancies,
       high_confidence_flags: highConfidenceFlags,
       total_reported_egp: totalReported,

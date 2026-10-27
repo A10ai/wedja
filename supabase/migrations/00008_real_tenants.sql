@@ -63,6 +63,13 @@ DECLARE
   ];
 
 BEGIN
+  -- Fresh database (`supabase db reset` runs migrations before seed.sql):
+  -- the seed property/zones do not exist yet, so skip this data section.
+  IF NOT EXISTS (SELECT 1 FROM zones WHERE property_id = 'a0000000-0000-0000-0000-000000000001') THEN
+    RAISE NOTICE '00008: seed property/zones not present, skipping seed data';
+    RETURN;
+  END IF;
+
 
   -- ================================================================
   -- STEP 1: Delete all existing tenant-related data
@@ -77,6 +84,15 @@ BEGIN
   DELETE FROM footfall_daily WHERE unit_id IN (SELECT id FROM units WHERE property_id = v_prop);
   DELETE FROM leases WHERE property_id = v_prop;
   DELETE FROM units WHERE property_id = v_prop;
+  -- tenant_promotions (00006) and social_posts (00007) reference tenants without
+  -- ON DELETE; detach them so the dummy tenants can be removed. Guarded because
+  -- those tables may not exist yet depending on apply order.
+  IF to_regclass('public.tenant_promotions') IS NOT NULL THEN
+    EXECUTE 'UPDATE tenant_promotions SET tenant_id = NULL WHERE tenant_id IS NOT NULL';
+  END IF;
+  IF to_regclass('public.social_posts') IS NOT NULL THEN
+    EXECUTE 'UPDATE social_posts SET tenant_id = NULL WHERE tenant_id IS NOT NULL';
+  END IF;
   DELETE FROM tenants;
 
   -- ================================================================

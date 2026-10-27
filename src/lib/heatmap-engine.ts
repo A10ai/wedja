@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Live Heatmap Engine
@@ -166,28 +167,40 @@ export async function getLiveHeatmapData(
     unitFootfall,
   ] = await Promise.all([
     // Today's footfall by zone
-    supabase
-      .from("footfall_daily")
-      .select("zone_id, total_in")
-      .eq("property_id", propertyId)
-      .eq("date", today)
-      .not("zone_id", "is", null),
+    fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("zone_id, total_in")
+        .eq("property_id", propertyId)
+        .eq("date", today)
+        .not("zone_id", "is", null)
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Yesterday's footfall by zone (same hour comparison)
-    supabase
-      .from("footfall_daily")
-      .select("zone_id, total_in")
-      .eq("property_id", propertyId)
-      .eq("date", yesterday)
-      .not("zone_id", "is", null),
+    fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("zone_id, total_in")
+        .eq("property_id", propertyId)
+        .eq("date", yesterday)
+        .not("zone_id", "is", null)
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Energy today by zone
-    supabase
-      .from("energy_readings")
-      .select("zone_id, consumption_kwh, cost_egp")
-      .in("zone_id", zoneIds)
-      .gte("timestamp", today + "T00:00:00")
-      .lte("timestamp", today + "T23:59:59"),
+    fetchAll((from, to) =>
+      supabase
+        .from("energy_readings")
+        .select("zone_id, consumption_kwh, cost_egp")
+        .in("zone_id", zoneIds)
+        .gte("timestamp", today + "T00:00:00")
+        .lte("timestamp", today + "T23:59:59")
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Units per zone (occupied)
     supabase
@@ -197,11 +210,15 @@ export async function getLiveHeatmapData(
       .eq("status", "occupied"),
 
     // Month revenue by tenant (via tenant_sales_reported)
-    supabase
-      .from("tenant_sales_reported")
-      .select("tenant_id, reported_revenue_egp")
-      .eq("period_month", new Date().getMonth() + 1)
-      .eq("period_year", new Date().getFullYear()),
+    fetchAll((from, to) =>
+      supabase
+        .from("tenant_sales_reported")
+        .select("tenant_id, reported_revenue_egp")
+        .eq("period_month", new Date().getMonth() + 1)
+        .eq("period_year", new Date().getFullYear())
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Open maintenance tickets
     supabase
@@ -219,12 +236,16 @@ export async function getLiveHeatmapData(
       .eq("status", "flagged"),
 
     // Footfall by unit today (for top/worst tenant)
-    supabase
-      .from("footfall_daily")
-      .select("unit_id, total_in")
-      .eq("property_id", propertyId)
-      .eq("date", today)
-      .not("unit_id", "is", null),
+    fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("unit_id, total_in")
+        .eq("property_id", propertyId)
+        .eq("date", today)
+        .not("unit_id", "is", null)
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
   ]);
 
   // 3. Build lookup maps
@@ -438,20 +459,28 @@ export async function getZoneDeepDive(
     eventsRes,
   ] = await Promise.all([
     // Footfall today by unit
-    supabase
-      .from("footfall_daily")
-      .select("unit_id, total_in, zone_id")
-      .eq("date", today)
-      .eq("property_id", propertyId)
-      .or(`zone_id.eq.${zoneId},unit_id.in.(${unitIds.join(",")})`),
+    fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("unit_id, total_in, zone_id")
+        .eq("date", today)
+        .eq("property_id", propertyId)
+        .or(`zone_id.eq.${zoneId},unit_id.in.(${unitIds.join(",")})`)
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Yesterday footfall
-    supabase
-      .from("footfall_daily")
-      .select("zone_id, total_in")
-      .eq("date", yesterday)
-      .eq("property_id", propertyId)
-      .eq("zone_id", zoneId),
+    fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("zone_id, total_in")
+        .eq("date", yesterday)
+        .eq("property_id", propertyId)
+        .eq("zone_id", zoneId)
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Active leases for units in zone
     unitIds.length > 0
@@ -465,12 +494,16 @@ export async function getZoneDeepDive(
       : Promise.resolve({ data: [] }),
 
     // Energy for zone today
-    supabase
-      .from("energy_readings")
-      .select("consumption_kwh, cost_egp")
-      .eq("zone_id", zoneId)
-      .gte("timestamp", today + "T00:00:00")
-      .lte("timestamp", today + "T23:59:59"),
+    fetchAll((from, to) =>
+      supabase
+        .from("energy_readings")
+        .select("consumption_kwh, cost_egp")
+        .eq("zone_id", zoneId)
+        .gte("timestamp", today + "T00:00:00")
+        .lte("timestamp", today + "T23:59:59")
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Discrepancies in zone
     unitIds.length > 0
@@ -526,14 +559,18 @@ export async function getZoneDeepDive(
 
   // Get reported sales for tenants
   const tenantIds = (leasesRes.data || []).map((l: Record<string, any>) => l.tenant_id);
-  const { data: salesData } = tenantIds.length > 0
-    ? await supabase
-        .from("tenant_sales_reported")
-        .select("tenant_id, reported_revenue_egp")
-        .in("tenant_id", tenantIds)
-        .eq("period_month", new Date().getMonth() + 1)
-        .eq("period_year", new Date().getFullYear())
-    : { data: [] };
+  const salesData = tenantIds.length > 0
+    ? await fetchAll((from, to) =>
+        supabase
+          .from("tenant_sales_reported")
+          .select("tenant_id, reported_revenue_egp")
+          .in("tenant_id", tenantIds)
+          .eq("period_month", new Date().getMonth() + 1)
+          .eq("period_year", new Date().getFullYear())
+          .order("id")
+          .range(from, to)
+      ).catch(() => null)
+    : [];
 
   const salesByTenant: Record<string, number> = {};
   (salesData || []).forEach((s: Record<string, any>) => {
@@ -541,14 +578,18 @@ export async function getZoneDeepDive(
   });
 
   // Get estimates
-  const { data: estimateData } = tenantIds.length > 0
-    ? await supabase
-        .from("revenue_estimates")
-        .select("tenant_id, estimated_revenue_egp")
-        .in("tenant_id", tenantIds)
-        .eq("period_month", new Date().getMonth() + 1)
-        .eq("period_year", new Date().getFullYear())
-    : { data: [] };
+  const estimateData = tenantIds.length > 0
+    ? await fetchAll((from, to) =>
+        supabase
+          .from("revenue_estimates")
+          .select("tenant_id, estimated_revenue_egp")
+          .in("tenant_id", tenantIds)
+          .eq("period_month", new Date().getMonth() + 1)
+          .eq("period_year", new Date().getFullYear())
+          .order("id")
+          .range(from, to)
+      ).catch(() => null)
+    : [];
 
   const estimatesByTenant: Record<string, number> = {};
   (estimateData || []).forEach((e: Record<string, any>) => {
@@ -673,12 +714,16 @@ export async function getVisitorFlowData(
     .eq("property_id", propertyId);
 
   // Get today's footfall by zone
-  const { data: footfallData } = await supabase
-    .from("footfall_daily")
-    .select("zone_id, total_in")
-    .eq("property_id", propertyId)
-    .eq("date", today)
-    .not("zone_id", "is", null);
+  const footfallData = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("zone_id, total_in")
+      .eq("property_id", propertyId)
+      .eq("date", today)
+      .not("zone_id", "is", null)
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const footfallByZone: Record<string, number> = {};
   let totalDaily = 0;

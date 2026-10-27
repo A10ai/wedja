@@ -183,7 +183,7 @@ registerHandler("lease.expiring", "notify-lease-expiring", async (event, supabas
     lease_id?: string;
   };
 
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "Lease Expiring Soon",
     message: `Tenant ${tenant_name || "Unknown"} lease expires in ${days_until_expiry || "?"} days`,
     type: "warning",
@@ -193,7 +193,7 @@ registerHandler("lease.expiring", "notify-lease-expiring", async (event, supabas
 
   return {
     handler: "notify-lease-expiring",
-    success: true,
+    success: created !== null,
     message: `Notification created for ${tenant_name}`,
     timestamp: new Date().toISOString(),
   };
@@ -252,7 +252,7 @@ registerHandler("rent.overdue", "notify-rent-overdue", async (event, supabase) =
     amount_due?: number;
   };
 
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "Rent Overdue",
     message: `Tenant ${tenant_name || "Unknown"} rent overdue by ${days_overdue || "?"} days — EGP ${(amount_due || 0).toLocaleString()} outstanding`,
     type: "warning",
@@ -262,7 +262,7 @@ registerHandler("rent.overdue", "notify-rent-overdue", async (event, supabase) =
 
   return {
     handler: "notify-rent-overdue",
-    success: true,
+    success: created !== null,
     message: `Overdue notification created for ${tenant_name}`,
     timestamp: new Date().toISOString(),
   };
@@ -327,7 +327,7 @@ registerHandler("tenant.underreporting", "notify-underreporting", async (event, 
     variance_egp?: number;
   };
 
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "Revenue Discrepancy Flagged",
     message: `Revenue discrepancy flagged for Tenant ${tenant_name || "Unknown"} — EGP ${(variance_egp || 0).toLocaleString()} variance`,
     type: "critical",
@@ -337,7 +337,7 @@ registerHandler("tenant.underreporting", "notify-underreporting", async (event, 
 
   return {
     handler: "notify-underreporting",
-    success: true,
+    success: created !== null,
     message: `Underreporting notification for ${tenant_name}`,
     timestamp: new Date().toISOString(),
   };
@@ -383,7 +383,7 @@ registerHandler("footfall.drop", "notify-footfall-drop", async (event, supabase)
     drop_pct?: number;
   };
 
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "Footfall Drop Detected",
     message: `Zone ${zone_name || "Unknown"} footfall dropped ${drop_pct || "?"}% below normal`,
     type: "warning",
@@ -393,7 +393,7 @@ registerHandler("footfall.drop", "notify-footfall-drop", async (event, supabase)
 
   return {
     handler: "notify-footfall-drop",
-    success: true,
+    success: created !== null,
     message: `Footfall drop notification for ${zone_name}`,
     timestamp: new Date().toISOString(),
   };
@@ -466,7 +466,7 @@ registerHandler("energy.waste_detected", "notify-energy-waste", async (event, su
     daily_cost_egp?: number;
   };
 
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "Energy Waste Detected",
     message: `Energy waste in Zone ${zone_name || "Unknown"} — EGP ${(daily_cost_egp || 0).toLocaleString()}/day`,
     type: "warning",
@@ -476,7 +476,7 @@ registerHandler("energy.waste_detected", "notify-energy-waste", async (event, su
 
   return {
     handler: "notify-energy-waste",
-    success: true,
+    success: created !== null,
     message: `Energy waste notification for ${zone_name}`,
     timestamp: new Date().toISOString(),
   };
@@ -576,7 +576,7 @@ registerHandler("anomaly.detected", "notify-anomaly", async (event, supabase) =>
     severity?: string;
   };
 
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "Anomaly Detected",
     message: description || "An anomaly was detected in the system",
     type: severity === "critical" ? "critical" : "warning",
@@ -586,7 +586,7 @@ registerHandler("anomaly.detected", "notify-anomaly", async (event, supabase) =>
 
   return {
     handler: "notify-anomaly",
-    success: true,
+    success: created !== null,
     message: "Anomaly notification created",
     timestamp: new Date().toISOString(),
   };
@@ -598,7 +598,7 @@ registerHandler("anomaly.critical", "broadcast-critical", async (event, supabase
   const { description } = event.payload as { description?: string };
 
   // Broadcast to all staff (staff_id = null means visible to everyone)
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "CRITICAL ANOMALY",
     message: `CRITICAL: ${description || "A critical anomaly has been detected"}`,
     type: "critical",
@@ -608,7 +608,7 @@ registerHandler("anomaly.critical", "broadcast-critical", async (event, supabase
 
   return {
     handler: "broadcast-critical",
-    success: true,
+    success: created !== null,
     message: "Critical anomaly broadcast sent",
     timestamp: new Date().toISOString(),
   };
@@ -619,7 +619,7 @@ registerHandler("anomaly.critical", "broadcast-critical", async (event, supabase
 registerHandler("campaign.started", "notify-campaign", async (event, supabase) => {
   const { campaign_name } = event.payload as { campaign_name?: string };
 
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "Campaign Active",
     message: `Campaign ${campaign_name || "Unknown"} is now active`,
     type: "info",
@@ -629,7 +629,7 @@ registerHandler("campaign.started", "notify-campaign", async (event, supabase) =
 
   return {
     handler: "notify-campaign",
-    success: true,
+    success: created !== null,
     message: `Campaign notification for ${campaign_name}`,
     timestamp: new Date().toISOString(),
   };
@@ -643,7 +643,7 @@ registerHandler("maintenance.resolved", "notify-resolved", async (event, supabas
     ticket_id?: string;
   };
 
-  await createNotification(supabase, {
+  const created = await createNotification(supabase, {
     title: "Maintenance Resolved",
     message: `Ticket resolved: ${title || "Unknown"}`,
     type: "info",
@@ -653,7 +653,7 @@ registerHandler("maintenance.resolved", "notify-resolved", async (event, supabas
 
   return {
     handler: "notify-resolved",
-    success: true,
+    success: created !== null,
     message: `Resolution notification for ticket ${ticket_id || "unknown"}`,
     timestamp: new Date().toISOString(),
   };

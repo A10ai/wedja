@@ -91,7 +91,7 @@ def build_pdf(output_path):
     pdf.set_text_color(*WedjaReport.BODY)
     text = (
         "Camera connection is working. We successfully connected to one camera "
-        "via the public IP (196.219.205.230) and have been counting people for "
+        "via the public IP (the mall public IP) and have been counting people for "
         "12+ hours. Yesterday we counted 2,484 visitors from a single corridor camera."
     )
     pdf.multi_cell(0, 5.5, text, fill=True)

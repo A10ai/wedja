@@ -27,6 +27,13 @@ DECLARE
   v_unit_seq   INT := 300; -- start above existing unit numbering
 
 BEGIN
+  -- Fresh database (`supabase db reset` runs migrations before seed.sql):
+  -- the seed property/zones do not exist yet, so skip this data section.
+  IF NOT EXISTS (SELECT 1 FROM zones WHERE property_id = 'a0000000-0000-0000-0000-000000000001') THEN
+    RAISE NOTICE '00011: seed property/zones not present, skipping seed data';
+    RETURN;
+  END IF;
+
 
   -- ================================================================
   -- STEP 1: Delete ALL existing rent_transactions

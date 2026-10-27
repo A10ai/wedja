@@ -58,6 +58,13 @@ DECLARE
   v_desc TEXT;
   v_i INT;
 BEGIN
+  -- Fresh database (`supabase db reset` runs migrations before seed.sql):
+  -- the seed property does not exist yet, so skip this data section.
+  IF NOT EXISTS (SELECT 1 FROM properties WHERE id = 'a0000000-0000-0000-0000-000000000001') THEN
+    RAISE NOTICE '00003: seed property not present, skipping seed data';
+    RETURN;
+  END IF;
+
 
   -- Generate expenses for last 6 months
   FOR v_i IN 0..5 LOOP

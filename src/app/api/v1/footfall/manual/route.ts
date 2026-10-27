@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 const PROPERTY_ID = "a0000000-0000-0000-0000-000000000001";
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth(req);
+  // Security staff enter counts from the mall's manual counters
+  const auth = await requireAuth(req, { roles: ["owner", "manager", "security"] });
   if (auth instanceof NextResponse) return auth;
 
   try {

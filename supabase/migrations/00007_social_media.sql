@@ -97,6 +97,17 @@ CREATE INDEX idx_posts_published ON social_posts(published_at DESC);
 CREATE INDEX idx_calendar_date ON content_calendar(property_id, date);
 CREATE INDEX idx_analytics_date ON social_analytics(account_id, date DESC);
 
+-- Data section guarded so a fresh `supabase db reset` (migrations before seed.sql)
+-- does not fail on the missing seed property.
+DO $seed$
+BEGIN
+  -- Fresh database (`supabase db reset` runs migrations before seed.sql):
+  -- the seed property does not exist yet, so skip this data section.
+  IF NOT EXISTS (SELECT 1 FROM properties WHERE id = 'a0000000-0000-0000-0000-000000000001') THEN
+    RAISE NOTICE '00007: seed property not present, skipping seed data';
+    RETURN;
+  END IF;
+
 -- ============================================================
 -- Seed Data — Senzo Mall Social Media
 -- ============================================================
@@ -383,3 +394,4 @@ INSERT INTO social_analytics (account_id, date, followers_count, followers_gaine
 ('b1000000-0000-0000-0000-000000000004', '2026-03-16', 8750, 55, 5, 1, 35000, 48000, 520, 2.80),
 ('b1000000-0000-0000-0000-000000000004', '2026-03-18', 8800, 28, 3, 0, 8000, 11000, 120, 1.10),
 ('b1000000-0000-0000-0000-000000000004', '2026-03-19', 8830, 35, 5, 1, 16000, 22000, 250, 1.50);
+END $seed$;

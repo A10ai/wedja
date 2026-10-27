@@ -227,7 +227,7 @@ def build_pdf():
         "which is not port-forwarded to the internet."
     )
     pdf.body_text(
-        "The CCTV server you set up for us (196.219.205.228:33890) is on the local "
+        "The CCTV server you set up for us (its public address) is on the local "
         "network and CAN reach the cameras directly. We need to install a small "
         "Python script on this server."
     )
@@ -256,7 +256,7 @@ def build_pdf():
     )
     pdf.code_block("http://192.168.16.201/ISAPI/Smart/PeopleCounting")
     pdf.body_text(
-        "Login with the camera credentials (admin / Hik12345). If you see XML data "
+        "Login with the camera credentials (the camera admin username and password). If you see XML data "
         "with counting numbers, ISAPI is working."
     )
     pdf.body_text("If that URL does not work, try:")

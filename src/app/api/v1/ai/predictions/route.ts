@@ -25,13 +25,19 @@ export async function GET(request: NextRequest) {
 
     switch (type) {
       case "footfall": {
-        const days = parseInt(searchParams.get("days") || "30");
+        const parsedDays = parseInt(searchParams.get("days") || "30", 10);
+        const days = Number.isFinite(parsedDays)
+          ? Math.min(Math.max(parsedDays, 1), 365)
+          : 30;
         const result = await forecastFootfall(supabase, days);
         return NextResponse.json({ data: result });
       }
 
       case "revenue": {
-        const months = parseInt(searchParams.get("months") || "6");
+        const parsedMonths = parseInt(searchParams.get("months") || "6", 10);
+        const months = Number.isFinite(parsedMonths)
+          ? Math.min(Math.max(parsedMonths, 1), 24)
+          : 6;
         const result = await forecastRevenue(supabase, months);
         return NextResponse.json({ data: result });
       }

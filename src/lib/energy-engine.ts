@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja Energy Engine
@@ -112,41 +113,57 @@ export async function getEnergyOverview(
 
   const [todayRes, yesterdayRes, monthRes, last30Res] = await Promise.all([
     // Today's readings
-    supabase
-      .from("energy_readings")
-      .select("consumption_kwh, cost_egp, timestamp")
-      .in("zone_id", zoneIds)
-      .gte("timestamp", today + "T00:00:00")
-      .lt("timestamp", today + "T23:59:59"),
+    fetchAll((from, to) =>
+      supabase
+        .from("energy_readings")
+        .select("consumption_kwh, cost_egp, timestamp")
+        .in("zone_id", zoneIds)
+        .gte("timestamp", today + "T00:00:00")
+        .lt("timestamp", today + "T23:59:59")
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Yesterday's readings
-    supabase
-      .from("energy_readings")
-      .select("consumption_kwh, cost_egp")
-      .in("zone_id", zoneIds)
-      .gte("timestamp", yesterday + "T00:00:00")
-      .lt("timestamp", yesterday + "T23:59:59"),
+    fetchAll((from, to) =>
+      supabase
+        .from("energy_readings")
+        .select("consumption_kwh, cost_egp")
+        .in("zone_id", zoneIds)
+        .gte("timestamp", yesterday + "T00:00:00")
+        .lt("timestamp", yesterday + "T23:59:59")
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Month to date
-    supabase
-      .from("energy_readings")
-      .select("consumption_kwh, cost_egp")
-      .in("zone_id", zoneIds)
-      .gte("timestamp", monthStart + "T00:00:00")
-      .lte("timestamp", today + "T23:59:59"),
+    fetchAll((from, to) =>
+      supabase
+        .from("energy_readings")
+        .select("consumption_kwh, cost_egp")
+        .in("zone_id", zoneIds)
+        .gte("timestamp", monthStart + "T00:00:00")
+        .lte("timestamp", today + "T23:59:59")
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
 
     // Last 30 days for average
-    supabase
-      .from("energy_readings")
-      .select("consumption_kwh, cost_egp")
-      .in("zone_id", zoneIds)
-      .gte(
-        "timestamp",
-        new Date(new Date(today).getTime() - 30 * 86400000)
-          .toISOString()
-          .split("T")[0] + "T00:00:00"
-      )
-      .lte("timestamp", today + "T23:59:59"),
+    fetchAll((from, to) =>
+      supabase
+        .from("energy_readings")
+        .select("consumption_kwh, cost_egp")
+        .in("zone_id", zoneIds)
+        .gte(
+          "timestamp",
+          new Date(new Date(today).getTime() - 30 * 86400000)
+            .toISOString()
+            .split("T")[0] + "T00:00:00"
+        )
+        .lte("timestamp", today + "T23:59:59")
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
   ]);
 
   const todayKwh = (todayRes.data || []).reduce(
@@ -226,15 +243,19 @@ export async function getEnergyByZone(
 
   if (!zones || zones.length === 0) return [];
 
-  const { data: readings } = await supabase
-    .from("energy_readings")
-    .select("zone_id, consumption_kwh, cost_egp")
-    .in(
-      "zone_id",
-      zones.map((z) => z.id)
-    )
-    .gte("timestamp", today + "T00:00:00")
-    .lt("timestamp", today + "T23:59:59");
+  const readings = await fetchAll((from, to) =>
+    supabase
+      .from("energy_readings")
+      .select("zone_id, consumption_kwh, cost_egp")
+      .in(
+        "zone_id",
+        zones.map((z) => z.id)
+      )
+      .gte("timestamp", today + "T00:00:00")
+      .lt("timestamp", today + "T23:59:59")
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   // Aggregate by zone
   const zoneMap: Record<string, { kwh: number; cost: number }> = {};
@@ -282,12 +303,16 @@ export async function getEnergyHourly(
   const zoneIds = (zones || []).map((z) => z.id);
   if (zoneIds.length === 0) return [];
 
-  const { data } = await supabase
-    .from("energy_readings")
-    .select("timestamp, consumption_kwh, cost_egp")
-    .in("zone_id", zoneIds)
-    .gte("timestamp", today + "T00:00:00")
-    .lt("timestamp", today + "T23:59:59");
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("energy_readings")
+      .select("timestamp, consumption_kwh, cost_egp")
+      .in("zone_id", zoneIds)
+      .gte("timestamp", today + "T00:00:00")
+      .lt("timestamp", today + "T23:59:59")
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const hourlyMap: Record<number, { kwh: number; cost: number }> = {};
   (data || []).forEach((r) => {
@@ -335,12 +360,16 @@ export async function getEnergyTrend(
   const zoneIds = (zones || []).map((z) => z.id);
   if (zoneIds.length === 0) return [];
 
-  const { data } = await supabase
-    .from("energy_readings")
-    .select("timestamp, consumption_kwh, cost_egp")
-    .in("zone_id", zoneIds)
-    .gte("timestamp", startDate + "T00:00:00")
-    .lte("timestamp", today + "T23:59:59");
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("energy_readings")
+      .select("timestamp, consumption_kwh, cost_egp")
+      .in("zone_id", zoneIds)
+      .gte("timestamp", startDate + "T00:00:00")
+      .lte("timestamp", today + "T23:59:59")
+      .order("id")
+      .range(from, to)
+  ).catch(() => null);
 
   const dayMap: Record<string, { kwh: number; cost: number }> = {};
   (data || []).forEach((r) => {
@@ -377,25 +406,28 @@ export async function getEnergyVsFootfall(
 
   if (!zones || zones.length === 0) return [];
 
+  const zoneIdList = zones.map((z) => z.id);
   const [energyRes, footfallRes] = await Promise.all([
-    supabase
-      .from("energy_readings")
-      .select("zone_id, consumption_kwh, cost_egp")
-      .in(
-        "zone_id",
-        zones.map((z) => z.id)
-      )
-      .gte("timestamp", weekAgo + "T00:00:00")
-      .lte("timestamp", today + "T23:59:59"),
-    supabase
-      .from("footfall_daily")
-      .select("zone_id, total_in")
-      .in(
-        "zone_id",
-        zones.map((z) => z.id)
-      )
-      .gte("date", weekAgo)
-      .lte("date", today),
+    fetchAll((from, to) =>
+      supabase
+        .from("energy_readings")
+        .select("zone_id, consumption_kwh, cost_egp")
+        .in("zone_id", zoneIdList)
+        .gte("timestamp", weekAgo + "T00:00:00")
+        .lte("timestamp", today + "T23:59:59")
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
+    fetchAll((from, to) =>
+      supabase
+        .from("footfall_daily")
+        .select("zone_id, total_in")
+        .in("zone_id", zoneIdList)
+        .gte("date", weekAgo)
+        .lte("date", today)
+        .order("id")
+        .range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
   ]);
 
   // Aggregate energy by zone

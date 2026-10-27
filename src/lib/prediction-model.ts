@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 // ============================================================
 // Wedja ML Prediction Engine
@@ -170,11 +171,18 @@ export async function trainFootfallModel(
   propertyId: string = PROPERTY_ID
 ): Promise<TrainedModel> {
   // Fetch all footfall_daily records
-  const { data: rawData, error } = await supabase
-    .from("footfall_daily")
-    .select("date, total_in, zone_id")
-    .eq("property_id", propertyId)
-    .order("date", { ascending: true });
+  const { data: rawData, error } = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("date, total_in, zone_id")
+      .eq("property_id", propertyId)
+      .order("date", { ascending: true })
+      .order("id")
+      .range(from, to)
+  ).then(
+    (data) => ({ data, error: null }),
+    (e: Error) => ({ data: null, error: e })
+  );
 
   if (error) throw new Error(`Failed to query footfall_daily: ${error.message}`);
   if (!rawData || rawData.length === 0)
@@ -270,10 +278,17 @@ export async function trainRevenueModel(
   propertyId: string = PROPERTY_ID
 ): Promise<TrainedModel> {
   // Fetch rent_transactions with monthly aggregation
-  const { data: rawData, error } = await supabase
-    .from("rent_transactions")
-    .select("period_month, period_year, amount_paid, status, lease_id")
-    .not("amount_paid", "is", null);
+  const { data: rawData, error } = await fetchAll((from, to) =>
+    supabase
+      .from("rent_transactions")
+      .select("period_month, period_year, amount_paid, status, lease_id")
+      .not("amount_paid", "is", null)
+      .order("id")
+      .range(from, to)
+  ).then(
+    (data) => ({ data, error: null }),
+    (e: Error) => ({ data: null, error: e })
+  );
 
   if (error) throw new Error(`Failed to query rent_transactions: ${error.message}`);
   if (!rawData || rawData.length === 0)
@@ -558,11 +573,18 @@ async function backtestFootfall(
   supabase: SupabaseClient,
   propertyId: string
 ): Promise<BacktestResult> {
-  const { data: rawData, error } = await supabase
-    .from("footfall_daily")
-    .select("date, total_in")
-    .eq("property_id", propertyId)
-    .order("date", { ascending: true });
+  const { data: rawData, error } = await fetchAll((from, to) =>
+    supabase
+      .from("footfall_daily")
+      .select("date, total_in")
+      .eq("property_id", propertyId)
+      .order("date", { ascending: true })
+      .order("id")
+      .range(from, to)
+  ).then(
+    (data) => ({ data, error: null }),
+    (e: Error) => ({ data: null, error: e })
+  );
 
   if (error || !rawData || rawData.length < 10) {
     return emptyBacktest("footfall");
@@ -641,10 +663,17 @@ async function backtestRevenue(
   supabase: SupabaseClient,
   propertyId: string
 ): Promise<BacktestResult> {
-  const { data: rawData, error } = await supabase
-    .from("rent_transactions")
-    .select("period_month, period_year, amount_paid")
-    .not("amount_paid", "is", null);
+  const { data: rawData, error } = await fetchAll((from, to) =>
+    supabase
+      .from("rent_transactions")
+      .select("period_month, period_year, amount_paid")
+      .not("amount_paid", "is", null)
+      .order("id")
+      .range(from, to)
+  ).then(
+    (data) => ({ data, error: null }),
+    (e: Error) => ({ data: null, error: e })
+  );
 
   if (error || !rawData || rawData.length < 10) {
     return emptyBacktest("revenue");

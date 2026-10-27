@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth } from "@/lib/api-auth";
 import { NextRequest } from "next/server";
 import { logger } from "@/lib/logger";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 export const dynamic = "force-dynamic"; // v2
 
@@ -25,10 +26,14 @@ export async function GET(req: NextRequest) {
       footfallResult,
     ] = await Promise.all([
       // Total revenue (sum of amount_paid)
-      supabase
-        .from("rent_transactions")
-        .select("amount_paid")
-        .not("amount_paid", "is", null),
+      fetchAll((from, to) =>
+        supabase
+          .from("rent_transactions")
+          .select("amount_paid")
+          .not("amount_paid", "is", null)
+          .order("id")
+          .range(from, to)
+      ).then((data) => ({ data }), () => ({ data: null })),
 
       // Unit counts by status
       supabase.from("units").select("status"),
@@ -69,10 +74,14 @@ export async function GET(req: NextRequest) {
         .in("status", ["flagged", "investigating"]),
 
       // Today's footfall
-      supabase
-        .from("footfall_daily")
-        .select("total_in")
-        .eq("date", new Date().toISOString().split("T")[0]),
+      fetchAll((from, to) =>
+        supabase
+          .from("footfall_daily")
+          .select("total_in")
+          .eq("date", new Date().toISOString().split("T")[0])
+          .order("id")
+          .range(from, to)
+      ).then((data) => ({ data }), () => ({ data: null })),
     ]);
 
     // Calculate total revenue

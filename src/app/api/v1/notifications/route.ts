@@ -7,7 +7,7 @@ import {
   markAllRead,
   getUnreadCount,
 } from "@/lib/notifications";
-import { requireAuth } from "@/lib/api-auth";
+import { requireAuth, ALL_ROLES } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
 import { validateQuery, validateBody, formatZodErrors, notificationsQuerySchema, notificationActionSchema } from "@/lib/validation";
 
@@ -31,17 +31,19 @@ export async function GET(req: NextRequest) {
     const unreadOnly = queryValidation.data.unread === "true";
     const countOnly = queryValidation.data.count === "true";
 
+    const staffId = auth.staff.id;
     if (countOnly) {
-      const count = await getUnreadCount(supabase);
+      const count = await getUnreadCount(supabase, staffId);
       return NextResponse.json({ count });
     }
 
     const notifications = await getNotifications(supabase, {
       limit: 20,
       unreadOnly,
+      staffId,
     });
 
-    const unreadCount = await getUnreadCount(supabase);
+    const unreadCount = await getUnreadCount(supabase, staffId);
 
     return NextResponse.json({ notifications, unread_count: unreadCount });
   } catch (error) {
@@ -54,7 +56,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth(req);
+  // Everyone can mark their own notifications as read
+  const auth = await requireAuth(req, { roles: ALL_ROLES });
   if (auth instanceof NextResponse) return auth;
 
   try {
@@ -66,15 +69,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: formatZodErrors(validation.error) }, { status: 400 });
     }
 
-    // Mark read
+    // Mark read (own targeted notification, or own read mark on a broadcast)
     if (body.action === "mark_read" && body.id) {
-      const success = await markRead(supabase, body.id);
+      const success = await markRead(supabase, body.id, auth.staff.id);
       return NextResponse.json({ success });
     }
 
-    // Mark all read
+    // Mark all read — scoped to the caller, never to every staff member
     if (body.action === "mark_all_read") {
-      const success = await markAllRead(supabase);
+      const success = await markAllRead(supabase, auth.staff.id);
       return NextResponse.json({ success });
     }
 

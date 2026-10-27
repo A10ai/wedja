@@ -8,6 +8,7 @@ import {
 } from "@/lib/event-bus";
 import { requireAuth } from "@/lib/api-auth";
 import { logger } from "@/lib/logger";
+import { fetchAll } from "@/lib/supabase/fetch-all";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,10 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = createAdminClient();
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    const parsedLimit = parseInt(searchParams.get("limit") || "50", 10);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 500)
+      : 50;
     const typeFilter = searchParams.get("type");
     const sourceFilter = searchParams.get("source");
 
@@ -61,11 +65,15 @@ export async function GET(req: NextRequest) {
       .gte("created_at", todayStart.toISOString());
 
     // Total actions triggered today
-    const { data: todayEvents } = await supabase
-      .from("system_events")
-      .select("results")
-      .gte("created_at", todayStart.toISOString())
-      .eq("processed", true);
+    const todayEvents = await fetchAll((from, to) =>
+      supabase
+        .from("system_events")
+        .select("results")
+        .gte("created_at", todayStart.toISOString())
+        .eq("processed", true)
+        .order("id")
+        .range(from, to)
+    ).catch(() => null);
 
     const actionsToday = (todayEvents || []).reduce((sum, evt) => {
       const results = evt.results as Array<{ success: boolean }> | null;

@@ -4,6 +4,10 @@
  */
 
 import { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/fetch-all";
+import { logger } from "@/lib/logger";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface AuditEntry {
   user_id?: string;
@@ -18,10 +22,17 @@ export interface AuditEntry {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Write one audit row. Never throws and never rejects: an audit failure must
+ * not take the action it describes down with it, but it is logged so an
+ * empty trail is noticed (migration 00018 added the columns written here).
+ */
 export async function logAudit(supabase: SupabaseClient, entry: AuditEntry): Promise<void> {
   try {
-    await supabase.from("audit_log").insert({
-      user_id: entry.user_id || "system",
+    // audit_log.user_id is a UUID; system actions have no user.
+    const userId = entry.user_id && UUID_RE.test(entry.user_id) ? entry.user_id : null;
+    const { error } = await supabase.from("audit_log").insert({
+      user_id: userId,
       user_email: entry.user_email || "system@wedja.ai",
       action: entry.action,
       category: entry.category,
@@ -32,8 +43,11 @@ export async function logAudit(supabase: SupabaseClient, entry: AuditEntry): Pro
       new_data: entry.new_data || null,
       metadata: entry.metadata || {},
     });
-  } catch {
-    // Non-critical
+    if (error) {
+      logger.warn({ err: error.message, action: entry.action }, "[audit] insert failed");
+    }
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), action: entry.action }, "[audit] insert threw");
   }
 }
 
@@ -62,10 +76,14 @@ export async function getAuditStats(supabase: SupabaseClient) {
   const [totalRes, todayRes, catRes] = await Promise.all([
     supabase.from("audit_log").select("id", { count: "exact", head: true }),
     supabase.from("audit_log").select("id", { count: "exact", head: true }).gte("created_at", today),
-    supabase.from("audit_log").select("category"),
+    // Tally every row, not just the first 1000 PostgREST returns per select.
+    fetchAll((from, to) =>
+      supabase.from("audit_log").select("category").order("id").range(from, to)
+    ).then((data) => ({ data }), () => ({ data: null })),
   ]);
 
-  const byCategory: Record<string, number> = {};
+  // Prototype-free so a category literally named "toString" counts as 1, not NaN.
+  const byCategory: Record<string, number> = Object.create(null);
   (catRes.data || []).forEach((r: { category: string }) => {
     byCategory[r.category] = (byCategory[r.category] || 0) + 1;
   });
