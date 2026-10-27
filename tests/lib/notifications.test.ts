@@ -193,18 +193,96 @@ describe("notifications: markRead / markAllRead", () => {
     expect(only(sb).filters).toContain('eq("id", "")');
   });
 
-  test("markAllRead updates only currently-unread rows", async () => {
-    const sb = createMockSupabase();
-    expect(await markAllRead(sb)).toBe(true);
-    const c = only(sb);
-    expect(c.payloads[0]).toEqual({ read: true });
-    // NOTE: no staff_id scoping — marks every user's notifications as read.
-    expect(c.filters).toEqual(['update({"read":true})', 'eq("read", false)']);
+  test("markAllRead marks the caller's own unread rows, then their read marks on unread broadcasts", async () => {
+    const sb = createMockSupabase(
+      {},
+      {
+        sequences: {
+          notifications: [{ data: null }, { data: [{ id: "b1" }, { id: "b2" }, { id: "b3" }] }],
+          notification_reads: [{ data: [{ notification_id: "b2" }] }, { data: null }],
+        },
+      }
+    );
+    expect(await markAllRead(sb, "staff-1")).toBe(true);
+    expect(sb._calls.map((c: any) => c.table)).toEqual([
+      "notifications",
+      "notifications",
+      "notification_reads",
+      "notification_reads",
+    ]);
+    const own = sb._calls[0];
+    expect(own.payloads[0]).toEqual({ read: true });
+    expect(own.filters).toEqual(['update({"read":true})', 'eq("read", false)', 'eq("staff_id", "staff-1")']);
+    const broadcasts = sb._calls[1];
+    expect(broadcasts.filters).toContain('is("staff_id", null)');
+    expect(broadcasts.filters).toContain('eq("read", false)');
+    const marks = sb._calls[3];
+    expect(marks.payloads[0]).toEqual([
+      { notification_id: "b1", staff_id: "staff-1" },
+      { notification_id: "b3", staff_id: "staff-1" },
+    ]);
+  });
+
+  test("markAllRead with no unread broadcasts issues no read marks", async () => {
+    const sb = createMockSupabase({}, { sequences: { notifications: [{ data: null }, { data: [] }] } });
+    expect(await markAllRead(sb, "staff-1")).toBe(true);
+    expect(sb._calls).toHaveLength(2);
   });
 
   test("markAllRead returns false on error", async () => {
     const sb = createMockSupabase({}, { errors: { notifications: { message: "x" } } });
-    expect(await markAllRead(sb)).toBe(false);
+    expect(await markAllRead(sb, "staff-1")).toBe(false);
+  });
+
+  test("markRead with a caller scopes the update to their row and records a read mark", async () => {
+    const sb = createMockSupabase();
+    expect(await markRead(sb, "n-42", "staff-1")).toBe(true);
+    expect(sb._calls.map((c: any) => c.table)).toEqual(["notifications", "notification_reads"]);
+    expect(sb._calls[0].filters).toEqual(['update({"read":true})', 'eq("id", "n-42")', 'eq("staff_id", "staff-1")']);
+    expect(sb._calls[1].payloads[0]).toEqual({ notification_id: "n-42", staff_id: "staff-1" });
+  });
+});
+
+describe("notifications: per-caller visibility", () => {
+  test("getNotifications with staffId selects own rows plus broadcasts and applies personal read marks", async () => {
+    const rows = [
+      { id: "a", staff_id: "staff-1", read: false },
+      { id: "b", staff_id: null, read: false },
+      { id: "c", staff_id: null, read: false },
+    ];
+    const sb = createMockSupabase({ notifications: rows, notification_reads: [{ notification_id: "c" }] });
+    const out = await getNotifications(sb, { staffId: "staff-1" });
+    expect(sb._calls[0].filters).toContain('or("staff_id.eq.staff-1,staff_id.is.null")');
+    expect(sb._calls[1].table).toBe("notification_reads");
+    expect(sb._calls[1].filters).toEqual(['eq("staff_id", "staff-1")', 'in("notification_id", ["b","c"])']);
+    expect(out.map((n) => [n.id, n.read])).toEqual([["a", false], ["b", false], ["c", true]]);
+  });
+
+  test("getNotifications unreadOnly with staffId drops broadcasts the caller has read", async () => {
+    const rows = [
+      { id: "b", staff_id: null, read: false },
+      { id: "c", staff_id: null, read: false },
+    ];
+    const sb = createMockSupabase({ notifications: rows, notification_reads: [{ notification_id: "c" }] });
+    const out = await getNotifications(sb, { staffId: "staff-1", unreadOnly: true });
+    expect(sb._calls[0].filters).toContain('eq("read", false)');
+    expect(out.map((n) => n.id)).toEqual(["b"]);
+  });
+
+  test("getUnreadCount with staffId counts own unread rows plus unread broadcasts not yet marked", async () => {
+    const rows = [
+      { id: "a", staff_id: "staff-1" },
+      { id: "b", staff_id: null },
+      { id: "c", staff_id: null },
+    ];
+    const sb = createMockSupabase({ notifications: rows, notification_reads: [{ notification_id: "c" }] });
+    expect(await getUnreadCount(sb, "staff-1")).toBe(2);
+    expect(sb._calls[0].filters).toContain('or("staff_id.eq.staff-1,staff_id.is.null")');
+  });
+
+  test("getUnreadCount with staffId returns 0 on error", async () => {
+    const sb = createMockSupabase({ notifications: [{ id: "a", staff_id: null }] }, { errors: { notifications: { message: "x" } } });
+    expect(await getUnreadCount(sb, "staff-1")).toBe(0);
   });
 });
 

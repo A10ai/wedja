@@ -235,7 +235,7 @@ describe("event-bus: emitEvent core", () => {
     const audit = callsTo(sb, "audit_log");
     expect(audit).toHaveLength(1);
     expect(audit[0].payloads[0]).toMatchObject({
-      user_id: "system",
+      user_id: null,
       action: "event_emitted",
       category: "system",
       resource_type: "system_event",
@@ -404,7 +404,7 @@ describe("event-bus: built-in handlers", () => {
   // for X". The stored HandlerResult therefore claims an alert was sent when
   // none was. (In prod this matters: notifications.staff_id is NOT NULL in
   // 00001_foundation.sql, and the bus always inserts staff_id = null.)
-  test.fails("notify handler reports failure when the notification insert fails", async () => {
+  test("notify handler reports failure when the notification insert fails", async () => {
     const sb = sbFor({}, { errors: { notifications: { message: "staff_id not null" } } });
     const { results } = await bus.emitEvent("tenant.underreporting", "revenue-engine", { tenant_name: "X" }, sb);
     const notify = results.find((r) => r.handler === "notify-underreporting")!;

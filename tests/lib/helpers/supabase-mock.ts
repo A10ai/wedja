@@ -136,6 +136,7 @@ function chainable(config: QueryConfig, log: CallLog, maxRows?: number): any {
   chain.lt = filter("lt");
   chain.lte = filter("lte");
   chain.in = filter("in");
+  chain.is = filter("is");
   chain.not = filter("not");
   chain.or = filter("or");
   chain.like = filter("like");

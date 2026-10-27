@@ -33,6 +33,8 @@ Parsers moved to `src/lib/import-utils.ts` (pure, unit tested). New tests fail o
 
 ## 3. Critical findings NOT fixed (need a decision / migration)
 
+> **Update 27 Oct 2026:** all four are fixed on this branch — migration `00018_audit_columns_and_broadcast_notifications.sql` adds the columns `logAudit` writes and makes `notifications.staff_id` nullable (NULL = broadcast) with per-person read marks in `notification_reads`; `logAudit` logs insert errors and stores non-UUID user ids as null; `markAllRead` / `markRead` / `getUnreadCount` / `getNotifications` are scoped to the caller; notify handlers report the insert result; the console logger honours `LOG_LEVEL`. The matching `test.fails` cases are now ordinary tests.
+
 1. **Audit log is not being written.** `logAudit` inserts `category`, `description`, `user_email`, `resource_*`, `metadata` — none exist on `audit_log` (migration 00001) — and writes `user_id: "system"` into a UUID column. It also ignores the returned `{ error }`, so the failure is silent. Violates "audit log everything".
 2. **Notifications insert `staff_id: null`** but the column is `NOT NULL` → all system notifications (underreporting alerts, overdue rent, lease expiry) fail. Event-bus handlers report `success: true` regardless.
 3. **`markAllRead` has no staff filter** — marks every user's notifications as read.

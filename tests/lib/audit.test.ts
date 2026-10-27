@@ -1,5 +1,8 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import { createMockSupabase } from "./helpers/supabase-mock";
+// audit.ts logs failures through the project logger, which imports "server-only".
+vi.mock("server-only", () => ({}));
+
 import { logAudit, getAuditLog, getAuditStats } from "@/lib/audit";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -27,7 +30,7 @@ describe("audit: logAudit", () => {
     const sb = createMockSupabase();
     await logAudit(sb, { action: "lease.update", category: "contracts", description: "x" });
     expect(sb._calls[0].payloads[0]).toEqual({
-      user_id: "system",
+      user_id: null,
       user_email: "system@wedja.ai",
       action: "lease.update",
       category: "contracts",
@@ -43,7 +46,7 @@ describe("audit: logAudit", () => {
   test("passes through every provided field unchanged", async () => {
     const sb = createMockSupabase();
     const entry = {
-      user_id: "u-1",
+      user_id: "6b5d1c3e-9f2a-4e6b-8c1d-2a3b4c5d6e7f",
       user_email: "owner@senzo.eg",
       action: "approve",
       category: "ai_decision",
@@ -58,11 +61,17 @@ describe("audit: logAudit", () => {
     expect(sb._calls[0].payloads[0]).toEqual(entry);
   });
 
+  test("a user_id that is not a UUID is stored as null (audit_log.user_id is UUID)", async () => {
+    const sb = createMockSupabase();
+    await logAudit(sb, { user_id: "system", action: "a", category: "c", description: "d" });
+    expect(sb._calls[0].payloads[0].user_id).toBeNull();
+  });
+
   test("empty-string user_id / email fall back to system identity", async () => {
     const sb = createMockSupabase();
     await logAudit(sb, { user_id: "", user_email: "", action: "a", category: "c", description: "d" });
     const p = sb._calls[0].payloads[0];
-    expect(p.user_id).toBe("system");
+    expect(p.user_id).toBeNull();
     expect(p.user_email).toBe("system@wedja.ai");
   });
 
@@ -101,7 +110,7 @@ describe("audit: logAudit", () => {
   // never fires and failed audit writes vanish without any log line. (Relevant
   // because 00001_foundation.sql's audit_log has no category/description/
   // user_email/metadata columns and user_id is UUID, so "system" is rejected.)
-  test.fails("surfaces (logs) an insert error returned by supabase", async () => {
+  test("surfaces (logs) an insert error returned by supabase", async () => {
     const sb = createMockSupabase({}, { errors: { audit_log: { message: "invalid input syntax for type uuid" } } });
     await logAudit(sb, { action: "a", category: "c", description: "d" });
     expect(errSpy.mock.calls.length + warnSpy.mock.calls.length).toBeGreaterThan(0);
@@ -236,7 +245,7 @@ describe("audit: getAuditStats", () => {
   // "function toString() { [native code] }11" instead of a count of 2.
   // Low severity (categories are code-controlled) but trivially fixed with
   // Object.create(null) / Map / hasOwn.
-  test.fails("category histogram is not polluted by prototype keys", async () => {
+  test("category histogram is not polluted by prototype keys", async () => {
     const sb = createMockSupabase({}, {
       sequences: { audit_log: [{}, {}, { data: [{ category: "toString" }, { category: "toString" }] }] },
     });

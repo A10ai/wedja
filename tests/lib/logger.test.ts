@@ -174,7 +174,7 @@ describe("logger: level threshold", () => {
   // this repo, since pino is not installed) never consults `level`; LOG_LEVEL
   // and the production default of "info" are computed and then ignored, so
   // debug/trace lines are always emitted.
-  test.fails("LOG_LEVEL=warn suppresses info/debug/trace", async () => {
+  test("LOG_LEVEL=warn suppresses info/debug/trace", async () => {
     const { logger } = await load({ LOG_LEVEL: "warn" });
     logger.info("i");
     logger.debug("d");
@@ -183,14 +183,14 @@ describe("logger: level threshold", () => {
   });
 
   // BUG: same as above — production default level "info" is not enforced.
-  test.fails("production default (info) suppresses debug", async () => {
+  test("production default (info) suppresses debug", async () => {
     const { logger } = await load({ LOG_LEVEL: undefined, NODE_ENV: "production" });
     logger.debug("d");
     expect(spies.debug).not.toHaveBeenCalled();
   });
 
   // BUG: same root cause — child loggers also ignore the threshold.
-  test.fails("child loggers respect LOG_LEVEL=error", async () => {
+  test("child loggers respect LOG_LEVEL=error", async () => {
     const { createLogger } = await load({ LOG_LEVEL: "error" });
     createLogger("m").warn("w");
     expect(spies.warn).not.toHaveBeenCalled();

@@ -15,6 +15,8 @@ import "server-only";
 
 type LogLevel = "fatal" | "error" | "warn" | "info" | "debug" | "trace";
 
+const LEVEL_RANK: Record<LogLevel, number> = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60 };
+
 interface LogContext {
   [key: string]: unknown;
 }
@@ -41,7 +43,9 @@ let _pinoInstance: PinoLogger | null = null;
 
 function createPinoInstance(): PinoLogger {
   const isDev = process.env.NODE_ENV === "development";
-  const level = (process.env.LOG_LEVEL as LogLevel) || (isDev ? "debug" : "info");
+  const requested = (process.env.LOG_LEVEL || "").toLowerCase() as LogLevel;
+  const level: LogLevel = requested in LEVEL_RANK ? requested : isDev ? "debug" : "info";
+  const threshold = LEVEL_RANK[level];
 
   // Try to load pino; fall back to console shim if not installed
   try {
@@ -69,9 +73,11 @@ function createPinoInstance(): PinoLogger {
     };
     return pino(opts) as PinoLogger;
   } catch {
-    // Fallback: console-based logger with same interface
+    // Fallback: console-based logger with same interface. Honours the level
+    // threshold like pino would, so production does not emit debug/trace.
     const consoleLog = (level: LogLevel) => {
       return (objOrMsg: LogContext | string, msg?: string) => {
+        if (LEVEL_RANK[level] < threshold) return;
         const context = typeof objOrMsg === "string" ? {} : objOrMsg;
         const message = typeof objOrMsg === "string" ? objOrMsg : msg || "";
         const ts = new Date().toISOString();
